@@ -43,7 +43,7 @@ class SeattleBillScraper(Scraper):
     def parse_matter(self, matter: Dict[str, Any]) -> Bill:
         """Convert a matter JSON record into a Pupa Bill object.
 
-        Args:
+        Parameters:
             matter: A dictionary containing API data for a single matter.
 
         Returns:
@@ -70,7 +70,7 @@ class SeattleBillScraper(Scraper):
     def classify_matter(self, matter: Dict[str, Any]) -> str:
         """Return the classification string for the matter.
 
-        Args:
+        Parameters:
             matter: A dictionary containing API data for a matter.
 
         Returns:
@@ -86,7 +86,7 @@ class SeattleBillScraper(Scraper):
     def parse_date(self, value):
         """Parse an ISO 8601 string into a datetime.
 
-        Args:
+        Parameters:
             value: ISO 8601 date string.
 
         Returns:
