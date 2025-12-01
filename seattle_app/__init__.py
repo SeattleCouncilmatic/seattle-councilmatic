@@ -1,0 +1,1 @@
+default_app_config = 'seattle_app.apps.SeattleAppConfig'
