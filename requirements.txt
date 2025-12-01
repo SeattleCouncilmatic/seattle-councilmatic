@@ -1,15 +1,20 @@
+# requirements.txt
+# Requires Python 3.11+
+
 # Core Django and database
-Django<5
-psycopg2-binary>=2.9.5
-dj-database-url
+Django>=4.2,<5
+psycopg2-binary>=2.9.9
+dj-database-url>=2.1.0
 
 # Councilmatic core
 django-councilmatic[all] @ https://github.com/datamade/django-councilmatic/archive/refs/heads/5.x.zip
-pupa
-scraper-legistar
+
+# Legislative data scraping
+pupa>=0.11.0
+scraper-legistar>=0.0.2
 
 # Static files and frontend
-django-webpack-loader>=2.0.0
+django-webpack-loader>=2.0.1
 whitenoise>=6.6.0
 
 # Development and debugging
