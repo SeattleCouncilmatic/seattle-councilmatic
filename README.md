@@ -28,4 +28,4 @@ Built with:
 
 ## License
 
-Released under the ~[MIT License](https://github.com/SeattleCouncilmatic/seattle-councilmatic/blob/main/LICENSE)~.
+Released under the [MIT License](https://github.com/SeattleCouncilmatic/seattle-councilmatic/blob/main/LICENSE).
