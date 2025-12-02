@@ -62,6 +62,14 @@ services:
     volumes:
       - seattle_es_data:/usr/share/elasticsearch/data
 
+  frontend:
+    build: ./frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    
 volumes:
   seattle_node_modules:
   seattle_postgres_data:
