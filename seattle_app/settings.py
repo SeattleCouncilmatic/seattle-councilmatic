@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "councilmatic_core",
     "seattle_app",
     "seattle",
+    "reps",
     # Search layer - Remove if search not required
     "councilmatic_search",
     "haystack",

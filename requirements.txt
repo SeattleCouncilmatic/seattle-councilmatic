@@ -25,3 +25,6 @@ pytz>=2023.3
 
 # Environment management
 python-dotenv>=1.0.0
+
+# For geocoding addresses
+geopy>=2.4.0
