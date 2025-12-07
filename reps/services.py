@@ -7,10 +7,12 @@ This module handles:
 - Looking up representatives for a district
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 from django.contrib.gis.geos import Point
+from django.db import models
+from councilmatic_core.models import Person, Membership
 from .models import District
 
 
@@ -185,12 +187,76 @@ class RepLookupService:
         if not district:
             return None
 
-        # TODO: Once we integrate with Person model, fetch actual representatives
-        # For now, just return district info
+        # Fetch representatives for this district
+        representatives = self._get_representatives_for_district(district.number)
+
         return {
             'district': {
                 'number': district.number,
                 'name': district.name
             },
-            'representatives': []  # Will populate this next
+            'representatives': representatives
         }
+
+    def _get_representatives_for_district(self, district_number: str) -> List[Dict[str, Any]]:
+        """
+        Get council members representing the given district.
+
+        Includes both district-specific representative AND at-large representatives
+        (Position 8 and Position 9) who represent the entire city.
+
+        Args:
+            district_number: District number (1-7) or "At Large"
+
+        Returns:
+            List of representative info dicts
+
+        Example:
+            >>> service = RepLookupService()
+            >>> reps = service._get_representatives_for_district("7")
+            >>> print(reps)
+            [
+                {'name': 'Robert Kettle', 'role': 'Councilmember', 'district': 'District 7', ...},
+                {'name': 'Sara Nelson', 'role': 'Councilmember', 'district': 'Position 9', ...},
+                {'name': 'Alexis Mercedes Rinck', 'role': 'Councilmember', 'district': 'Position 8', ...}
+            ]
+        """
+        # Query for district-specific representative
+        district_label = f"District {district_number}"
+
+        # Also get at-large representatives (Position 8 and Position 9)
+        # They represent the entire city
+        memberships = Membership.objects.filter(
+            organization__name="Seattle City Council"
+        ).filter(
+            models.Q(label=district_label) |
+            models.Q(label__startswith="Position")
+        ).select_related('person').order_by('label')
+
+        representatives = []
+        for membership in memberships:
+            person = membership.person
+
+            rep_data = {
+                'name': person.name,
+                'role': membership.role,
+                'district': membership.label,
+            }
+
+            # Add contact details if available
+            contact_details = person.contact_details.all()
+            for contact in contact_details:
+                if contact.type == 'email':
+                    rep_data['email'] = contact.value
+                elif contact.type == 'voice':
+                    rep_data['phone'] = contact.value
+
+            # Add links if available
+            links = person.links.all()
+            for link in links:
+                if link.note == 'City Council profile':
+                    rep_data['profile_url'] = link.url
+
+            representatives.append(rep_data)
+
+        return representatives

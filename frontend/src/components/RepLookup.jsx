@@ -127,18 +127,43 @@ export default function RepLookup() {
             {result.representatives && result.representatives.length > 0 ? (
               <div className="representatives">
                 <h3>Your Representatives</h3>
-                <ul>
-                  {result.representatives.map((rep, index) => (
-                    <li key={index} className="rep-item">
-                      <strong>{rep.name}</strong>
-                      {rep.title && <span className="rep-title">{rep.title}</span>}
-                    </li>
-                  ))}
-                </ul>
+                {result.representatives.map((rep, index) => (
+                  <div key={index} className="rep-card">
+                    <div className="rep-header">
+                      <Users size={20} />
+                      <div>
+                        <h4>{rep.name}</h4>
+                        <span className="rep-district-label">{rep.district}</span>
+                      </div>
+                    </div>
+                    <p className="rep-role">{rep.role}</p>
+                    <div className="rep-contact">
+                      {rep.email && (
+                        <a href={`mailto:${rep.email}`} className="contact-link">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                            <polyline points="22,6 12,13 2,6" />
+                          </svg>
+                          {rep.email}
+                        </a>
+                      )}
+                      {rep.profile_url && (
+                        <a href={rep.profile_url} target="_blank" rel="noopener noreferrer" className="contact-link">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                            <polyline points="15 3 21 3 21 9" />
+                            <line x1="10" y1="14" x2="21" y2="3" />
+                          </svg>
+                          View Profile
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="no-reps">
-                <p>Representative information coming soon!</p>
+                <p>No representative data available for this district.</p>
               </div>
             )}
           </div>
