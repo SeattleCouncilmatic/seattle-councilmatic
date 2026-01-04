@@ -200,10 +200,12 @@ class RepLookupService:
 
     def _get_representatives_for_district(self, district_number: str) -> List[Dict[str, Any]]:
         """
-        Get council members representing the given district.
+        Get CURRENT council members representing the given district.
 
         Includes both district-specific representative AND at-large representatives
         (Position 8 and Position 9) who represent the entire city.
+
+        Only returns currently serving council members (is_current=True).
 
         Args:
             district_number: District number (1-7) or "At Large"
@@ -217,7 +219,7 @@ class RepLookupService:
             >>> print(reps)
             [
                 {'name': 'Robert Kettle', 'role': 'Councilmember', 'district': 'District 7', ...},
-                {'name': 'Sara Nelson', 'role': 'Councilmember', 'district': 'Position 9', ...},
+                {'name': 'Dionne Foster', 'role': 'Councilmember', 'district': 'Position 9', ...},
                 {'name': 'Alexis Mercedes Rinck', 'role': 'Councilmember', 'district': 'Position 8', ...}
             ]
         """
@@ -226,37 +228,56 @@ class RepLookupService:
 
         # Also get at-large representatives (Position 8 and Position 9)
         # They represent the entire city
-        memberships = Membership.objects.filter(
-            organization__name="Seattle City Council"
-        ).filter(
-            models.Q(label=district_label) |
-            models.Q(label__startswith="Position")
-        ).select_related('person').order_by('label')
+        # Filter by is_current to only get currently serving members
+        from django.db import connection
 
-        representatives = []
-        for membership in memberships:
-            person = membership.person
+        # Use raw SQL to join with councilmatic_core_person and filter by is_current
+        # This is necessary because is_current is a dynamically added column
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT DISTINCT
+                    p.name,
+                    m.role,
+                    m.label,
+                    p.id as person_id
+                FROM opencivicdata_membership m
+                INNER JOIN opencivicdata_person p ON m.person_id = p.id
+                INNER JOIN opencivicdata_organization o ON m.organization_id = o.id
+                INNER JOIN councilmatic_core_person cp ON cp.person_id = p.id
+                WHERE o.name = 'Seattle City Council'
+                  AND cp.is_current = TRUE
+                  AND (m.label = %s OR m.label LIKE 'Position%%')
+                ORDER BY m.label
+            """, [district_label])
 
-            rep_data = {
-                'name': person.name,
-                'role': membership.role,
-                'district': membership.label,
-            }
+            representatives = []
+            for row in cursor.fetchall():
+                name, role, label, person_id = row
 
-            # Add contact details if available
-            contact_details = person.contact_details.all()
-            for contact in contact_details:
-                if contact.type == 'email':
-                    rep_data['email'] = contact.value
-                elif contact.type == 'voice':
-                    rep_data['phone'] = contact.value
+                # Get the Person object for additional details
+                from opencivicdata.core.models import Person as OCDPerson
+                person = OCDPerson.objects.get(id=person_id)
 
-            # Add links if available
-            links = person.links.all()
-            for link in links:
-                if link.note == 'City Council profile':
-                    rep_data['profile_url'] = link.url
+                rep_data = {
+                    'name': name,
+                    'role': role,
+                    'district': label,
+                }
 
-            representatives.append(rep_data)
+                # Add contact details if available
+                contact_details = person.contact_details.all()
+                for contact in contact_details:
+                    if contact.type == 'email':
+                        rep_data['email'] = contact.value
+                    elif contact.type == 'voice':
+                        rep_data['phone'] = contact.value
+
+                # Add links if available
+                links = person.links.all()
+                for link in links:
+                    if link.note == 'City Council profile':
+                        rep_data['profile_url'] = link.url
+
+                representatives.append(rep_data)
 
         return representatives
