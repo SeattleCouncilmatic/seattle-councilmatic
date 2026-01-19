@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Search, MapPin, Users, AlertCircle, Loader2 } from 'lucide-react';
+import DistrictMap from './DistrictMap';
 import './RepLookup.css';
 
 export default function RepLookup() {
@@ -121,8 +122,11 @@ export default function RepLookup() {
               <div className="district-number">
                 District {result.district.number}
               </div>
-              <p className="district-name">{result.district.name}</p>
             </div>
+
+            {result.district.geometry && (
+              <DistrictMap geometry={result.district.geometry} />
+            )}
 
             {result.representatives && result.representatives.length > 0 ? (
               <div className="representatives">

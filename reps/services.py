@@ -190,10 +190,15 @@ class RepLookupService:
         # Fetch representatives for this district
         representatives = self._get_representatives_for_district(district.number)
 
+        # Convert geometry to GeoJSON for frontend mapping
+        import json
+        geometry_geojson = json.loads(district.geometry.geojson) if district.geometry else None
+
         return {
             'district': {
                 'number': district.number,
-                'name': district.name
+                'name': district.name,
+                'geometry': geometry_geojson
             },
             'representatives': representatives
         }
