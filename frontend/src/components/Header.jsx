@@ -5,15 +5,15 @@ export default function Header() {
     <header className="header">
       <div className="header-container">
         <div className="header-content">
-          
+
           {/* logo and title */}
           <div className="logo-section">
-            
+
             {/* logo icon */}
             <div className="logo-icon">
               <Landmark className="icon" strokeWidth={2.5} />
             </div>
-            
+
             {/* title and subtitle */}
             <div>
               <h1 className="title">Seattle Councilmatic</h1>
@@ -22,7 +22,7 @@ export default function Header() {
               </p>
             </div>
           </div>
-          
+
         </div>
       </div>
     </header>

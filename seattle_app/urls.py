@@ -13,6 +13,7 @@ urlpatterns = [
     path("", views.IndexView.as_view(), name="index"),
     path("robots.txt", views.robots_txt, name="robots_txt"),
     path("admin/", admin.site.urls),
+    path("api/reps/", include("reps.urls")),
     path("", include("councilmatic_search.urls")),
     path("", include("councilmatic_cms.urls")),
 ]
