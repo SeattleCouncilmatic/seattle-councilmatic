@@ -26,12 +26,23 @@ class Seattle(Jurisdiction):
     # If session doesn't exist, import fails with foreign key error
     legislative_sessions = [
         {
+            "identifier": "2024",
+            "name": "2024 Legislative Session",
+            "start_date": "2024-01-01",
+            "end_date": "2024-12-31",
+        },
+        {
             "identifier": "2025",
             "name": "2025 Legislative Session",
             "start_date": "2025-01-01",
             "end_date": "2025-12-31",
         },
-        # Add other years as needed
+        {
+            "identifier": "2026",
+            "name": "2026 Legislative Session",
+            "start_date": "2026-01-01",
+            "end_date": "2026-12-31",
+        },
     ]
     
     # Defines the structure of Seattle City Council

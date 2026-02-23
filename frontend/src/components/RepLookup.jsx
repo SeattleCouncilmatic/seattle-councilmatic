@@ -110,7 +110,7 @@ export default function RepLookup() {
     setResult(null);
 
     try {
-      const response = await fetch('http://localhost:8000/api/reps/lookup/', {
+      const response = await fetch('/api/reps/lookup/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address: address.trim() }),

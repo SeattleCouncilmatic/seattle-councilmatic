@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 import requests
 
@@ -7,7 +7,9 @@ from pupa.scrape import Bill, Scraper
 CLIENT = "seattle"
 BASE_URL = f"https://webapi.legistar.com/v1/{CLIENT}"
 ENDPOINT = "matters"
-YEAR = 2025  # for prototyping will get the bills from this year
+
+# Rolling window: bills introduced in the past 18 months
+_WINDOW_DAYS = 548  # ~18 months
 
 MatterDict = dict[str, Any]
 
@@ -34,8 +36,14 @@ class SeattleBillScraper(Scraper):
             List[Dict[str, Any]]: A list of matter records.
         """
         url = f"{BASE_URL}/{ENDPOINT}"
+        window_start = (datetime.now(timezone.utc) - timedelta(days=_WINDOW_DAYS)).strftime('%Y-%m-%d')
         parameters = {
-            "$filter": f"year(MatterIntroDate) eq {YEAR} and (MatterTypeName eq 'Council Bill (CB)' or MatterTypeName eq 'Ordinance (Ord)' or MatterTypeName eq 'Resolution (Res)')",
+            "$filter": (
+                f"MatterIntroDate ge datetime'{window_start}'"
+                f" and (MatterTypeName eq 'Council Bill (CB)'"
+                f" or MatterTypeName eq 'Ordinance (Ord)'"
+                f" or MatterTypeName eq 'Resolution (Res)')"
+            ),
             "$orderby": "MatterIntroDate desc",
         }
         try:
@@ -56,14 +64,15 @@ class SeattleBillScraper(Scraper):
             Bill: A populated Pupa Bill object.
         """
         classification = self.classify_matter(matter)
+        intro_date = self.parse_date(matter.get("MatterIntroDate"))
+        session = str(intro_date.year) if intro_date else str(datetime.now(timezone.utc).year)
         bill = Bill(
             identifier=matter.get("MatterFile"),
-            legislative_session=str(YEAR),
+            legislative_session=session,
             title=matter.get("MatterTitle"),
             classification=[classification],
         )
 
-        intro_date = self.parse_date(matter.get("MatterIntroDate"))
         if intro_date:
             bill.add_action(description="Introduced", date=intro_date)
 

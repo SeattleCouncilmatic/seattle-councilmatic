@@ -1,5 +1,7 @@
 import Header from './components/Header'
+import NavBar from './components/NavBar'
 import RepLookup from './components/RepLookup'
+import ThisWeek from './components/ThisWeek'
 import './App.css'
 
 function App() {
@@ -7,6 +9,8 @@ function App() {
     <>
       <Header />
       <RepLookup />
+      <NavBar activeItem="This Week" />
+      <ThisWeek />
     </>
   )
 }
