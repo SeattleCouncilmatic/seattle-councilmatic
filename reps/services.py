@@ -198,6 +198,7 @@ class RepLookupService:
             'district': {
                 'number': district.number,
                 'name': district.name,
+                'description': district.description,
                 'geometry': geometry_geojson
             },
             'representatives': representatives
@@ -263,10 +264,23 @@ class RepLookupService:
                 from opencivicdata.core.models import Person as OCDPerson
                 person = OCDPerson.objects.get(id=person_id)
 
+                # Look up district description for this label
+                district_description = ''
+                try:
+                    if label.startswith('District '):
+                        d = District.objects.filter(number=label.split(' ')[1]).first()
+                    else:
+                        d = District.objects.filter(number='At Large').first()
+                    if d:
+                        district_description = d.description
+                except Exception:
+                    pass
+
                 rep_data = {
                     'name': name,
                     'role': role,
                     'district': label,
+                    'district_description': district_description,
                 }
 
                 # Add contact details if available

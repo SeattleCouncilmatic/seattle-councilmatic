@@ -30,6 +30,14 @@ class District(models.Model):
         help_text="District boundary polygon(s)"
     )
 
+    # Short description of the area represented (e.g. "Representing Ballard, Fremont, and Green Lake")
+    description = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="Short description of the neighborhoods/area this district covers"
+    )
+
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

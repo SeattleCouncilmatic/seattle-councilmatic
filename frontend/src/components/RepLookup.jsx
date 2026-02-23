@@ -1,7 +1,95 @@
 import { useState } from 'react';
-import { Search, MapPin, Users, AlertCircle, Loader2 } from 'lucide-react';
+import { MapPin, Phone, Mail, ExternalLink, Users, AlertCircle, Clock } from 'lucide-react';
 import DistrictMap from './DistrictMap';
+import HeroSection from './HeroSection';
 import './RepLookup.css';
+
+function RepCard({ rep }) {
+  const isAtLarge = rep.district && rep.district.toLowerCase().includes('position');
+  const districtLabel = isAtLarge
+    ? rep.district.replace('Position', 'Position').toUpperCase()
+    : rep.district.toUpperCase();
+
+  return (
+    <div className="rep-card-v2">
+      <div className="rep-card-photo-wrapper">
+        {rep.photo_url ? (
+          <img
+            src={rep.photo_url}
+            alt={rep.name}
+            className="rep-card-photo"
+          />
+        ) : (
+          <div className="rep-card-photo-placeholder" aria-hidden="true">
+            <Users size={32} />
+          </div>
+        )}
+      </div>
+
+      <div className="rep-card-district-chip">{districtLabel}</div>
+
+      <h4 className="rep-card-name">{rep.name}</h4>
+
+      {rep.district_description && (
+        <p className="rep-card-area">{rep.district_description}</p>
+      )}
+
+      <div className="rep-card-contacts">
+        {rep.phone && (
+          <div className="rep-contact-row">
+            <Phone size={15} className="rep-contact-icon" aria-hidden="true" />
+            <div>
+              <span className="rep-contact-label">Phone</span>
+              <a href={`tel:${rep.phone}`} className="rep-contact-value">
+                {rep.phone}
+              </a>
+            </div>
+          </div>
+        )}
+        {rep.email && (
+          <div className="rep-contact-row">
+            <Mail size={15} className="rep-contact-icon" aria-hidden="true" />
+            <div>
+              <span className="rep-contact-label">Email</span>
+              <a href={`mailto:${rep.email}`} className="rep-contact-value">
+                {rep.email}
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="rep-card-actions">
+        {rep.profile_url && (
+          <a
+            href={rep.profile_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rep-action-btn rep-action-btn--outline"
+          >
+            Voting Record
+            <ExternalLink size={13} aria-hidden="true" />
+          </a>
+        )}
+        {rep.office_hours_url ? (
+          <a
+            href={rep.office_hours_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rep-action-btn rep-action-btn--outline"
+          >
+            Office Hours
+            <Clock size={13} aria-hidden="true" />
+          </a>
+        ) : (
+          <button className="rep-action-btn rep-action-btn--outline" disabled>
+            Office Hours
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function RepLookup() {
   const [address, setAddress] = useState('');
@@ -24,9 +112,7 @@ export default function RepLookup() {
     try {
       const response = await fetch('http://localhost:8000/api/reps/lookup/', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address: address.trim() }),
       });
 
@@ -52,76 +138,36 @@ export default function RepLookup() {
   };
 
   return (
-    <div className="rep-lookup">
-      <div className="rep-lookup-container">
-        <div className="rep-lookup-header">
-          <Users className="header-icon" size={32} />
-          <h1>Find Your City Council Representative</h1>
-          <p>Enter your Seattle address to find your city council district and representatives</p>
-        </div>
+    <>
+      <HeroSection
+        address={address}
+        onChange={(e) => setAddress(e.target.value)}
+        onSubmit={handleSubmit}
+        loading={loading}
+      />
 
-        <form onSubmit={handleSubmit} className="lookup-form">
-          <div className="input-group">
-            <MapPin className="input-icon" size={20} />
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Enter your Seattle address (e.g., 123 Main St, Seattle, WA)"
-              className="address-input"
-              disabled={loading}
-            />
-          </div>
-
-          <div className="button-group">
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading || !address.trim()}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="btn-icon spinning" size={20} />
-                  Looking up...
-                </>
-              ) : (
-                <>
-                  <Search className="btn-icon" size={20} />
-                  Find My District
-                </>
-              )}
-            </button>
-
-            {(result || error) && (
-              <button
-                type="button"
-                onClick={handleClear}
-                className="btn btn-secondary"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </form>
-
+      <div className="rep-lookup-body">
         {error && (
-          <div className="alert alert-error">
-            <AlertCircle size={20} />
+          <div className="alert alert-error" role="alert">
+            <AlertCircle size={20} aria-hidden="true" />
             <span>{error}</span>
+            <button
+              className="alert-clear-btn"
+              onClick={handleClear}
+              aria-label="Dismiss error"
+            >
+              ×
+            </button>
           </div>
         )}
 
         {result && (
-          <div className="result-card">
-            <div className="result-header">
-              <MapPin size={24} />
-              <h2>Your District</h2>
-            </div>
-
-            <div className="district-info">
-              <div className="district-number">
-                District {result.district.number}
-              </div>
+          <div className="result-section">
+            <div className="result-district-header">
+              <MapPin size={20} aria-hidden="true" />
+              <span>
+                Your address is in <strong>{result.district.name}</strong>
+              </span>
             </div>
 
             {result.district.geometry && (
@@ -129,50 +175,27 @@ export default function RepLookup() {
             )}
 
             {result.representatives && result.representatives.length > 0 ? (
-              <div className="representatives">
-                <h3>Your Representatives</h3>
-                {result.representatives.map((rep, index) => (
-                  <div key={index} className="rep-card">
-                    <div className="rep-header">
-                      <Users size={20} />
-                      <div>
-                        <h4>{rep.name}</h4>
-                        <span className="rep-district-label">{rep.district}</span>
-                      </div>
-                    </div>
-                    <p className="rep-role">{rep.role}</p>
-                    <div className="rep-contact">
-                      {rep.email && (
-                        <a href={`mailto:${rep.email}`} className="contact-link">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                            <polyline points="22,6 12,13 2,6" />
-                          </svg>
-                          {rep.email}
-                        </a>
-                      )}
-                      {rep.profile_url && (
-                        <a href={rep.profile_url} target="_blank" rel="noopener noreferrer" className="contact-link">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                            <polyline points="15 3 21 3 21 9" />
-                            <line x1="10" y1="14" x2="21" y2="3" />
-                          </svg>
-                          View Profile
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <section aria-label="Your Representatives">
+                <p className="reps-eyebrow">YOUR REPRESENTATIVES</p>
+                <h2 className="reps-heading">Based on your location</h2>
+                <div className="rep-cards-grid">
+                  {result.representatives.map((rep, index) => (
+                    <RepCard key={index} rep={rep} />
+                  ))}
+                </div>
+              </section>
             ) : (
               <div className="no-reps">
                 <p>No representative data available for this district.</p>
               </div>
             )}
+
+            <button className="btn-clear-results" onClick={handleClear}>
+              Search a different address
+            </button>
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }
