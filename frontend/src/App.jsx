@@ -4,6 +4,7 @@ import NavBar from './components/NavBar'
 import RepLookup from './components/RepLookup'
 import ThisWeek from './components/ThisWeek'
 import LegislationDetail from './components/LegislationDetail'
+import MeetingDetail from './components/MeetingDetail'
 import './App.css'
 
 function HomePage() {
@@ -23,6 +24,7 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/legislation/:slug" element={<LegislationDetail />} />
+        <Route path="/events/:slug" element={<MeetingDetail />} />
       </Routes>
     </BrowserRouter>
   )

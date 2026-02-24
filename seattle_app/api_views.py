@@ -126,6 +126,36 @@ def upcoming_meetings(request):
 
 
 @require_GET
+def meeting_detail(request, slug):
+    """
+    GET /api/meetings/<slug>/
+
+    Returns full detail for a single event: core fields, location, and
+    a link to the Legistar event page.
+    """
+    event = get_object_or_404(Event.objects.prefetch_related('sources'), slug=slug)
+
+    start = event.start_date
+    end   = event.end_date
+
+    # Use the EventInSiteURL stored as a source during scraping — it contains
+    # the correct LEGID/GID/G parameters for the public Legistar site.
+    source = event.sources.first()
+    legistar_url = source.url if source else None
+
+    return JsonResponse({
+        'name':        event.name,
+        'slug':        event.slug,
+        'start_date':  start if isinstance(start, str) else start.isoformat() if start else None,
+        'end_date':    (end if isinstance(end, str) else end.isoformat() if end else None) or None,
+        'status':      event.status,
+        'location':    str(event.location).strip() if event.location else None,
+        'description': event.description or '',
+        'legistar_url': legistar_url,
+    })
+
+
+@require_GET
 def legislation_detail(request, slug):
     """
     GET /api/legislation/<slug>/

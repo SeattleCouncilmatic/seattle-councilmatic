@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import './MeetingCard.css';
 
 function formatMeetingDate(isoString) {
@@ -20,9 +21,9 @@ export default function MeetingCard({ meeting }) {
       <div>
         <h4 className="meeting-card-title">
           {slug ? (
-            <a href={`/events/${slug}/`} className="meeting-card-link">
+            <Link to={`/events/${slug}`} className="meeting-card-link">
               {name}
-            </a>
+            </Link>
           ) : (
             name
           )}

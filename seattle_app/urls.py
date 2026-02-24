@@ -18,6 +18,7 @@ urlpatterns = [
     path("api/legislation/recent/", api_views.recent_legislation, name="api_legislation_recent"),
     path("api/legislation/<slug:slug>/", api_views.legislation_detail, name="api_legislation_detail"),
     path("api/meetings/upcoming/", api_views.upcoming_meetings, name="api_meetings_upcoming"),
+    path("api/meetings/<slug:slug>/", api_views.meeting_detail, name="api_meeting_detail"),
     path("", include("councilmatic_search.urls")),
     path("", include("councilmatic_cms.urls")),
     # Catch-all: serve the React SPA for any remaining frontend routes
