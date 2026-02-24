@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import './LegislationCard.css';
 
 const VARIANT_CLASSES = {
@@ -36,9 +37,9 @@ export default function LegislationCard({ bill }) {
 
       <h4 className="leg-card-title">
         {slug ? (
-          <a href={`/legislation/${slug}/`} className="leg-card-link">
+          <Link to={`/legislation/${slug}`} className="leg-card-link">
             {title}
-          </a>
+          </Link>
         ) : (
           title
         )}

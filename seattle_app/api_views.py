@@ -7,6 +7,7 @@ from django.views.decorators.http import require_GET
 from django.utils import timezone
 from django.db.models import Max
 from councilmatic_core.models import Bill, Event
+from django.shortcuts import get_object_or_404
 
 
 # Status label mapping from Legistar's MatterStatusName values (case-insensitive keys)
@@ -73,13 +74,9 @@ def recent_legislation(request):
         sponsorship = bill.sponsorships.first()
         sponsor_name = sponsorship.entity_name if sponsorship else None
 
-        # Introduced date from the first action labelled "Introduced"
-        intro_action = bill.actions.filter(description__iexact='Introduced').first()
-        intro_date = (
-            intro_action.date[:10]          # ISO date string → YYYY-MM-DD
-            if intro_action and intro_action.date
-            else None
-        )
+        # Introduced date: earliest action date for this bill
+        earliest_action = bill.actions.order_by('date').first()
+        intro_date = earliest_action.date[:10] if earliest_action and earliest_action.date else None
 
         raw_status = bill.extras.get('MatterStatusName', '')
         status_label, status_variant = _normalise_status(raw_status)
@@ -126,3 +123,73 @@ def upcoming_meetings(request):
         })
 
     return JsonResponse({'results': results})
+
+
+@require_GET
+def legislation_detail(request, slug):
+    """
+    GET /api/legislation/<slug>/
+
+    Returns full detail for a single bill: core fields, sponsor list,
+    full action history (oldest first), and attached documents.
+    """
+    bill = get_object_or_404(
+        Bill.objects.prefetch_related('actions', 'sponsorships', 'documents__links'),
+        slug=slug,
+    )
+
+    raw_status = bill.extras.get('MatterStatusName', '')
+    status_label, status_variant = _normalise_status(raw_status)
+
+    # Sponsors ordered by primary first
+    sponsors = [
+        {
+            'name':    s.entity_name,
+            'primary': s.primary,
+        }
+        for s in bill.sponsorships.order_by('-primary', 'name')
+    ]
+
+    # Full action history, oldest first, deduplicating same-date/same-description pairs
+    seen_actions = set()
+    actions = []
+    for a in bill.actions.order_by('date', 'description'):
+        key = (a.date[:10] if a.date else '', a.description)
+        if key in seen_actions:
+            continue
+        seen_actions.add(key)
+        actions.append({
+            'date':        a.date[:10] if a.date else None,
+            'description': a.description,
+        })
+
+    # Attached documents with download links
+    documents = []
+    for doc in bill.documents.all():
+        for link in doc.links.all():
+            documents.append({
+                'name': doc.note,
+                'url':  link.url,
+                'media_type': link.media_type,
+            })
+
+    # Earliest action date as introduced date
+    earliest = bill.actions.order_by('date').first()
+    date_introduced = earliest.date[:10] if earliest and earliest.date else None
+
+    return JsonResponse({
+        'identifier':      bill.identifier,
+        'title':           bill.title,
+        'classification':  bill.classification,
+        'status':          status_label,
+        'status_variant':  status_variant,
+        'committee':       bill.extras.get('MatterBodyName', ''),
+        'bill_type':       bill.extras.get('MatterTypeName', ''),
+        'last_modified':   bill.extras.get('MatterLastModifiedUtc', ''),
+        'date_introduced': date_introduced,
+        'legistar_id':     bill.extras.get('MatterId'),
+        'sponsors':        sponsors,
+        'actions':         actions,
+        'documents':       documents,
+        'slug':            bill.slug,
+    })

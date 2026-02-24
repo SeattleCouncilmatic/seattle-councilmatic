@@ -16,9 +16,12 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/reps/", include("reps.urls")),
     path("api/legislation/recent/", api_views.recent_legislation, name="api_legislation_recent"),
+    path("api/legislation/<slug:slug>/", api_views.legislation_detail, name="api_legislation_detail"),
     path("api/meetings/upcoming/", api_views.upcoming_meetings, name="api_meetings_upcoming"),
     path("", include("councilmatic_search.urls")),
     path("", include("councilmatic_cms.urls")),
+    # Catch-all: serve the React SPA for any remaining frontend routes
+    path("<path:path>", views.IndexView.as_view(), name="react_catchall"),
 ]
 
 # Error handlers
