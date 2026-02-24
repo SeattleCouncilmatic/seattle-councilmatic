@@ -9,26 +9,36 @@ from django.db.models import Max
 from councilmatic_core.models import Bill, Event
 
 
-# Status label mapping from Legistar's MatterStatusName values
+# Status label mapping from Legistar's MatterStatusName values (case-insensitive keys)
 _STATUS_LABELS = {
-    'in committee': 'In Committee',
-    'passed':       'Passed',
-    'failed':       'Failed',
-    'signed':       'Signed',
-    'vetoed':       'Vetoed',
-    'introduced':   'Introduced',
-    'tabled':       'Tabled',
+    # Final outcomes
+    'passed':                       'Passed',
+    'passed at full council':       'Passed',
+    'adopted':                      'Adopted',
+    'failed':                       'Failed',
+    'did not pass':                 'Failed',
+    'signed':                       'Signed',
+    'vetoed':                       'Vetoed',
+    'tabled':                       'Tabled',
+    # Active / in-progress
+    'in committee':                 'In Committee',
+    'committee agenda ready':       'In Committee',
+    'full council agenda ready':    'Full Council',
+    'introduction & referral ready': 'Introduced',
+    'introduced':                   'Introduced',
 }
 
 # CSS colour variant for each status (consumed by the frontend tag component)
 _STATUS_VARIANTS = {
-    'In Committee': 'yellow',
     'Passed':       'green',
+    'Adopted':      'green',
     'Signed':       'green',
     'Failed':       'red',
     'Vetoed':       'red',
-    'Introduced':   'blue',
     'Tabled':       'gray',
+    'In Committee': 'yellow',
+    'Full Council': 'blue',
+    'Introduced':   'blue',
 }
 
 
