@@ -1,0 +1,122 @@
+.this-week {
+  background: #f9fafb;
+}
+
+.tw-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 4rem;
+}
+
+/* Two-column grid, stacks on mobile */
+.tw-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: start;
+}
+
+/* ── Section headers ──────────────────────────────────────────── */
+
+.tw-section-header {
+  padding-bottom: 1.25rem;
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 1.75rem;
+}
+
+.tw-section-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #1f2937;
+  margin: 0 0 0.375rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tw-section-icon {
+  color: #2E3D5B;
+  flex-shrink: 0;
+}
+
+.tw-section-subtitle {
+  font-size: 0.9375rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* ── Card list ───────────────────────────────────────────────── */
+
+.tw-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ── View all link ───────────────────────────────────────────── */
+
+.tw-view-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #2E3D5B;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.15s;
+}
+
+.tw-view-all:hover {
+  color: #1a2a42;
+  text-decoration: none;
+}
+
+.tw-view-all svg {
+  transition: transform 0.15s;
+}
+
+.tw-view-all:hover svg {
+  transform: translateX(3px);
+}
+
+/* ── States ─────────────────────────────────────────────────── */
+
+.tw-loading {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 0;
+}
+
+.tw-spinner {
+  color: #2E3D5B;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.tw-error {
+  color: #991b1b;
+  font-size: 0.9375rem;
+  padding: 1rem;
+  background: #fee2e2;
+  border-radius: 0.5rem;
+}
+
+.tw-empty {
+  color: #6b7280;
+  font-size: 0.9375rem;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .tw-grid {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+}

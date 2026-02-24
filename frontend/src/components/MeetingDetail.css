@@ -1,0 +1,187 @@
+/* ── Page wrapper ─────────────────────────────────────────────── */
+
+.mtg-detail-page {
+  background: #f9fafb;
+  min-height: 100vh;
+  padding: 2rem 1rem 4rem;
+}
+
+.mtg-detail-container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* ── Back link ────────────────────────────────────────────────── */
+
+.mtg-detail-back {
+  display: inline-block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #2E3D5B;
+  text-decoration: none;
+  margin-bottom: 1.5rem;
+}
+
+.mtg-detail-back:hover {
+  text-decoration: underline;
+}
+
+/* ── Header ───────────────────────────────────────────────────── */
+
+.mtg-detail-header {
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.mtg-detail-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.35;
+  margin: 0 0 1rem;
+}
+
+.mtg-detail-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ── Status badge ─────────────────────────────────────────────── */
+
+.meeting-badge {
+  display: inline-block;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  padding: 0.25rem 0.875rem;
+  text-transform: capitalize;
+}
+
+.meeting-badge--confirmed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.meeting-badge--tentative {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.meeting-badge--cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* ── Body layout ──────────────────────────────────────────────── */
+
+.mtg-detail-body {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .mtg-detail-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Shared section card ──────────────────────────────────────── */
+
+.mtg-detail-section {
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.mtg-detail-section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #6b7280;
+  margin: 0 0 1rem;
+}
+
+/* ── Details dl ───────────────────────────────────────────────── */
+
+.mtg-detail-dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.mtg-detail-dl dt {
+  font-weight: 600;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.mtg-detail-dl dd {
+  color: #111827;
+  margin: 0;
+}
+
+.mtg-detail-location {
+  white-space: pre-line;
+  line-height: 1.5;
+}
+
+.mtg-detail-external-link {
+  color: #2E3D5B;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.mtg-detail-external-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Main content ─────────────────────────────────────────────── */
+
+.mtg-detail-main {
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+.mtg-detail-description {
+  font-size: 0.9375rem;
+  color: #374151;
+  line-height: 1.65;
+  margin: 0;
+}
+
+/* ── States ───────────────────────────────────────────────────── */
+
+.mtg-detail-loading,
+.mtg-detail-error,
+.mtg-detail-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+.mtg-detail-error {
+  color: #dc2626;
+}
+
+.mtg-detail-empty {
+  text-align: left;
+  padding: 0;
+  font-size: 0.9375rem;
+  color: #6b7280;
+  line-height: 1.65;
+}
