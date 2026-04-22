@@ -29,9 +29,10 @@ COPY . /app
 ENV DJANGO_SECRET_KEY 'foobar'
 RUN python manage.py collectstatic --no-input
 
-# Set up cron
+# Set up cron (sed fixes Windows CRLF line endings)
 COPY scheduler-crontab /etc/cron.d/scheduler-crontab
-RUN chmod 0644 /etc/cron.d/scheduler-crontab && \
+RUN sed -i 's/\r$//' /etc/cron.d/scheduler-crontab && \
+    chmod 0644 /etc/cron.d/scheduler-crontab && \
     crontab /etc/cron.d/scheduler-crontab && \
     mkdir -p /var/log/cron && \
     touch /var/log/cron/sync.log

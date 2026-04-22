@@ -1,4 +1,5 @@
+PATH=/usr/local/bin:/usr/bin:/bin
+
 # Run full update (scrape + sync) daily at 2 AM
 0 2 * * * cd /app && /app/scripts/update_seattle.sh >> /var/log/cron/sync.log 2>&1
 
-# Empty line required at end of crontab file
