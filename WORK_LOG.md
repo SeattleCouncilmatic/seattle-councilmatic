@@ -7,29 +7,17 @@ same picture of what's open.
 
 ---
 
-## Parser — subchapter TOC + validation
-- **Branch:** `llm-summaries` (PR 1: subchapter schema; PR 2: TOC scanner + body FK stamping — both applied, not yet on `main`)
-- **State:** Full re-parse ran 2026-04-24. 9,930 sections emitted, 202 new, 5,562 text-updated. 227 Subchapters (209 official, 18 synthesized). 478 `ParseValidationIssue` rows surfaced as persistent parser-quality to-do.
-- **Open threads (branched to other forks):**
-  - Triage NEPA/SEPA short-title bypass (`len(bare_title) <= 3` → needs 4 for 4-char acronyms)
-  - Review the 18 synthesized subchapters — each is a chapter with a body divider but no TOC scrape; some may indicate scanner gaps
-  - Investigate `25.05.990` and similar pages where pdfplumber returns 5-line malformed extractions
-  - Review the 37 "declared-but-empty" subchapters flushed without body sections
-- **Done:** landmark `designation_type` backfill; subchapter divider bug fix; subchapter data model.
-
 ## Frontend — Vite/React cutover (path A)
-- **Branch:** not yet created. Suggested: `frontend/vite-cutover`
-- **State:** Investigation only. Confirmed two separate frontends:
-  - `:8000` — legacy Django templates + webpack bundles via `django-webpack-loader` (referenced in `seattle_app/settings.py:180-186` and `seattle_app/templates/base.html`)
-  - `:5173` — Vite React SPA in `frontend/` (new, with React Router + Leaflet)
-- **Decision locked:** Django admin at `/admin/` stays server-rendered. React owns `/` and everything else. No admin port needed.
-- **Next:**
-  1. Create `frontend/vite-cutover` branch
-  2. `npm run build` in `frontend/` to confirm clean Vite build → `frontend/dist/`
-  3. Add Django catch-all view serving `frontend/dist/index.html` AFTER all API + `/admin/` routes
-  4. Wire `frontend/dist/assets/` into `STATICFILES_DIRS`
-  5. Verify `:8000/` shows React app, `:8000/admin/` still works
-  6. Retire `django-webpack-loader`, root `package.json`, `webpack.config.js`, `webpack-stats.json` (separate PR)
+- **Branch:** `frontend/vite-cutover` (PR open, not yet merged)
+- **State:** Cutover complete on branch. `:8000/` now serves the Vite React build via Django (`react_app` view returns `frontend/dist/index.html`); `/static/assets/...` resolves through `STATICFILES_DIRS`; wagtail's `""` catch-all removed so React owns `/` and unmatched paths. Browser-verified: `/`, `/admin/`, `/cms/`, `/legislation/<slug>`, API routes all working.
+- **Decision locked:** Django admin at `/admin/` stays server-rendered. Wagtail admin stays at `/cms/`. React owns `/` and everything else.
+- **Next (this branch):** push and open PR.
+- **Next (follow-up branch `frontend/retire-webpack-loader`):**
+  1. Remove `django-webpack-loader` from `INSTALLED_APPS` and the `WEBPACK_LOADER` settings block
+  2. Delete `webpack-stats.json`, root `package.json`, root `package-lock.json`, `webpack.config.js`
+  3. Delete `seattle_app/templates/base.html` (and `home_page.html` if unused) + the now-orphaned `IndexView` in `seattle_app/views.py`
+  4. Drop the `webpack` service from `docker-compose.yml`
+  5. Remove `django-webpack-loader` from `requirements.txt`
 
 ---
 
@@ -43,3 +31,12 @@ so nothing is orphaned in a detached working tree.
 
 **When a workstream ships:** move its section to `## Done` at the
 bottom of the file with the merge date, so open/closed stays skimmable.
+
+---
+
+## Done
+
+### Parser — subchapter TOC + validation — merged 2026-04-24 (PR #12)
+- Subchapter schema, TOC scanner, body FK stamping, landmark `designation_type` backfill, subchapter divider bug fix.
+- Full re-parse 2026-04-24: 9,930 sections, 202 new, 5,562 text-updated, 227 subchapters (209 official, 18 synthesized), 478 `ParseValidationIssue` rows logged as persistent parser-quality backlog.
+- Known open quality threads (not blocking, captured for later): NEPA/SEPA short-title bypass needs `len(bare_title) <= 4` for 4-char acronyms; review 18 synthesized subchapters for scanner gaps; investigate `25.05.990` and similar 5-line malformed pdfplumber extractions; review 37 "declared-but-empty" subchapters.
