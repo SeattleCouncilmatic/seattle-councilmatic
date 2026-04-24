@@ -1,18 +1,4 @@
 services:
-  webpack:
-    container_name: seattle_webpack
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: node
-    stdin_open: true
-    ports:
-      - 3000:3000
-    volumes:
-      - .:/app
-      - seattle_node_modules:/app/node_modules
-    command: npm run serve
-
   app:
     build: .
     container_name: seattle_councilmatic
@@ -84,7 +70,6 @@ services:
     command: sh -c "cron && tail -f /var/log/cron/sync.log"
 
 volumes:
-  seattle_node_modules:
   seattle_postgres_data:
   seattle_es_data:
   seattle_cron_logs:
