@@ -1,0 +1,6 @@
+# Shell scripts and Linux-only files must use LF endings so they run in
+# Linux containers on Windows clones (git core.autocrlf would otherwise
+# convert them to CRLF on checkout, breaking cron, bash shebangs, etc.)
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
+scheduler-crontab text eol=lf

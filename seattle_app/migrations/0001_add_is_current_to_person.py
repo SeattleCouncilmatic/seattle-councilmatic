@@ -31,7 +31,7 @@ def remove_is_current_column(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('councilmatic_core', '__latest__'),
+        ('councilmatic_core', '0053_add_councilmatic_bio'),
     ]
 
     operations = [

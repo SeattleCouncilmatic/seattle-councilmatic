@@ -202,6 +202,15 @@ WAGTAIL_SITE_NAME = "Seattle Councilmatic"
 
 OCD_CITY_COUNCIL_NAME = os.getenv("OCD_CITY_COUNCIL_NAME", WAGTAIL_SITE_NAME)
 
+# Claude / Anthropic API for plain-English summaries
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+# Haiku: cheap, high-volume backfill of municipal code sections.
+CLAUDE_CODE_SECTION_MODEL = os.getenv("CLAUDE_CODE_SECTION_MODEL", "claude-haiku-4-5")
+# Opus: top-tier analysis of new legislation with structured output.
+CLAUDE_LEGISLATION_MODEL = os.getenv("CLAUDE_LEGISLATION_MODEL", "claude-opus-4-7")
+# Sonnet: balanced cost/quality for interactive chat.
+CLAUDE_CHAT_MODEL = os.getenv("CLAUDE_CHAT_MODEL", "claude-sonnet-4-6")
+
 # Content Security Policy settings
 # In development, allow localhost resources
 if DEBUG:
