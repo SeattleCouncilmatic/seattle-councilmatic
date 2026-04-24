@@ -22,6 +22,16 @@ class MunicipalCodeSection(models.Model):
         blank=True,
         help_text="Chapter number (e.g., '23.45')"
     )
+    subchapter = models.ForeignKey(
+        "Subchapter",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="sections",
+        help_text="Subchapter grouping within the chapter, if any. "
+                  "Populated during PDF parse when a 'Subchapter <Roman>' "
+                  "divider is encountered."
+    )
     section_number = models.CharField(
         max_length=30,
         db_index=True,
@@ -496,3 +506,124 @@ class SectionOrdinanceRef(models.Model):
     def __str__(self):
         return f"{self.section.section_number} ← Ord. {self.ordinance_number}"
 
+
+class Subchapter(models.Model):
+    """
+    A subchapter within an SMC chapter (e.g., Ch. 25.05 Subchapter IX
+    "Categorical Exemptions"). Populated by parse_smc_pdf from two sources:
+
+      - Official: scraped from the chapter's table of contents at the
+        start of the chapter in the PDF. Authoritative section list.
+      - Synthesized: reconstructed from body-divider lines
+        ("Subchapter <Roman> <Name>") when no TOC was found for the
+        chapter. Section list inferred from parse emissions.
+
+    declared_section_numbers is the TOC-asserted section list for this
+    subchapter. Comparing it to sections.values_list('section_number') at
+    validation time surfaces parse regressions (either a section the TOC
+    claims but the body parse missed, or a section parsed but not listed
+    in the TOC). Mismatches are recorded as ParseValidationIssue rows.
+    """
+    SOURCE_OFFICIAL = "official"
+    SOURCE_SYNTHESIZED = "synthesized"
+    SOURCE_CHOICES = [
+        (SOURCE_OFFICIAL, "Official (from PDF TOC)"),
+        (SOURCE_SYNTHESIZED, "Synthesized (from body parse)"),
+    ]
+
+    chapter_number = models.CharField(
+        max_length=20,
+        db_index=True,
+        help_text="Parent chapter number, e.g., '25.05'"
+    )
+    roman = models.CharField(
+        max_length=10,
+        help_text="Roman numeral as printed, e.g., 'IX'"
+    )
+    ordinal = models.PositiveSmallIntegerField(
+        help_text="Integer equivalent of roman (IX -> 9). Used for ORDER BY."
+    )
+    name = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Subchapter name, e.g., 'Categorical Exemptions'. "
+                  "Blank when the divider is bare 'Subchapter <Roman>'."
+    )
+    toc_source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        help_text="Whether declared_section_numbers came from an official "
+                  "PDF TOC or was synthesized from body parse emissions."
+    )
+    toc_source_pdf_page = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="PDF page where the TOC entry for this subchapter was parsed."
+    )
+    body_source_pdf_page = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="PDF page where the in-body 'Subchapter <Roman> <Name>' "
+                  "divider appears."
+    )
+    declared_section_numbers = models.JSONField(
+        default=list,
+        help_text="Section numbers declared under this subchapter in the "
+                  "TOC, in document order, e.g., ['25.05.800', '25.05.810']."
+    )
+
+    class Meta:
+        ordering = ["chapter_number", "ordinal"]
+        unique_together = ["chapter_number", "roman"]
+        verbose_name = "Subchapter"
+        verbose_name_plural = "Subchapters"
+
+    def __str__(self):
+        label = f"{self.chapter_number} Subchapter {self.roman}"
+        return f"{label}: {self.name}" if self.name else label
+
+
+class ParseValidationIssue(models.Model):
+    """
+    A parse-time discrepancy between what a TOC declares and what the body
+    pass actually emitted. Written by parse_smc_pdf's validation step and
+    overwritten on every run (old rows deleted, new ones recorded).
+
+    The parser never fails on a mismatch — these rows are the audit trail
+    so regressions are visible without blocking ingest.
+    """
+    CAT_MISSING_FROM_BODY = "missing_from_body"
+    CAT_UNDECLARED_IN_TOC = "undeclared_in_toc"
+    CATEGORY_CHOICES = [
+        (CAT_MISSING_FROM_BODY, "Declared in TOC but not emitted by body parse"),
+        (CAT_UNDECLARED_IN_TOC, "Emitted by body parse but not declared in TOC"),
+    ]
+
+    subchapter = models.ForeignKey(
+        Subchapter,
+        on_delete=models.CASCADE,
+        related_name="validation_issues"
+    )
+    category = models.CharField(
+        max_length=32,
+        choices=CATEGORY_CHOICES,
+        db_index=True
+    )
+    section_number = models.CharField(
+        max_length=32,
+        blank=True,
+        help_text="The section this issue concerns, if any."
+    )
+    message = models.TextField(
+        blank=True,
+        help_text="Free-form description of the issue."
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["subchapter", "category", "section_number"]
+        verbose_name = "Parse Validation Issue"
+        verbose_name_plural = "Parse Validation Issues"
+
+    def __str__(self):
+        return f"[{self.category}] {self.subchapter} — {self.section_number}"
