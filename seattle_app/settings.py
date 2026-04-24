@@ -28,12 +28,14 @@ INSTALLED_APPS = [
     "django.contrib.gis",
     "django.contrib.humanize",
     "webpack_loader",
+    "corsheaders",
     # Core apps
     "opencivicdata.core",
     "opencivicdata.legislative",
     "councilmatic_core",
     "seattle_app",
     "seattle",
+    "reps",
     # Search layer - Remove if search not required
     "councilmatic_search",
     "haystack",
@@ -61,6 +63,7 @@ if DEBUG:
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.cache.UpdateCacheMiddleware",
     "django.middleware.locale.LocaleMiddleware",
@@ -199,6 +202,15 @@ WAGTAIL_SITE_NAME = "Seattle Councilmatic"
 
 OCD_CITY_COUNCIL_NAME = os.getenv("OCD_CITY_COUNCIL_NAME", WAGTAIL_SITE_NAME)
 
+# Claude / Anthropic API for plain-English summaries
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+# Haiku: cheap, high-volume backfill of municipal code sections.
+CLAUDE_CODE_SECTION_MODEL = os.getenv("CLAUDE_CODE_SECTION_MODEL", "claude-haiku-4-5")
+# Opus: top-tier analysis of new legislation with structured output.
+CLAUDE_LEGISLATION_MODEL = os.getenv("CLAUDE_LEGISLATION_MODEL", "claude-opus-4-7")
+# Sonnet: balanced cost/quality for interactive chat.
+CLAUDE_CHAT_MODEL = os.getenv("CLAUDE_CHAT_MODEL", "claude-sonnet-4-6")
+
 # Content Security Policy settings
 # In development, allow localhost resources
 if DEBUG:
@@ -215,3 +227,16 @@ else:
     CSP_STYLE_SRC = ("'self'",)
     CSP_IMG_SRC = ("'self'", "data:")
     CSP_FONT_SRC = ("'self'",)
+
+# CORS settings for API
+if DEBUG:
+    # In development, allow React dev server
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+else:
+    # In production, configure based on your deployment
+    CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+
+CORS_ALLOW_CREDENTIALS = True

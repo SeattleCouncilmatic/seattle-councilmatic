@@ -110,20 +110,22 @@ class SeattleEventScraper(Scraper):
         # Build the API endpoint URL
         url = f"{self.BASE_URL}/events"
         
-        # Calculate start date for filtering
-        # datetime is Python's standard library for date/time operations
-        start_date = datetime.datetime(self.START_YEAR, 1, 1)
-        
+        # Use a rolling window: 3 months back through 6 months ahead.
+        # This keeps the result set small enough that pupa won't hit a page
+        # cap before reaching future-dated events.
+        today = datetime.datetime.utcnow()
+        window_start = today - datetime.timedelta(days=90)
+        window_end   = today + datetime.timedelta(days=180)
+
         # OData query parameters for filtering
         # Legistar uses OData protocol (like SQL for REST APIs)
         # The $ prefix is OData convention
         params = {
-            # Filter: get events from START_YEAR onward
-            # 'ge' means 'greater than or equal'
-            "$filter": f"EventDate ge datetime'{start_date.strftime('%Y-%m-%d')}'",
-            
-            # Sort by date descending (newest first)
-            "$orderby": "EventDate desc",
+            "$filter": (
+                f"EventDate ge datetime'{window_start.strftime('%Y-%m-%d')}'"
+                f" and EventDate le datetime'{window_end.strftime('%Y-%m-%d')}'"
+            ),
+            "$orderby": "EventDate asc",
         }
         
         # Make the API request

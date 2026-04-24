@@ -1,0 +1,311 @@
+/* ── Page wrapper ─────────────────────────────────────────────── */
+
+.leg-detail-page {
+  background: #f9fafb;
+  min-height: 100vh;
+  padding: 2rem 1rem 4rem;
+}
+
+.leg-detail-container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* ── Back link ────────────────────────────────────────────────── */
+
+.leg-detail-back {
+  display: inline-block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #2E3D5B;
+  text-decoration: none;
+  margin-bottom: 1.5rem;
+}
+
+.leg-detail-back:hover {
+  text-decoration: underline;
+}
+
+/* ── Header ───────────────────────────────────────────────────── */
+
+.leg-detail-header {
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.leg-detail-identifier {
+  font-family: monospace;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  margin: 0 0 0.75rem;
+}
+
+.leg-detail-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.45;
+  margin: 0 0 1.25rem;
+}
+
+.leg-detail-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.leg-detail-meta-chip {
+  display: inline-block;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+}
+
+.leg-detail-meta-chip--type {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+/* ── Body layout ──────────────────────────────────────────────── */
+
+.leg-detail-body {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .leg-detail-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Shared section card ──────────────────────────────────────── */
+
+.leg-detail-section {
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.leg-detail-section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #6b7280;
+  margin: 0 0 1rem;
+}
+
+/* ── Details dl ───────────────────────────────────────────────── */
+
+.leg-detail-dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.leg-detail-dl dt {
+  font-weight: 600;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.leg-detail-dl dd {
+  color: #111827;
+  margin: 0;
+}
+
+.leg-detail-external-link {
+  color: #2E3D5B;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.leg-detail-external-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Sponsors ─────────────────────────────────────────────────── */
+
+.leg-detail-sponsor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.leg-detail-sponsor {
+  font-size: 0.9rem;
+  color: #111827;
+  padding: 0.375rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.leg-detail-sponsor:last-child {
+  border-bottom: none;
+}
+
+.leg-detail-sponsor--primary {
+  font-weight: 700;
+}
+
+.leg-detail-cosponsor-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+  margin: 1rem 0 0.375rem;
+}
+
+/* ── Documents ────────────────────────────────────────────────── */
+
+.leg-detail-doc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.leg-detail-doc-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.doc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  border-radius: 0.25rem;
+  padding: 0.15rem 0.35rem;
+  background: #fee2e2;
+  color: #991b1b;
+  flex-shrink: 0;
+}
+
+.doc-icon--word {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.doc-icon--generic {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.leg-detail-doc-link {
+  font-size: 0.875rem;
+  color: #2E3D5B;
+  font-weight: 600;
+  text-decoration: none;
+  line-height: 1.4;
+}
+
+.leg-detail-doc-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Action history timeline ──────────────────────────────────── */
+
+.leg-detail-main {
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+.leg-detail-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.leg-detail-timeline-item {
+  display: flex;
+  gap: 1rem;
+  padding-bottom: 1.25rem;
+  position: relative;
+}
+
+/* Vertical connector line between items */
+.leg-detail-timeline-item:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 16px;
+  bottom: 0;
+  width: 2px;
+  background: #e5e7eb;
+}
+
+.leg-detail-timeline-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #2E3D5B;
+  border: 2px solid #ffffff;
+  outline: 2px solid #2E3D5B;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.leg-detail-timeline-item:first-child .leg-detail-timeline-dot {
+  background: #16a34a;
+  outline-color: #16a34a;
+}
+
+.leg-detail-timeline-content {
+  flex: 1;
+}
+
+.leg-detail-timeline-desc {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.2rem;
+  text-transform: capitalize;
+}
+
+.leg-detail-timeline-date {
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+/* ── States ───────────────────────────────────────────────────── */
+
+.leg-detail-loading,
+.leg-detail-error,
+.leg-detail-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+.leg-detail-error {
+  color: #dc2626;
+}

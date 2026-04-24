@@ -38,29 +38,83 @@ class Command(BaseCommand):
 
         # Use raw SQL for reliability
         with connection.cursor() as cursor:
-            # Insert with conflict handling
+            # Mark all people as not current initially
             cursor.execute(
                 """
-                INSERT INTO councilmatic_core_person (person_id, slug, headshot, councilmatic_biography)
-                SELECT 
-                    id as person_id,
-                    lower(regexp_replace(name, '[^a-zA-Z0-9]+', '-', 'g')) as slug,
+                UPDATE councilmatic_core_person SET is_current = FALSE
+            """
+            )
+
+            # Mark the most recent person for each position as current
+            # This handles transitions like Sara Nelson -> Dionne Foster in Position 9
+            # Uses label field (e.g., "District 4", "Position 9") to identify positions
+            cursor.execute(
+                """
+                UPDATE councilmatic_core_person
+                SET is_current = TRUE
+                WHERE person_id IN (
+                    SELECT person_id
+                    FROM (
+                        SELECT DISTINCT
+                            p.id as person_id,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY m.label
+                                ORDER BY p.created_at DESC, p.id DESC
+                            ) as rn
+                        FROM opencivicdata_person p
+                        INNER JOIN opencivicdata_membership m ON m.person_id = p.id
+                        INNER JOIN opencivicdata_organization o ON m.organization_id = o.id
+                        WHERE o.name = 'Seattle City Council'
+                          AND m.label IS NOT NULL
+                    ) ranked
+                    WHERE rn = 1
+                )
+            """
+            )
+
+            marked_current = cursor.rowcount
+
+            # Insert new people (only current ones)
+            cursor.execute(
+                """
+                INSERT INTO councilmatic_core_person (person_id, slug, headshot, councilmatic_biography, is_current)
+                SELECT
+                    person_id,
+                    slug,
                     '' as headshot,
-                    NULL as councilmatic_biography
-                FROM opencivicdata_person
-                WHERE id NOT IN (SELECT person_id FROM councilmatic_core_person)
+                    NULL as councilmatic_biography,
+                    TRUE as is_current
+                FROM (
+                    SELECT DISTINCT
+                        p.id as person_id,
+                        lower(regexp_replace(p.name, '[^a-zA-Z0-9]+', '-', 'g')) as slug,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY m.label
+                            ORDER BY p.created_at DESC, p.id DESC
+                        ) as rn
+                    FROM opencivicdata_person p
+                    INNER JOIN opencivicdata_membership m ON m.person_id = p.id
+                    INNER JOIN opencivicdata_organization o ON m.organization_id = o.id
+                    WHERE o.name = 'Seattle City Council'
+                      AND m.label IS NOT NULL
+                ) ranked
+                WHERE rn = 1
+                  AND person_id NOT IN (SELECT person_id FROM councilmatic_core_person)
                 ON CONFLICT (person_id) DO NOTHING
             """
             )
 
             created = cursor.rowcount
 
-            # Get total count
-            cursor.execute("SELECT COUNT(*) FROM councilmatic_core_person")
-            total = cursor.fetchone()[0]
+            # Get counts
+            cursor.execute("SELECT COUNT(*) FROM councilmatic_core_person WHERE is_current = TRUE")
+            current_count = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM councilmatic_core_person WHERE is_current = FALSE")
+            former_count = cursor.fetchone()[0]
 
         self.stdout.write(
-            self.style.SUCCESS(f"  ✓ People: {created} created, {total} total")
+            self.style.SUCCESS(f"  ✓ People: {created} created, {current_count} current, {former_count} former")
         )
 
     def sync_events(self):

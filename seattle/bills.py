@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 import requests
 
@@ -7,7 +7,9 @@ from pupa.scrape import Bill, Scraper
 CLIENT = "seattle"
 BASE_URL = f"https://webapi.legistar.com/v1/{CLIENT}"
 ENDPOINT = "matters"
-YEAR = 2025  # for prototyping will get the bills from this year
+
+# Rolling window: bills introduced in the past 18 months
+_WINDOW_DAYS = 548  # ~18 months
 
 MatterDict = dict[str, Any]
 
@@ -34,8 +36,14 @@ class SeattleBillScraper(Scraper):
             List[Dict[str, Any]]: A list of matter records.
         """
         url = f"{BASE_URL}/{ENDPOINT}"
+        window_start = (datetime.now(timezone.utc) - timedelta(days=_WINDOW_DAYS)).strftime('%Y-%m-%d')
         parameters = {
-            "$filter": f"year(MatterIntroDate) eq {YEAR} and (MatterTypeName eq 'Council Bill (CB)' or MatterTypeName eq 'Ordinance (Ord)' or MatterTypeName eq 'Resolution (Res)')",
+            "$filter": (
+                f"MatterIntroDate ge datetime'{window_start}'"
+                f" and (MatterTypeName eq 'Council Bill (CB)'"
+                f" or MatterTypeName eq 'Ordinance (Ord)'"
+                f" or MatterTypeName eq 'Resolution (Res)')"
+            ),
             "$orderby": "MatterIntroDate desc",
         }
         try:
@@ -46,6 +54,25 @@ class SeattleBillScraper(Scraper):
             print("API call failed:", e)
             return None
 
+    def fetch_matter_detail(self, matter_id: int, endpoint: str) -> list[dict]:
+        """Fetch a sub-resource (sponsors, attachments, histories) for a matter.
+
+        Parameters:
+            matter_id: The Legistar MatterId integer.
+            endpoint: Sub-resource name, e.g. 'sponsors', 'attachments', 'histories'.
+
+        Returns:
+            List of dicts from the API, or empty list on failure.
+        """
+        url = f"{BASE_URL}/{ENDPOINT}/{matter_id}/{endpoint}"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            return response.json() or []
+        except Exception as e:
+            self.warning(f"Failed to fetch {endpoint} for matter {matter_id}: {e}")
+            return []
+
     def parse_matter(self, matter: MatterDict) -> Bill:
         """Convert a matter JSON record into a Pupa Bill object.
 
@@ -55,21 +82,60 @@ class SeattleBillScraper(Scraper):
         Returns:
             Bill: A populated Pupa Bill object.
         """
+        matter_id = matter.get("MatterId")
         classification = self.classify_matter(matter)
+        intro_date = self.parse_date(matter.get("MatterIntroDate"))
+        session = str(intro_date.year) if intro_date else str(datetime.now(timezone.utc).year)
+
         bill = Bill(
             identifier=matter.get("MatterFile"),
-            legislative_session=str(YEAR),
+            legislative_session=session,
             title=matter.get("MatterTitle"),
             classification=[classification],
         )
 
-        intro_date = self.parse_date(matter.get("MatterIntroDate"))
-        if intro_date:
+        # --- Action history ---
+        histories = self.fetch_matter_detail(matter_id, "histories")
+        if histories:
+            for h in histories:
+                action_date = self.parse_date(h.get("MatterHistoryActionDate"))
+                action_desc = h.get("MatterHistoryActionName") or h.get("MatterHistoryPassedFlagName", "")
+                if action_date and action_desc:
+                    bill.add_action(description=action_desc, date=action_date)
+        elif intro_date:
+            # Fall back to intro date only if no history available
             bill.add_action(description="Introduced", date=intro_date)
 
-        bill.add_source(f"{BASE_URL}/{ENDPOINT}/{matter.get('MatterId')}")
+        # --- Sponsors ---
+        sponsors = self.fetch_matter_detail(matter_id, "sponsors")
+        for sponsor in sponsors:
+            name = sponsor.get("MatterSponsorName")
+            if name:
+                primary = sponsor.get("MatterSponsorSequence", 1) == 0
+                bill.add_sponsorship(
+                    name=name,
+                    classification="primary" if primary else "cosponsor",
+                    entity_type="person",
+                    primary=primary,
+                )
+
+        # --- Attachments (documents) ---
+        attachments = self.fetch_matter_detail(matter_id, "attachments")
+        for att in attachments:
+            if not att.get("MatterAttachmentShowOnInternetPage"):
+                continue
+            name = att.get("MatterAttachmentName", "Attachment")
+            url = att.get("MatterAttachmentHyperlink", "")
+            if url:
+                bill.add_document_link(
+                    note=name,
+                    url=url,
+                    media_type=self._media_type(att.get("MatterAttachmentFileName", "")),
+                )
+
+        bill.add_source(f"{BASE_URL}/{ENDPOINT}/{matter_id}")
         bill.extras = {
-            "MatterId": matter.get("MatterId"),
+            "MatterId": matter_id,
             "MatterTypeName": matter.get("MatterTypeName"),
             "MatterStatusName": matter.get("MatterStatusName"),
             "MatterBodyName": matter.get("MatterBodyName"),
@@ -98,6 +164,16 @@ class SeattleBillScraper(Scraper):
             if matter_type:
                 self.warning(f"Unknown matter type: {matter_type}")
             return "other"
+
+    def _media_type(self, filename: str) -> str:
+        """Infer MIME type from file extension."""
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        return {
+            "pdf":  "application/pdf",
+            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "doc":  "application/msword",
+            "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }.get(ext, "application/octet-stream")
 
     def parse_date(self, value: str | None) -> datetime | None:
         """Parse an ISO 8601 string into a timezone-aware datetime.
