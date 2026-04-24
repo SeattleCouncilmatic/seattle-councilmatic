@@ -27,7 +27,6 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.gis",
     "django.contrib.humanize",
-    "webpack_loader",
     "corsheaders",
     # Core apps
     "opencivicdata.core",
@@ -177,14 +176,6 @@ if DEBUG:
         "localhost",
         "0.0.0.0",
     ]
-
-# Webpack loader settings
-WEBPACK_LOADER = {
-    "DEFAULT": {
-        "BUNDLE_DIR_NAME": "dist/",
-        "STATS_FILE": BASE_DIR / "webpack-stats.json",
-    }
-}
 
 # Haystack search settings
 HAYSTACK_CONNECTIONS = {

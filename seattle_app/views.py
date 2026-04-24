@@ -2,22 +2,6 @@ import os
 from django.conf import settings
 from django.http import FileResponse
 from django.shortcuts import render
-from django.views.generic import TemplateView
-
-from councilmatic_core.models import Bill, Event, Person
-
-
-class IndexView(TemplateView):
-    template_name = "home_page.html"
-
-    def get_context_data(self, *args, **kwargs):
-        context = super().get_context_data(*args, **kwargs)
-        context.update({
-            "bill_count": Bill.objects.count(),
-            "event_count": Event.objects.count(),
-            "person_count": Person.objects.count(),
-        })
-        return context
 
 
 def react_app(request, path=""):

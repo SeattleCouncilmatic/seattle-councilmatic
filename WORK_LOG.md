@@ -7,17 +7,10 @@ same picture of what's open.
 
 ---
 
-## Frontend — Vite/React cutover (path A)
-- **Branch:** `frontend/vite-cutover` (PR open, not yet merged)
-- **State:** Cutover complete on branch. `:8000/` now serves the Vite React build via Django (`react_app` view returns `frontend/dist/index.html`); `/static/assets/...` resolves through `STATICFILES_DIRS`; wagtail's `""` catch-all removed so React owns `/` and unmatched paths. Browser-verified: `/`, `/admin/`, `/cms/`, `/legislation/<slug>`, API routes all working.
-- **Decision locked:** Django admin at `/admin/` stays server-rendered. Wagtail admin stays at `/cms/`. React owns `/` and everything else.
-- **Next (this branch):** push and open PR.
-- **Next (follow-up branch `frontend/retire-webpack-loader`):**
-  1. Remove `django-webpack-loader` from `INSTALLED_APPS` and the `WEBPACK_LOADER` settings block
-  2. Delete `webpack-stats.json`, root `package.json`, root `package-lock.json`, `webpack.config.js`
-  3. Delete `seattle_app/templates/base.html` (and `home_page.html` if unused) + the now-orphaned `IndexView` in `seattle_app/views.py`
-  4. Drop the `webpack` service from `docker-compose.yml`
-  5. Remove `django-webpack-loader` from `requirements.txt`
+## Frontend — retire `django-webpack-loader` (path A, follow-up)
+- **Branch:** `frontend/retire-webpack-loader` (PR open, not yet merged)
+- **State:** Cleanup complete on branch. Removed `webpack_loader` from `INSTALLED_APPS` and the `WEBPACK_LOADER` settings block; deleted `IndexView`, `home_page.html`, root `package.json`, root `package-lock.json`, `webpack.config.js`, `webpack-stats.json`; dropped the `webpack` service + `seattle_node_modules` volume from `docker-compose.yml`; removed `django-webpack-loader` from `requirements.txt`. **Kept `base.html` (stripped of webpack-loader bits)** because `404.html` and `500.html` still extend it via the `handler404`/`handler500` registrations — option-1 deviation from original work-log step that said "delete base.html". Container restarted clean; all routes still 200/302; `404.html` still renders via `base.html`.
+- **Next:** push and open PR.
 
 ---
 
@@ -35,6 +28,13 @@ bottom of the file with the merge date, so open/closed stays skimmable.
 ---
 
 ## Done
+
+### Frontend — Vite/React cutover (path A) — merged 2026-04-24 (PR #13)
+- Vite `base: '/static/'`; built assets resolve through Django's static pipeline.
+- New `react_app` view serves `frontend/dist/index.html` for `/` and any unmatched path.
+- `urls.py` restructured: kept `admin/`, APIs, `search/`, `cms/`, `documents/`; dropped wagtail's `""` catch-all so React owns the SPA routes.
+- Browser-verified: `/`, `/admin/`, `/cms/`, `/legislation/<slug>`, API routes all working.
+- Legacy `IndexView`, `home_page.html`, `base.html`, `django-webpack-loader`, root `package.json`, `webpack.config.js`, `webpack-stats.json`, and the `webpack` docker service are still present but unrouted — retiring them is the next workstream above.
 
 ### Parser — subchapter TOC + validation — merged 2026-04-24 (PR #12)
 - Subchapter schema, TOC scanner, body FK stamping, landmark `designation_type` backfill, subchapter divider bug fix.

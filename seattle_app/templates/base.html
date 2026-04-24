@@ -1,5 +1,4 @@
 {% load static %}
-{% load webpack_loader %}
 
 <!DOCTYPE html>
 <html lang="en">
@@ -30,10 +29,7 @@
 
     <!-- Favicons -->
     <link rel="icon" type="image/x-icon" href="{% static 'favicon.png' %}">
-    
-    <!-- Styles -->
-    {% render_bundle 'styles' 'css' %}
-    
+
     {% block extra_css %}{% endblock %}
 </head>
 
@@ -71,8 +67,6 @@
         </div>
     </footer>
 
-    <!-- Scripts -->
-    {% render_bundle 'main' 'js' %}
     {% block extra_js %}{% endblock %}
 </body>
 </html>
