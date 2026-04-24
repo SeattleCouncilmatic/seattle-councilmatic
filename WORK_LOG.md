@@ -7,16 +7,6 @@ same picture of what's open.
 
 ---
 
-## Parser — subchapter TOC + validation
-- **Branch:** `llm-summaries` (PR 1: subchapter schema; PR 2: TOC scanner + body FK stamping — both applied, not yet on `main`)
-- **State:** Full re-parse ran 2026-04-24. 9,930 sections emitted, 202 new, 5,562 text-updated. 227 Subchapters (209 official, 18 synthesized). 478 `ParseValidationIssue` rows surfaced as persistent parser-quality to-do.
-- **Open threads (branched to other forks):**
-  - Triage NEPA/SEPA short-title bypass (`len(bare_title) <= 3` → needs 4 for 4-char acronyms)
-  - Review the 18 synthesized subchapters — each is a chapter with a body divider but no TOC scrape; some may indicate scanner gaps
-  - Investigate `25.05.990` and similar pages where pdfplumber returns 5-line malformed extractions
-  - Review the 37 "declared-but-empty" subchapters flushed without body sections
-- **Done:** landmark `designation_type` backfill; subchapter divider bug fix; subchapter data model.
-
 ## Frontend — Vite/React cutover (path A)
 - **Branch:** not yet created. Suggested: `frontend/vite-cutover`
 - **State:** Investigation only. Confirmed two separate frontends:
@@ -43,3 +33,12 @@ so nothing is orphaned in a detached working tree.
 
 **When a workstream ships:** move its section to `## Done` at the
 bottom of the file with the merge date, so open/closed stays skimmable.
+
+---
+
+## Done
+
+### Parser — subchapter TOC + validation — merged 2026-04-24 (PR #12)
+- Subchapter schema, TOC scanner, body FK stamping, landmark `designation_type` backfill, subchapter divider bug fix.
+- Full re-parse 2026-04-24: 9,930 sections, 202 new, 5,562 text-updated, 227 subchapters (209 official, 18 synthesized), 478 `ParseValidationIssue` rows logged as persistent parser-quality backlog.
+- Known open quality threads (not blocking, captured for later): NEPA/SEPA short-title bypass needs `len(bare_title) <= 4` for 4-char acronyms; review 18 synthesized subchapters for scanner gaps; investigate `25.05.990` and similar 5-line malformed pdfplumber extractions; review 37 "declared-but-empty" subchapters.

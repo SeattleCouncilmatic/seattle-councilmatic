@@ -4,14 +4,12 @@ from django.urls import path, include
 from django.conf.urls.static import static
 
 from wagtail.admin import urls as wagtailadmin_urls
-from wagtail import urls as wagtail_urls
 from wagtail.documents import urls as wagtaildocs_urls
 
 from . import views
 from . import api_views
 
 urlpatterns = [
-    path("", views.IndexView.as_view(), name="index"),
     path("robots.txt", views.robots_txt, name="robots_txt"),
     path("admin/", admin.site.urls),
     path("api/reps/", include("reps.urls")),
@@ -20,9 +18,13 @@ urlpatterns = [
     path("api/meetings/upcoming/", api_views.upcoming_meetings, name="api_meetings_upcoming"),
     path("api/meetings/<slug:slug>/", api_views.meeting_detail, name="api_meeting_detail"),
     path("", include("councilmatic_search.urls")),
-    path("", include("councilmatic_cms.urls")),
-    # Catch-all: serve the React SPA for any remaining frontend routes
-    path("<path:path>", views.IndexView.as_view(), name="react_catchall"),
+    # Wagtail admin + documents only — wagtail's "" catch-all is intentionally not included
+    # so the React SPA can own all non-API, non-admin routes.
+    path("cms/", include(wagtailadmin_urls)),
+    path("documents/", include(wagtaildocs_urls)),
+    # React SPA catch-all (must be last). Matches "" and any unmatched path.
+    path("", views.react_app, name="react_index"),
+    path("<path:path>", views.react_app, name="react_catchall"),
 ]
 
 # Error handlers

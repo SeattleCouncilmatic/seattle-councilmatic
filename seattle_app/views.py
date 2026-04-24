@@ -1,4 +1,6 @@
 import os
+from django.conf import settings
+from django.http import FileResponse
 from django.shortcuts import render
 from django.views.generic import TemplateView
 
@@ -7,7 +9,7 @@ from councilmatic_core.models import Bill, Event, Person
 
 class IndexView(TemplateView):
     template_name = "home_page.html"
-    
+
     def get_context_data(self, *args, **kwargs):
         context = super().get_context_data(*args, **kwargs)
         context.update({
@@ -16,6 +18,11 @@ class IndexView(TemplateView):
             "person_count": Person.objects.count(),
         })
         return context
+
+
+def react_app(request, path=""):
+    index_path = settings.BASE_DIR / "frontend" / "dist" / "index.html"
+    return FileResponse(open(index_path, "rb"), content_type="text/html")
 
 
 def robots_txt(request):
