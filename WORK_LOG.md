@@ -32,11 +32,7 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 - Open design questions: which Claude model? per-section caching strategy? batch via Anthropic Batch API to halve cost?
 
 **Parser quality** (from 2026-04-24 re-parse — 478 `ParseValidationIssue` rows)
-- **Section-boundary detection is leaking — 13 sections > 30k chars in DB, 3 catastrophic.** `25.30.130 Enforcement` (280,918 chars, page 4387), `23.47.004` (207,122 chars, page 4449, title is `ChartA, 23.50.012 ChartA, 23.54.015 Chart`), `23.54.015` (156,196 chars, page 4488, title is `Chart A, 23.54.030(B), (D), (F) and (J),`). Two failure modes:
-  1. **Missed real heading** — `25.30.130` keeps growing because the next real section heading isn't matching `SECTION_RE` or fails `_is_section_boundary`.
-  2. **Ghost heading on a citation** — body text like `23.47.004 ChartA, 23.50.012 ChartA, 23.54.015 Chart A` matches `SECTION_RE`, so the parser closes the previous section and opens a "ghost" section with the citation as its title.
-  - Also smaller-but-suspicious: `23.84A.036` has a single-char `S` title (could be the alphabetical-definitions edge case the existing `bare_title` logic handles, or could be a heading-detection miss). Other 30–53k sections (e.g., `25.05.675`, `15.91.045`, `23.47A.009`) need triage — some may be legitimately long.
-  - Starting points: `parse_smc_pdf.py:20` (`SECTION_RE`), `:108` (`_is_section_boundary`), `:572-602` (the heading-acceptance branch). Probably need stricter regex (require word-boundary before the section number? reject when preceded by a section-number-shaped string?) and/or look-ahead validation (the line after a heading should look like body, not a continuation of a citation list).
+- Triage the 10 suspicious 30–53k-char sections that aren't the catastrophic three (e.g., `25.05.675`, `15.91.045`, `23.47A.009`, `23.84A.036` with single-char `S` title, `25.05.800`, `22.602.045`, `23.58C.050`, `23.49.011`, `21.04.440`, `23.54.030`). Some may be legitimately long; others may have similar but smaller-scale heading-detection issues. Will need a full re-parse after the catastrophic fix lands to see which (if any) are still over-sized.
 - Investigate `25.05.990` and similar pages where pdfplumber returns 5-line malformed extractions.
 - Review the 18 synthesized subchapters (chapter has body divider but no TOC scrape) — some may indicate scanner gaps.
 - Review the 37 "declared-but-empty" subchapters flushed without body sections.
@@ -62,6 +58,13 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Parser — section-boundary leak (catastrophic) — merged 2026-04-24 (PR #17)
+Fixed the three catastrophic over-sized sections (`25.30.130` 280k chars, `23.47.004` 207k, `23.54.015` 156k). Two distinct bugs:
+1. **`Chapter 25.32` not detected** because two-column extraction fragments full-width chapter headings ("Chapter" alone in one column, "25.32" in the other). Chapter-flush at `_walk_sections` never fires, so 60+ pages of `25.32 TABLE OF HISTORICAL LANDMARKS` table content kept appending to `25.30.130`. Fix: in `_extract_page_lines`, when no `CHAPTER_HEADING_RE` line exists in the column-split output, recover it from `extract_text()` (which doesn't column-split) and inject at the top.
+2. **Ghost heading from citation list** — body text like `23.47.004 ChartA, 23.50.012 ChartA, ...` in the "ORDINANCES CODIFIED" appendix matched `SECTION_RE`, creating a phantom section. Fix: new `EMBEDDED_SECTION_RE` + `LEGITIMATE_SECTION_CITATION_RE` reject titles that contain a section-number-shaped substring without a preceding `Section(s) X.Y.Z` lead-in. Real titles like `Penalty for violation of Section 3.30.050.` keep the lead-in and pass through.
+
+Verified: pages 4385–4500 dry-run emits only the 5 expected real sections (25.30.090–.130), no ghosts. Pages 370–390 regression check confirms legitimate `Section X.Y.Z` citation titles still emit. Full re-parse needed post-merge to refresh the DB and see if any of the 10 smaller suspicious sections still need attention.
 
 ### Frontend — bad-slug 404 → kind-aware NotFound — merged 2026-04-24 (PR #16)
 `LegislationDetail` and `MeetingDetail` now check for HTTP 404 from the API and render `<NotFound />` instead of the "Could not load: HTTP 404" error text. `NotFound` gained a `kind` prop with three variants — `legislation` ("Legislation not found" → recent legislation), `meeting` ("Meeting not found" → upcoming meetings), and the default generic ("Page not found" → This Week). The wildcard `<Route path="*">` in `App.jsx` keeps using the generic variant.
