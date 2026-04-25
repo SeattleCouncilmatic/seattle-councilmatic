@@ -42,6 +42,9 @@ Things to fix when you're in the area. Not scoped to any branch.
 
 ## Done
 
+### Frontend — SPA NotFound route — merged 2026-04-24 (PR #15)
+Added `frontend/src/components/NotFound.jsx` (+ CSS) and wired `<Route path="*" element={<NotFound />} />` in `App.jsx`. Unknown SPA paths now render a styled 404 page instead of just the Header over an empty body.
+
 ### Frontend — retire `django-webpack-loader` — merged 2026-04-24 (PR #14)
 Removed `webpack_loader` from `INSTALLED_APPS` + `WEBPACK_LOADER` block; deleted `IndexView`, `home_page.html`, root `package.json`/`package-lock.json`, `webpack.config.js`, `webpack-stats.json`; dropped the `webpack` service + `seattle_node_modules` volume; removed `django-webpack-loader` from `requirements.txt`. `base.html` kept (stripped of webpack bits) for `404.html`/`500.html`.
 
