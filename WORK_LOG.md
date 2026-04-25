@@ -17,6 +17,7 @@ Things to fix when you're in the area. Not scoped to any branch.
 
 **Frontend**
 - `LegislationDetail`/`MeetingDetail` show `Could not load legislation: HTTP 404` when the slug is invalid. Should route to the SPA `NotFound` component instead.
+- **WIP — meeting agenda items, attachments, agenda packet, minutes.** Lives in worktree `claude/zealous-tharp` at `.claude/worktrees/zealous-tharp`, commit `baa719c`. Touches `seattle/events.py` (uncomment + implement `_add_agenda_items`, scrape `hypAgendaPacket` from Legistar HTML), `seattle_app/api_views.py` (return `agenda_items`, `agenda_file_url`, `packet_url`, `minutes_file_url`, `minutes_status`), `frontend/src/components/MeetingDetail.jsx` (~93 LoC of new components: `MatterChip`, `DocIcon`, `AgendaDocButtons`, `AgendaItemRow`). When ready: branch from `main`, cherry-pick `baa719c`, open PR.
 
 **Parser quality** (surfaced by 2026-04-24 re-parse — 478 `ParseValidationIssue` rows)
 - NEPA/SEPA short-title bypass: `len(bare_title) <= 3` needs to be `<= 4` for 4-char acronyms.
