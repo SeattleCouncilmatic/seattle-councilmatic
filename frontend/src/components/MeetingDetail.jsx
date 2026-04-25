@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import NotFound from './NotFound'
 import './MeetingDetail.css'
 
 function formatDateTime(isoString) {
@@ -31,21 +32,31 @@ export default function MeetingDetail() {
   const [meeting, setMeeting] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
     setLoading(true)
     setError(null)
+    setNotFound(false)
     fetch(`/api/meetings/${slug}/`)
       .then(r => {
+        if (r.status === 404) {
+          setNotFound(true)
+          setLoading(false)
+          return null
+        }
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
       })
-      .then(data => { setMeeting(data); setLoading(false) })
+      .then(data => {
+        if (data) { setMeeting(data); setLoading(false) }
+      })
       .catch(e => { setError(e.message); setLoading(false) })
   }, [slug])
 
-  if (loading) return <div className="mtg-detail-loading">Loading…</div>
-  if (error)   return <div className="mtg-detail-error">Could not load meeting: {error}</div>
+  if (loading)  return <div className="mtg-detail-loading">Loading…</div>
+  if (notFound) return <NotFound kind="meeting" />
+  if (error)    return <div className="mtg-detail-error">Could not load meeting: {error}</div>
 
   const legistarUrl = meeting.legistar_url || null
 
