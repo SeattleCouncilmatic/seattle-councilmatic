@@ -60,6 +60,14 @@ LEGITIMATE_SECTION_CITATION_RE = re.compile(
 # "ORDINANCES CODIFIED" appendix have section numbers without this
 # lead-in (e.g. "ChartA, 23.50.012 ChartA, 23.54.015 Chart").
 
+CHAPTER_FRAGMENT_RE = re.compile(r"^(?:Chapter|\d+[A-Z]?\.\d+[A-Z]?)\s*$")
+# Matches a single fragment of a "Chapter X.Y" heading on its own line —
+# either the bare word "Chapter" or a bare chapter-number like "25.32".
+# Two-column extraction sometimes splits a full-width chapter heading
+# this way, leaving CHAPTER_HEADING_RE unable to match. Used as the gate
+# for the extract_text() fallback in _extract_page_lines so the fallback
+# only runs on the rare transition pages, not every body page.
+
 SUBCHAPTER_RE = re.compile(r"^Subchapter\s+[IVXLCDM]+\b")
 # Matches a subchapter heading like "Subchapter IX Categorical Exemptions"
 # or a bare "Subchapter III". Also a section terminator: without this,
@@ -751,16 +759,25 @@ class Command(BaseCommand):
             lines = self._words_to_lines(left) + self._words_to_lines(right)
         body_lines = [ln for ln in lines if not self._is_header_or_footer(ln)]
 
-        # Chapter-transition pages have a heading like "Chapter 25.32" that
-        # spans the full page width. Two-column extraction fragments it
-        # ("Chapter" alone in one column, "25.32" alone in the other), so
-        # CHAPTER_HEADING_RE never matches and the chapter-flush at line
-        # ~650 never fires — the previous section keeps accreting body
-        # text from a tableonly chapter (e.g. 25.32 TABLE OF HISTORICAL
-        # LANDMARKS swelled 25.30.130 to 280k chars). Recover the heading
-        # from extract_text(), which doesn't column-split, and inject it
-        # at the top so the existing flush logic sees it.
-        if not any(CHAPTER_HEADING_RE.match(ln) for ln in body_lines):
+        # Chapter-transition pages have a heading like "Chapter 25.32"
+        # that spans the full page width. Two-column extraction fragments
+        # it ("Chapter" alone in one column, "25.32" alone in the other),
+        # so CHAPTER_HEADING_RE never matches and the chapter-flush in
+        # _walk_sections never fires — the previous section keeps
+        # accreting body text from a table-only chapter (e.g. 25.32
+        # TABLE OF HISTORICAL LANDMARKS swelled 25.30.130 to 280k chars).
+        # When we see a fragment ("Chapter" alone or a bare chapter
+        # number like "25.32") AND no real CHAPTER_HEADING_RE match,
+        # recover the heading from extract_text() (which doesn't
+        # column-split) and inject it at the top.
+        #
+        # Gating on the fragment signal is essential — extract_text() re-
+        # runs the full layout pipeline, so calling it on every body
+        # page (which has no chapter heading) roughly doubles per-page
+        # work and makes a full re-parse churn for hours.
+        has_chapter_heading = any(CHAPTER_HEADING_RE.match(ln) for ln in body_lines)
+        has_chapter_fragment = any(CHAPTER_FRAGMENT_RE.match(ln) for ln in body_lines)
+        if has_chapter_fragment and not has_chapter_heading:
             try:
                 raw_text = page.extract_text() or ""
             except Exception:

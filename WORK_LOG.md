@@ -59,6 +59,9 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Parser — gate `extract_text()` fallback to transition pages — merged 2026-04-24 (PR #18)
+PR #17's `_extract_page_lines` fallback called `page.extract_text()` on every page where no `CHAPTER_HEADING_RE` matched — which is most pages. `extract_text()` re-runs the full layout pipeline, so this roughly doubled per-page work and made a full re-parse churn for hours. New `CHAPTER_FRAGMENT_RE` matches a bare `Chapter` line or a bare chapter-number like `25.32`; the fallback only fires when such a fragment is present AND no `CHAPTER_HEADING_RE` line matched. Body pages have neither, so the fast path is restored. Caught when the user noticed the re-parse churning on Title 15 like before the parser improvements.
+
 ### Parser — section-boundary leak (catastrophic) — merged 2026-04-24 (PR #17)
 Fixed the three catastrophic over-sized sections (`25.30.130` 280k chars, `23.47.004` 207k, `23.54.015` 156k). Two distinct bugs:
 1. **`Chapter 25.32` not detected** because two-column extraction fragments full-width chapter headings ("Chapter" alone in one column, "25.32" in the other). Chapter-flush at `_walk_sections` never fires, so 60+ pages of `25.32 TABLE OF HISTORICAL LANDMARKS` table content kept appending to `25.30.130`. Fix: in `_extract_page_lines`, when no `CHAPTER_HEADING_RE` line exists in the column-split output, recover it from `extract_text()` (which doesn't column-split) and inject at the top.
