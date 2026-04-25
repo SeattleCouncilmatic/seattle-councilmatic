@@ -43,6 +43,23 @@ CHAPTER_HEADING_RE = re.compile(
 # terminator). Body-text cross-references like "Chapter 25.05," or
 # "Chapter 23.41." don't reach a clean end, so they fail.
 
+EMBEDDED_SECTION_RE = re.compile(r"\b\d+[A-Z]?\.\d+[A-Z]?\.\d+[A-Z]?\b")
+# Matches a section-number-shaped substring anywhere in a string.
+# Used to detect ghost headings — body-text or appendix lines that
+# happen to match SECTION_RE because the line starts with a section
+# number, but whose "title" group is actually a list of citations.
+
+LEGITIMATE_SECTION_CITATION_RE = re.compile(
+    r"\bSection(?:s)?\s+\d+[A-Z]?\.\d+[A-Z]?\.\d+",
+    re.IGNORECASE,
+)
+# A section number preceded by "Section" or "Sections" in the title.
+# Real titles legitimately reference other sections this way (e.g.
+# "Penalty for violation of Section 3.30.050.", "Violation of Sections
+# 6.240.020,"). Ghost headings from citation-list lines in the
+# "ORDINANCES CODIFIED" appendix have section numbers without this
+# lead-in (e.g. "ChartA, 23.50.012 ChartA, 23.54.015 Chart").
+
 SUBCHAPTER_RE = re.compile(r"^Subchapter\s+[IVXLCDM]+\b")
 # Matches a subchapter heading like "Subchapter IX Categorical Exemptions"
 # or a bare "Subchapter III". Also a section terminator: without this,
@@ -590,6 +607,24 @@ class Command(BaseCommand):
                     and bare_title.isalpha()
                     and bare_title.isupper()
                 )
+                # Ghost-heading guard: a line like "23.47.004 ChartA,
+                # 23.50.012 ChartA, 23.54.015 Chart" matches SECTION_RE
+                # but its "title" is really a citation list from the
+                # "ORDINANCES CODIFIED" appendix or similar. Real titles
+                # only contain another section number when they're
+                # explicitly citing it ("Sections X.Y.Z" / "Section X.Y.Z"
+                # lead-in). Reject titles with embedded section numbers
+                # that lack that lead-in.
+                title_has_embedded_section = (
+                    EMBEDDED_SECTION_RE.search(raw_title) is not None
+                )
+                title_has_legitimate_citation = (
+                    LEGITIMATE_SECTION_CITATION_RE.search(raw_title) is not None
+                )
+                is_ghost_citation_heading = (
+                    title_has_embedded_section
+                    and not title_has_legitimate_citation
+                )
                 if (
                     m
                     and first_letter.isupper()
@@ -598,6 +633,7 @@ class Command(BaseCommand):
                         or any(c.islower() for c in raw_title)
                         or is_acronym_title
                     )
+                    and not is_ghost_citation_heading
                     and _is_section_boundary(prev_line)
                     and not self._is_toc_entry(lines, i, prev_line)
                 ):
@@ -713,7 +749,29 @@ class Command(BaseCommand):
             left = [w for w in words if (w["x0"] + w["x1"]) / 2 < mid_x]
             right = [w for w in words if (w["x0"] + w["x1"]) / 2 >= mid_x]
             lines = self._words_to_lines(left) + self._words_to_lines(right)
-        return [ln for ln in lines if not self._is_header_or_footer(ln)]
+        body_lines = [ln for ln in lines if not self._is_header_or_footer(ln)]
+
+        # Chapter-transition pages have a heading like "Chapter 25.32" that
+        # spans the full page width. Two-column extraction fragments it
+        # ("Chapter" alone in one column, "25.32" alone in the other), so
+        # CHAPTER_HEADING_RE never matches and the chapter-flush at line
+        # ~650 never fires — the previous section keeps accreting body
+        # text from a tableonly chapter (e.g. 25.32 TABLE OF HISTORICAL
+        # LANDMARKS swelled 25.30.130 to 280k chars). Recover the heading
+        # from extract_text(), which doesn't column-split, and inject it
+        # at the top so the existing flush logic sees it.
+        if not any(CHAPTER_HEADING_RE.match(ln) for ln in body_lines):
+            try:
+                raw_text = page.extract_text() or ""
+            except Exception:
+                raw_text = ""
+            for raw_line in raw_text.split("\n")[:5]:
+                stripped = raw_line.strip()
+                if CHAPTER_HEADING_RE.match(stripped):
+                    body_lines.insert(0, stripped)
+                    break
+
+        return body_lines
 
     @staticmethod
     def _words_to_lines(words: list[dict]) -> list[str]:
