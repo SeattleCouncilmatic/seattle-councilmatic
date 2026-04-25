@@ -1,42 +1,52 @@
 # Work Log
 
-Active workstreams for Seattle Councilmatic. One section per project.
-Update the **State** and **Next** lines whenever you switch forks or
-pause a thread, and commit this file — every branch then shares the
-same picture of what's open.
+Long-lived context for Seattle Councilmatic that git and GitHub can't tell you:
+locked decisions, known follow-up threads, and a chronological merge log.
+**Branch state lives in `gh pr list` — this file does not track it.**
 
 ---
 
-## Frontend — retire `django-webpack-loader` (path A, follow-up)
-- **Branch:** `frontend/retire-webpack-loader` (PR open, not yet merged)
-- **State:** Cleanup complete on branch. Removed `webpack_loader` from `INSTALLED_APPS` and the `WEBPACK_LOADER` settings block; deleted `IndexView`, `home_page.html`, root `package.json`, root `package-lock.json`, `webpack.config.js`, `webpack-stats.json`; dropped the `webpack` service + `seattle_node_modules` volume from `docker-compose.yml`; removed `django-webpack-loader` from `requirements.txt`. **Kept `base.html` (stripped of webpack-loader bits)** because `404.html` and `500.html` still extend it via the `handler404`/`handler500` registrations — option-1 deviation from original work-log step that said "delete base.html". Container restarted clean; all routes still 200/302; `404.html` still renders via `base.html`.
-- **Next:** push and open PR.
+## Decisions
+
+- **Frontend ownership.** Django admin at `/admin/` and Wagtail admin at `/cms/` stay server-rendered. The Vite React SPA owns `/` and every unmatched path; Django's `react_app` view returns `frontend/dist/index.html` for those. `STATIC_URL` is `/static/` and Vite's `base` matches.
+- **`base.html` retained.** Kept (with webpack-loader stripped) because `404.html` and `500.html` extend it via `handler404`/`handler500`. Don't delete unless you also rewrite the error templates.
+
+## Open threads
+
+Things to fix when you're in the area. Not scoped to any branch.
+
+**Frontend**
+- `LegislationDetail`/`MeetingDetail` show `Could not load legislation: HTTP 404` when the slug is invalid. Should route to the SPA `NotFound` component instead.
+
+**Parser quality** (surfaced by 2026-04-24 re-parse — 478 `ParseValidationIssue` rows)
+- NEPA/SEPA short-title bypass: `len(bare_title) <= 3` needs to be `<= 4` for 4-char acronyms.
+- Review the 18 synthesized subchapters (chapter has body divider but no TOC scrape) — some may indicate scanner gaps.
+- Investigate `25.05.990` and similar pages where pdfplumber returns 5-line malformed extractions.
+- Review the 37 "declared-but-empty" subchapters flushed without body sections.
 
 ---
 
 ## Conventions
 
-**Branch names:** `<area>/<short-desc>` — e.g. `parser/subchapter-toc`,
-`frontend/vite-cutover`, `backfill/landmark-types`.
+**Branch names:** `<area>/<short-desc>` — e.g. `parser/subchapter-toc`, `frontend/vite-cutover`, `backfill/landmark-types`.
 
-**Before switching forks:** WIP commit (`wip: <short-state>`) and push
-so nothing is orphaned in a detached working tree.
+**Before switching branches:** WIP commit (`wip: <short-state>`) and push so nothing is orphaned in a detached working tree.
 
-**When a workstream ships:** move its section to `## Done` at the
-bottom of the file with the merge date, so open/closed stays skimmable.
+**Branch follow-ups from `main`, not from in-flight branches.** Stack only when the new work genuinely depends on the prior branch's code. Stacking on an unmerged branch costs a rebase later — root cause of the WORK_LOG conflict on `frontend/spa-notfound`.
+
+**Include the Done-move in the same PR that ships the work.** Add the workstream's entry under `## Done` in the same commit. Avoids the "stale section after merge" tax we kept hitting.
+
+**Pre-flight at session start:** `git fetch && git log main..origin/main` to catch divergence between local and remote `main` before doing anything else. We lost time to a 16-commit divergence in 2026-04 that this would have caught in one command.
 
 ---
 
 ## Done
 
+### Frontend — retire `django-webpack-loader` — merged 2026-04-24 (PR #14)
+Removed `webpack_loader` from `INSTALLED_APPS` + `WEBPACK_LOADER` block; deleted `IndexView`, `home_page.html`, root `package.json`/`package-lock.json`, `webpack.config.js`, `webpack-stats.json`; dropped the `webpack` service + `seattle_node_modules` volume; removed `django-webpack-loader` from `requirements.txt`. `base.html` kept (stripped of webpack bits) for `404.html`/`500.html`.
+
 ### Frontend — Vite/React cutover (path A) — merged 2026-04-24 (PR #13)
-- Vite `base: '/static/'`; built assets resolve through Django's static pipeline.
-- New `react_app` view serves `frontend/dist/index.html` for `/` and any unmatched path.
-- `urls.py` restructured: kept `admin/`, APIs, `search/`, `cms/`, `documents/`; dropped wagtail's `""` catch-all so React owns the SPA routes.
-- Browser-verified: `/`, `/admin/`, `/cms/`, `/legislation/<slug>`, API routes all working.
-- Legacy `IndexView`, `home_page.html`, `base.html`, `django-webpack-loader`, root `package.json`, `webpack.config.js`, `webpack-stats.json`, and the `webpack` docker service are still present but unrouted — retiring them is the next workstream above.
+Vite `base: '/static/'`; new `react_app` view serves `frontend/dist/index.html` for `/` and any unmatched path. `urls.py` restructured: kept `admin/`, APIs, `search/`, `cms/`, `documents/`; dropped wagtail's `""` catch-all so React owns the SPA routes.
 
 ### Parser — subchapter TOC + validation — merged 2026-04-24 (PR #12)
-- Subchapter schema, TOC scanner, body FK stamping, landmark `designation_type` backfill, subchapter divider bug fix.
-- Full re-parse 2026-04-24: 9,930 sections, 202 new, 5,562 text-updated, 227 subchapters (209 official, 18 synthesized), 478 `ParseValidationIssue` rows logged as persistent parser-quality backlog.
-- Known open quality threads (not blocking, captured for later): NEPA/SEPA short-title bypass needs `len(bare_title) <= 4` for 4-char acronyms; review 18 synthesized subchapters for scanner gaps; investigate `25.05.990` and similar 5-line malformed pdfplumber extractions; review 37 "declared-but-empty" subchapters.
+Subchapter schema, TOC scanner, body FK stamping, landmark `designation_type` backfill, subchapter divider bug fix. Full re-parse: 9,930 sections, 202 new, 5,562 text-updated, 227 subchapters (209 official, 18 synthesized).
