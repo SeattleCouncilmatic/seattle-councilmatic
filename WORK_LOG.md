@@ -28,7 +28,6 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 - Open design questions: which Claude model? per-section caching strategy? batch via Anthropic Batch API to halve cost?
 
 **Parser quality** (from 2026-04-24 re-parse — 478 `ParseValidationIssue` rows)
-- *(quick)* NEPA/SEPA short-title bypass: change `len(bare_title) <= 3` to `<= 4` for 4-char acronyms.
 - Investigate `25.05.990` and similar pages where pdfplumber returns 5-line malformed extractions.
 - Review the 18 synthesized subchapters (chapter has body divider but no TOC scrape) — some may indicate scanner gaps.
 - Review the 37 "declared-but-empty" subchapters flushed without body sections.
@@ -54,6 +53,9 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Parser — NEPA/SEPA acronym titles — fixed in PR #12
+The "NEPA/SEPA short-title bypass" Open thread was already resolved in `a7c4cc0` via a precise `is_acronym_title` check at `parse_smc_pdf.py:588-592` (`0 < len(bare_title) <= 6 and isalpha() and isupper()`). Cleaner than expanding the generic short-title bypass from `<= 3` to `<= 4`, which would have admitted noise like `"Co2."` or `"12-1"`. Entry was stale on the work log — surfaced 2026-04-24 during quick-wins triage.
 
 ### Frontend — SPA NotFound route — merged 2026-04-24 (PR #15)
 Added `frontend/src/components/NotFound.jsx` (+ CSS) and wired `<Route path="*" element={<NotFound />} />` in `App.jsx`. Unknown SPA paths now render a styled 404 page instead of just the Header over an empty body.
