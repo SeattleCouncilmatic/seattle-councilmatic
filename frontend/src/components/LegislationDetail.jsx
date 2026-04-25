@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import NotFound from './NotFound'
 import './LegislationDetail.css'
 
 const VARIANT_CLASSES = {
@@ -32,21 +33,31 @@ export default function LegislationDetail() {
   const [bill, setBill] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
     setLoading(true)
     setError(null)
+    setNotFound(false)
     fetch(`/api/legislation/${slug}/`)
       .then(r => {
+        if (r.status === 404) {
+          setNotFound(true)
+          setLoading(false)
+          return null
+        }
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
       })
-      .then(data => { setBill(data); setLoading(false) })
+      .then(data => {
+        if (data) { setBill(data); setLoading(false) }
+      })
       .catch(e => { setError(e.message); setLoading(false) })
   }, [slug])
 
-  if (loading) return <div className="leg-detail-loading">Loading…</div>
-  if (error)   return <div className="leg-detail-error">Could not load legislation: {error}</div>
+  if (loading)  return <div className="leg-detail-loading">Loading…</div>
+  if (notFound) return <NotFound kind="legislation" />
+  if (error)    return <div className="leg-detail-error">Could not load legislation: {error}</div>
 
   const primarySponsors = bill.sponsors.filter(s => s.primary)
   const coSponsors      = bill.sponsors.filter(s => !s.primary)
