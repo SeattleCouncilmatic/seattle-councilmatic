@@ -5,6 +5,7 @@ import RepLookup from './components/RepLookup'
 import ThisWeek from './components/ThisWeek'
 import LegislationDetail from './components/LegislationDetail'
 import MeetingDetail from './components/MeetingDetail'
+import NotFound from './components/NotFound'
 import './App.css'
 
 function HomePage() {
@@ -25,6 +26,7 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/legislation/:slug" element={<LegislationDetail />} />
         <Route path="/events/:slug" element={<MeetingDetail />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   )
