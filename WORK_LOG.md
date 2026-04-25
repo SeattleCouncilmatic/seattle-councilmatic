@@ -32,6 +32,11 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 - Open design questions: which Claude model? per-section caching strategy? batch via Anthropic Batch API to halve cost?
 
 **Parser quality** (from 2026-04-24 re-parse — 478 `ParseValidationIssue` rows)
+- **Section-boundary detection is leaking — 13 sections > 30k chars in DB, 3 catastrophic.** `25.30.130 Enforcement` (280,918 chars, page 4387), `23.47.004` (207,122 chars, page 4449, title is `ChartA, 23.50.012 ChartA, 23.54.015 Chart`), `23.54.015` (156,196 chars, page 4488, title is `Chart A, 23.54.030(B), (D), (F) and (J),`). Two failure modes:
+  1. **Missed real heading** — `25.30.130` keeps growing because the next real section heading isn't matching `SECTION_RE` or fails `_is_section_boundary`.
+  2. **Ghost heading on a citation** — body text like `23.47.004 ChartA, 23.50.012 ChartA, 23.54.015 Chart A` matches `SECTION_RE`, so the parser closes the previous section and opens a "ghost" section with the citation as its title.
+  - Also smaller-but-suspicious: `23.84A.036` has a single-char `S` title (could be the alphabetical-definitions edge case the existing `bare_title` logic handles, or could be a heading-detection miss). Other 30–53k sections (e.g., `25.05.675`, `15.91.045`, `23.47A.009`) need triage — some may be legitimately long.
+  - Starting points: `parse_smc_pdf.py:20` (`SECTION_RE`), `:108` (`_is_section_boundary`), `:572-602` (the heading-acceptance branch). Probably need stricter regex (require word-boundary before the section number? reject when preceded by a section-number-shaped string?) and/or look-ahead validation (the line after a heading should look like body, not a continuation of a citation list).
 - Investigate `25.05.990` and similar pages where pdfplumber returns 5-line malformed extractions.
 - Review the 18 synthesized subchapters (chapter has body divider but no TOC scrape) — some may indicate scanner gaps.
 - Review the 37 "declared-but-empty" subchapters flushed without body sections.
