@@ -18,6 +18,11 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 **Frontend**
 - **Meeting agenda items (WIP).** Pick up the work in worktree `claude/zealous-tharp` at `.claude/worktrees/zealous-tharp`, commit `baa719c`. Touches `seattle/events.py` (uncomment + implement `_add_agenda_items`, scrape `hypAgendaPacket` from Legistar HTML), `seattle_app/api_views.py` (return `agenda_items`, `agenda_file_url`, `packet_url`, `minutes_file_url`, `minutes_status`), `frontend/src/components/MeetingDetail.jsx` (~93 LoC of new components: `MatterChip`, `DocIcon`, `AgendaDocButtons`, `AgendaItemRow`). When ready: branch from `main`, cherry-pick `baa719c`, open PR.
 
+**SPA index/search pages** (each likely its own PR; specifics TBD when we pick them up)
+- `/legislation/` — search and browse all legislation. `ThisWeek` only shows recent; needs an API search endpoint (or extend `/api/legislation/recent/` with query params) plus a list/filter UI. After shipping, update the `NotFound` `legislation` variant link from `/` to `/legislation/`.
+- `/events/` — search and browse all council meetings. Same shape as the legislation index. After shipping, update the `NotFound` `meeting` variant link from `/` to `/events/`.
+- `/municode/` — search and browse the Seattle Municipal Code. First user-facing surface for the `MunicipalCodeSection` rows the parser populates. Big open questions: search vs hierarchical browse (Title → Chapter → Section), full-text vs metadata filters, how to render section text. Natural place to surface section-level LLM summaries when those wire up.
+
 **LLM summaries — wire up the existing infrastructure**
 - Models, service module, and prompts already exist (`seattle_app/models.py:47,84` for `MunicipalCodeSection.plain_summary` + `LegislationSummary`; `seattle_app/services/claude_service.py` for `summarize_section`/`summarize_legislation` with full prompts). Nothing runs them and nothing surfaces them to users yet.
 - Three pieces to ship the feature end-to-end:
