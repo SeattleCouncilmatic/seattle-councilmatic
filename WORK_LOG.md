@@ -11,19 +11,31 @@ locked decisions, known follow-up threads, and a chronological merge log.
 - **Frontend ownership.** Django admin at `/admin/` and Wagtail admin at `/cms/` stay server-rendered. The Vite React SPA owns `/` and every unmatched path; Django's `react_app` view returns `frontend/dist/index.html` for those. `STATIC_URL` is `/static/` and Vite's `base` matches.
 - **`base.html` retained.** Kept (with webpack-loader stripped) because `404.html` and `500.html` extend it via `handler404`/`handler500`. Don't delete unless you also rewrite the error templates.
 
-## Open threads
+## Up next
 
-Things to fix when you're in the area. Not scoped to any branch.
+Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **Frontend**
-- `LegislationDetail`/`MeetingDetail` show `Could not load legislation: HTTP 404` when the slug is invalid. Should route to the SPA `NotFound` component instead.
-- **WIP — meeting agenda items, attachments, agenda packet, minutes.** Lives in worktree `claude/zealous-tharp` at `.claude/worktrees/zealous-tharp`, commit `baa719c`. Touches `seattle/events.py` (uncomment + implement `_add_agenda_items`, scrape `hypAgendaPacket` from Legistar HTML), `seattle_app/api_views.py` (return `agenda_items`, `agenda_file_url`, `packet_url`, `minutes_file_url`, `minutes_status`), `frontend/src/components/MeetingDetail.jsx` (~93 LoC of new components: `MatterChip`, `DocIcon`, `AgendaDocButtons`, `AgendaItemRow`). When ready: branch from `main`, cherry-pick `baa719c`, open PR.
+- *(quick)* Route invalid `/legislation/<slug>` and `/events/<slug>` to the SPA `NotFound` component instead of "Could not load legislation: HTTP 404" error text. `LegislationDetail.jsx` and `MeetingDetail.jsx` both have a `setError` branch — add a 404 check that renders `<NotFound />`.
+- **Meeting agenda items (WIP).** Pick up the work in worktree `claude/zealous-tharp` at `.claude/worktrees/zealous-tharp`, commit `baa719c`. Touches `seattle/events.py` (uncomment + implement `_add_agenda_items`, scrape `hypAgendaPacket` from Legistar HTML), `seattle_app/api_views.py` (return `agenda_items`, `agenda_file_url`, `packet_url`, `minutes_file_url`, `minutes_status`), `frontend/src/components/MeetingDetail.jsx` (~93 LoC of new components: `MatterChip`, `DocIcon`, `AgendaDocButtons`, `AgendaItemRow`). When ready: branch from `main`, cherry-pick `baa719c`, open PR.
 
-**Parser quality** (surfaced by 2026-04-24 re-parse — 478 `ParseValidationIssue` rows)
-- NEPA/SEPA short-title bypass: `len(bare_title) <= 3` needs to be `<= 4` for 4-char acronyms.
-- Review the 18 synthesized subchapters (chapter has body divider but no TOC scrape) — some may indicate scanner gaps.
+**LLM summaries — wire up the existing infrastructure**
+- Models, service module, and prompts already exist (`seattle_app/models.py:47,84` for `MunicipalCodeSection.plain_summary` + `LegislationSummary`; `seattle_app/services/claude_service.py` for `summarize_section`/`summarize_legislation` with full prompts). Nothing runs them and nothing surfaces them to users yet.
+- Three pieces to ship the feature end-to-end:
+  1. **Management command** to batch-summarize sections and bills (e.g., `summarize_smc_sections`, `summarize_legislation`) — handle prompt caching, rate limits, resumability, and skip already-summarized rows.
+  2. **API**: extend `/api/legislation/<slug>/` to include `llm_summary` (summary, impact_analysis, key_changes); add `/api/smc/<section>/` (or similar) for section summaries.
+  3. **Frontend**: render summary in `LegislationDetail` (probably above the action history). Decide whether to surface SMC section summaries — depends on whether there's a user-facing SMC browser yet.
+- Open design questions: which Claude model? per-section caching strategy? batch via Anthropic Batch API to halve cost?
+
+**Parser quality** (from 2026-04-24 re-parse — 478 `ParseValidationIssue` rows)
+- *(quick)* NEPA/SEPA short-title bypass: change `len(bare_title) <= 3` to `<= 4` for 4-char acronyms.
 - Investigate `25.05.990` and similar pages where pdfplumber returns 5-line malformed extractions.
+- Review the 18 synthesized subchapters (chapter has body divider but no TOC scrape) — some may indicate scanner gaps.
 - Review the 37 "declared-but-empty" subchapters flushed without body sections.
+
+## Open threads
+
+Lower-priority backlog — fix when you're already in the area, not worth scheduling. (Empty for now; promote items here from Up next when they're deferred.)
 
 ---
 
