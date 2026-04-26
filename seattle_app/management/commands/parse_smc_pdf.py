@@ -427,6 +427,18 @@ class Command(BaseCommand):
             help="Don't extract SectionOrdinanceRef rows during the parse. "
                  "Refs can be populated separately via extract_ordinance_refs.",
         )
+        parser.add_argument(
+            "--allow-deletes",
+            action="store_true",
+            help="After the parse completes, delete MunicipalCodeSection rows "
+                 "in the parsed titles that this run did NOT emit (i.e. "
+                 "orphans left over from earlier buggy parses). Required to "
+                 "self-heal stale rows since the parser is otherwise update-"
+                 "or-create only. Only valid on a full-PDF parse with no "
+                 "--start-page / --end-page / --limit / --dry-run, since a "
+                 "partial range can't safely tell which titles are fully "
+                 "covered.",
+        )
 
     def handle(self, *args, **opts):
         from seattle_app.models import MunicipalCodeSection
@@ -438,6 +450,24 @@ class Command(BaseCommand):
         dry_run = opts["dry_run"]
         verbose_sections = opts["verbose_sections"]
         extract_refs = not opts["skip_ordinance_refs"]
+        allow_deletes = opts["allow_deletes"]
+
+        if allow_deletes:
+            if dry_run:
+                raise CommandError("--allow-deletes is incompatible with --dry-run.")
+            if limit is not None:
+                raise CommandError(
+                    "--allow-deletes requires a full-PDF parse. --limit "
+                    "truncates the run, so real sections after the cutoff "
+                    "would be incorrectly deleted as orphans."
+                )
+            if opts["start_page"] != 1 or opts["end_page"] is not None:
+                raise CommandError(
+                    "--allow-deletes requires a full-PDF parse. --start-page "
+                    "and --end-page restrict the range, so sections in "
+                    "partially-covered titles would be incorrectly deleted "
+                    "as orphans."
+                )
 
         try:
             pdf = pdfplumber.open(pdf_path)
@@ -463,8 +493,11 @@ class Command(BaseCommand):
 
         # Fresh state per run. _toc_scanner is driven by _walk_sections; the
         # cache backs _resolve_subchapter to keep DB hits to one per key.
+        # _emitted_section_keys is populated in _persist and consumed by
+        # _cleanup_orphan_sections to identify stale rows.
         self._toc_scanner = _TocScanner()
         self._subchapter_cache: dict[tuple[str, str], object] = {}
+        self._emitted_section_keys: set[tuple[str, str, str]] = set()
 
         try:
             for section in self._walk_sections(pdf, start_page, end_page):
@@ -521,6 +554,9 @@ class Command(BaseCommand):
         if not dry_run:
             unref = self._flush_unreferenced_drafts()
             stale = self._cleanup_stale_duplicates()
+            orphans = (
+                self._cleanup_orphan_sections() if allow_deletes else 0
+            )
             vcounts = self._run_validation()
             sc_total = len(self._subchapter_cache)
             official = sum(
@@ -534,6 +570,11 @@ class Command(BaseCommand):
                 f"subchapters flushed without body sections; "
                 f"{stale} stale duplicate(s) cleaned up."
             )
+            if allow_deletes:
+                self.stdout.write(self.style.WARNING(
+                    f"Orphan sections deleted: {orphans} "
+                    f"(stale rows in parsed titles not emitted by this run)."
+                ))
             issue_total = vcounts["missing_from_body"] + vcounts["undeclared_in_toc"]
             if issue_total:
                 self.stdout.write(self.style.WARNING(
@@ -897,6 +938,15 @@ class Command(BaseCommand):
             if section.subchapter_key else None
         )
 
+        # Record this section as emitted regardless of create/update/unchanged
+        # outcome — _cleanup_orphan_sections uses this set to identify stale
+        # rows that the parser no longer produces.
+        self._emitted_section_keys.add((
+            section.title_number,
+            section.chapter_number,
+            section.section_number,
+        ))
+
         key = dict(
             title_number=section.title_number,
             chapter_number=section.chapter_number,
@@ -1036,6 +1086,47 @@ class Command(BaseCommand):
                     loser.delete()  # CASCADE drops its ParseValidationIssue rows
                     deleted += 1
         return deleted
+
+    @transaction.atomic
+    def _cleanup_orphan_sections(self) -> int:
+        """Delete MunicipalCodeSection rows in the parsed titles that this
+        run did NOT emit. Caller is responsible for ensuring the run was a
+        full-PDF parse — partial ranges leave real sections unparsed and
+        would falsely flag them as orphans.
+
+        Use case: an earlier buggy parse created phantom sections (e.g. the
+        ghost 23.47.004 / 23.54.015 rows that PR #17 stopped emitting).
+        update_or_create can't delete them, so they linger as stale rows
+        until a manual DELETE. This pass cleans them up automatically.
+
+        Cascade drops SectionOrdinanceRef rows; LegislationSummary M2M
+        links unlink themselves; subchapter FK is SET_NULL on the section
+        side so subchapters are unaffected.
+        """
+        from seattle_app.models import MunicipalCodeSection
+
+        if not self._emitted_section_keys:
+            return 0
+
+        parsed_titles = {key[0] for key in self._emitted_section_keys}
+        candidates = MunicipalCodeSection.objects.filter(
+            title_number__in=parsed_titles
+        ).values_list("id", "title_number", "chapter_number", "section_number")
+
+        orphan_ids: list[int] = []
+        for row_id, title_num, chap_num, sec_num in candidates:
+            if (title_num, chap_num, sec_num) not in self._emitted_section_keys:
+                orphan_ids.append(row_id)
+                self.stdout.write(self.style.WARNING(
+                    f"  orphan delete: {sec_num} (title {title_num}, "
+                    f"chapter {chap_num})"
+                ))
+
+        if not orphan_ids:
+            return 0
+
+        MunicipalCodeSection.objects.filter(id__in=orphan_ids).delete()
+        return len(orphan_ids)
 
     def _flush_unreferenced_drafts(self) -> int:
         """Persist any TOC drafts that were never referenced by a body
