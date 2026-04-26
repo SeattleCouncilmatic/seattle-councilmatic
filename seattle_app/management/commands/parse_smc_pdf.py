@@ -638,6 +638,20 @@ class Command(BaseCommand):
             # with the page since we never revisit.
             page.flush_cache()
 
+            # Treat each page boundary as a paragraph boundary. Sparse
+            # figure / map / layout pages often end with an unfinished
+            # ord-citation wrap (e.g. `'... Ord. 125291, § 6,'`) or a
+            # stray label (`'Exhibit 23.64.004B'`, `'for 23.48.225'`)
+            # that breaks _is_section_boundary. Without this reset the
+            # body section heading at L0 of the next page gets rejected
+            # — losing real sections like 23.48.230 (7.8k chars),
+            # 8.37.020 (20k chars), etc. Body prose that genuinely wraps
+            # across a page break is unaffected because section emission
+            # only fires for SECTION_RE-matching lines, and those only
+            # legitimately start at line 0 if the new page begins a new
+            # section.
+            prev_line = None
+
             i = 0
             while i < len(lines):
                 line = lines[i]
@@ -910,11 +924,26 @@ class Command(BaseCommand):
             if (
                 i == right_col_start
                 and BARE_SECTION_NUMBER_RE.match(stripped)
-                and i + 1 < len(lines)
             ):
                 # Right column running header like "23.47A.009" + name on
-                # the next line. Skip both.
-                skip_next = True
+                # the next line ("Specific Areas: Interbay"). Strip the
+                # bare number always; strip the next line only if it
+                # looks like a section-name continuation, not body wrap.
+                # Body wraps start lowercase ('tion and payments for
+                # services via the internet') and would be silently
+                # eaten otherwise — that lost the body of 8.37.020 and
+                # similar in PR #20.
+                if i + 1 < len(lines):
+                    next_stripped = lines[i + 1].strip()
+                    looks_like_header_name = (
+                        next_stripped
+                        and next_stripped[0].isupper()
+                        and len(next_stripped) <= 50
+                        and next_stripped[-1] not in ".?!"
+                        and not ENUMERATED_BODY_RE.match(next_stripped)
+                    )
+                    if looks_like_header_name:
+                        skip_next = True
                 continue
             out.append(ln)
         return out
