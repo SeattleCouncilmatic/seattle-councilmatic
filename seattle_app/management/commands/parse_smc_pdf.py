@@ -1542,7 +1542,9 @@ class Command(BaseCommand):
 
         if not self._subchapter_cache:
             return 0
-        parsed_chapters = {key[0] for key in self._emitted_section_keys}
+        # _emitted_section_keys holds (title_number, chapter_number,
+        # section_number); chapter_number is at index 1, not 0.
+        parsed_chapters = {key[1] for key in self._emitted_section_keys}
         if not parsed_chapters:
             return 0
 
