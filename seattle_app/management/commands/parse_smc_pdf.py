@@ -210,6 +210,18 @@ def _is_section_boundary(prev_line: Optional[str]) -> bool:
     # Either way no body prose crosses them, so treat as a boundary.
     if not any(c.islower() for c in stripped):
         return True
+    # Ordinance citation continuation. Long `(Ord. X, § Y, YEAR; Ord. ...)`
+    # blocks wrap to multiple lines, and column-split layouts can put the
+    # unterminated tail (`'... § 11, 1990; Ord. 113658,'` — no closing
+    # paren) immediately before a body subchapter divider in the next
+    # column. Without recognizing these as boundaries, the divider on
+    # 23.50 III's body page (p3209) fails the boundary check and 19
+    # sections of "Development Standards in All Zones" get stamped to
+    # subchapter II instead. The section symbol § is a legal-citation
+    # marker that doesn't appear in SMC body prose, so its presence on
+    # a non-terminal line is a reliable continuation signal.
+    if "§" in stripped:
+        return True
     return False
 
 
@@ -930,12 +942,27 @@ class Command(BaseCommand):
                         # / "and Threshold Determination"). Absorb up to 2
                         # continuation lines so the first section under
                         # the subchapter sees the divider as its boundary.
+                        # Pass each absorbed line through the TOC scanner
+                        # so a TOC bare divider's name continuation (e.g.
+                        # `Subchapter IV` / `Miscellaneous Provisions
+                        # (Reserved)` in 21.36) accumulates onto the
+                        # draft. Without this the absorb skipped the
+                        # name line and the draft's name stayed empty,
+                        # later getting clipped to the body divider's
+                        # truncated form.
                         consumed = 0
+                        prev_for_absorbed = line
                         while consumed < 2 and i + 1 < len(lines) and (
                             _looks_like_subchapter_name_continuation(lines[i + 1])
                         ):
                             i += 1
                             consumed += 1
+                            absorbed_key = self._toc_scanner.observe(
+                                lines[i], page_num, prev_for_absorbed
+                            )
+                            if absorbed_key is not None:
+                                current_body_subchapter_key = absorbed_key
+                            prev_for_absorbed = lines[i]
                         prev_line = line  # effective prev is the divider
                         i += 1
                         continue
