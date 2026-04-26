@@ -956,29 +956,28 @@ class Command(BaseCommand):
     _TOC_MAX_FOLD_LINES = 3
     _TOC_MAX_TITLE_CHARS = 200
     _TOC_MAX_WRAP_LINE_CHARS = 50
-    _TOC_MAX_CAPITAL_WRAP_CHARS = 15
+    _TOC_MAX_CAPITAL_WRAP_CHARS = 35
 
     @staticmethod
     def _looks_like_toc_continuation(stripped: str) -> bool:
         """A line that's plausibly the wrap of a TOC entry's name.
 
-        TOC names are short noun phrases and almost always wrap with the
-        continuation starting in lowercase (a fragment of a longer phrase
-        like `'property owned or controlled by'`). Capital-starting
-        continuations do occur for proper nouns (`'Areas'` in `Standards
-        Applicable to Specific Areas`), but they're invariably one short
-        word — multi-word capital-start lines are body sentences (`'The
-        provisions of this Code...'`).
+        TOC names are short noun phrases. Most wrap with the
+        continuation starting in lowercase (a fragment of a longer
+        phrase like `'property owned or controlled by'`), in which case
+        we accept any length. Capital-starting continuations also occur
+        — for proper nouns (`'Areas'` in `Standards Applicable to
+        Specific Areas`) and for compound TOC entries split by an em-
+        dash (`'Code reviser to revise laws'` continuing `City Clerk to
+        compile laws—`). These are typically <= 35 chars; body sentences
+        starting with capital words like `'To maintain the records...'`
+        run longer.
         """
         if not stripped:
             return False
         if stripped[0].islower():
             return True
-        # Capital start: only safe if very short and single word
-        if (
-            len(stripped) <= Command._TOC_MAX_CAPITAL_WRAP_CHARS
-            and " " not in stripped
-        ):
+        if len(stripped) <= Command._TOC_MAX_CAPITAL_WRAP_CHARS:
             return True
         return False
 
