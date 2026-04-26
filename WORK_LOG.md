@@ -60,6 +60,19 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Parser — exit AFTER_CHAPTER state on first lowercase line — merged 2026-04-26 (PR #27)
+Even with the orphan-subchapter cleanup wired up correctly (PRs #25/#26), the phantom `25.32 VI 'of Chapter 23.69; amends'` kept reappearing on every re-parse. Root cause: `_TocScanner` has an `AFTER_CHAPTER` state entered when a `Chapter X.Y` heading is matched and exited when a `Sections:` marker arrives. Real chapters always reach `Sections:`. But chapter 25.32 is table-only (Historical Landmarks) — no `Sections:` marker — so the scanner stayed in `AFTER_CHAPTER` for the entire chapter. The body cross-reference `'Subchapter VI of Chapter 23.69; amends'` on p4449 then matched `SUBCHAPTER_LINE_RE` and passed the `in_toc_state` guard (because `AFTER_CHAPTER` counts as TOC state), creating the phantom draft fresh on every parse. Once created, `_flush_unreferenced_drafts` added it to `_subchapter_cache`, so orphan-cleanup couldn't see it as orphan.
+
+Fix: when in `AFTER_CHAPTER` state and a line containing any lowercase character appears, transition to `IDLE`. Chapter name continuations are all-caps (`ENVIRONMENTAL POLICIES AND PROCEDURES`), so legitimate chapters reach `Sections:` before any lowercase line. Verified: chapter 25.05 still detects all 11 subchapters (I–XI); chapter 25.32 produces zero drafts (was 1 phantom).
+
+### Parser — scope orphan-subchapter cleanup by title, not chapter — merged 2026-04-26 (PR #26)
+PR #25's `_cleanup_orphan_subchapters` scoped candidate rows by `parsed_chapters` (chapters where this run emitted ≥1 section). But chapter 25.32 is table-only — no section is ever emitted there — so it never appears in `parsed_chapters`, so subchapters in 25.32 were invisible to cleanup and the `25.32 VI` phantom survived every re-parse. Switched scope to `parsed_titles` (matching `_cleanup_orphan_sections`) and derive title from `chapter_number` via `split('.')`. The `Subchapter` schema has no `title_number` column, but `chapter_number` always starts with `title_number` followed by a dot (`'25.32' → '25'`, `'23.47A' → '23'`, `'12A.14' → '12A'`).
+
+Side note: `23.47A I 'General Provisions'` was correctly identified as a phantom and deleted by PR #25 — verified no `Subchapter I` line exists anywhere in chapter 23.47A's pages (2920–2990). Its 18 `declared_section_numbers` were phantom data from the same old buggy parse. The 18-issue `ParseValidationIssue` drop was real cleanup, not hidden regressions.
+
+### Parser — fix Subchapter orphan-scope key index — merged 2026-04-25 (PR #25)
+PR #24's `_cleanup_orphan_subchapters` built `parsed_chapters` from `key[0]` (title_number, e.g. `'25'`) and filtered `Subchapter` rows where `chapter_number IN parsed_chapters`. But `chapter_number` is e.g. `'25.32'`, not `'25'`, so the `IN` filter matched nothing and zero orphans were ever deleted. Caught when the post-merge re-parse logged `Orphan subchapters deleted: 0` even though the known phantom `25.32 VI of Chapter 23.69; amends` was still in the DB. Use `key[1]` (chapter_number) so the `IN` filter matches.
+
 ### Parser — Subchapter cleanup: period-after-roman regex + orphan deletion — merged 2026-04-26 (PR #24)
 Review of the 17 synthesized subchapters surfaced two issues:
 
