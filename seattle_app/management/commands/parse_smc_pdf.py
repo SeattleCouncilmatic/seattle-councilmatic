@@ -104,7 +104,31 @@ HEADER_NUM_FIRST_RE = re.compile(
 # or SEPA, which must not be filtered here.
 # Footer lines like "153 (Seattle 12-23)", "(Seattle3-20)", or
 # "(Seattle12-22) 12-48" (edition tag followed by chapter-page identifier).
-FOOTER_RE = re.compile(r"^\s*[\d\s\-]*\(Seattle[\s\d\-]+\)[\s\d\-]*$")
+# The trailing chapter-page identifier sometimes contains a `.`
+# (e.g. "23-180.2"), so allow `.` in both the leading and trailing parts.
+FOOTER_RE = re.compile(r"^\s*[\d\s\-\.]*\(Seattle[\s\d\-]+\)[\s\d\-\.]*$")
+
+LAYOUT_LABEL_RE = re.compile(
+    r"^\d+[A-Z]?\.\d+[A-Z]?(?:\.\d+[A-Z]?)?\s+(?:Map\s+Book|Table|Chart)\s+[A-Z]\b.*$"
+)
+# Layout artifact lines like "23.47A Map Book A" or "23.50.018 Table B"
+# that appear between a chapter's TOC and its first body section.
+# They are not real sections and not headers/footers — they're layout
+# pointers to map books or table inserts. Stripping them lets the body
+# section's prev_line be the real preceding line (the folded last TOC
+# entry), so _is_section_boundary recognizes the boundary.
+
+BARE_SECTION_NUMBER_RE = re.compile(r"^\d+[A-Z]?\.\d+[A-Z]?(?:\.\d+[A-Z]?)?\s*$")
+# A line that is JUST a section/chapter number with nothing else. When
+# this appears at the start of the right column, it's the column-split
+# right half of a running header whose name is on the next line (e.g.
+# "23.47A.009" alone, then "Specific Areas: Interbay" on the next line).
+# Used by the column-split header strip to recognize the pattern.
+
+ENUMERATED_BODY_RE = re.compile(r"^(?:[A-Z]|\d+)\.\s+\S")
+# A line like "A. text..." or "1. text..." — body subsection enumeration
+# that signals the chapter's body has begun. Used by the TOC fold to
+# decide when to exit TOC mode.
 
 
 def _looks_like_subchapter_name_continuation(line: str) -> bool:
@@ -736,6 +760,19 @@ class Command(BaseCommand):
         words in each half, group into lines by Y-position, then concatenate
         left column then right column. Running header and footer lines are
         dropped via regex.
+
+        Beyond the basic header/footer strip, we also:
+          * Strip layout artifacts (extended footers, "Map Book A"-style
+            labels, column-split running headers) so the first body
+            section after a chapter TOC sees a real boundary as prev_line.
+          * Inject a chapter heading on column-split chapter-transition
+            pages (the chapter-fragment fallback).
+          * Fold soft-hyphen wraps so a soft-broken section title appears
+            on a single line.
+          * Fold TOC name continuations into their preceding section line
+            so multi-line wrapped TOC entries become one section-shaped
+            line — recovers boundary detection for the first body section
+            in chapters whose last TOC entry wraps to multiple lines.
         """
         try:
             words = page.extract_words(x_tolerance=2, y_tolerance=3)
@@ -752,12 +789,27 @@ class Command(BaseCommand):
         # a threshold.
         if len(words) < 30:
             lines = self._words_to_lines(words)
+            left_col_count = len(lines)
         else:
             mid_x = page.width / 2
             left = [w for w in words if (w["x0"] + w["x1"]) / 2 < mid_x]
             right = [w for w in words if (w["x0"] + w["x1"]) / 2 >= mid_x]
-            lines = self._words_to_lines(left) + self._words_to_lines(right)
-        body_lines = [ln for ln in lines if not self._is_header_or_footer(ln)]
+            left_lines = self._words_to_lines(left)
+            right_lines = self._words_to_lines(right)
+            lines = left_lines + right_lines
+            left_col_count = len(left_lines)
+
+        # Filter header/footer; track how many left-column lines survived
+        # so the layout-artifact strip can find the right column's start.
+        body_lines: list[str] = []
+        new_left_count = 0
+        for i, ln in enumerate(lines):
+            if not self._is_header_or_footer(ln):
+                body_lines.append(ln)
+                if i < left_col_count:
+                    new_left_count += 1
+
+        body_lines = self._strip_layout_artifacts(body_lines, new_left_count)
 
         # Chapter-transition pages have a heading like "Chapter 25.32"
         # that spans the full page width. Two-column extraction fragments
@@ -788,7 +840,122 @@ class Command(BaseCommand):
                     body_lines.insert(0, stripped)
                     break
 
+        body_lines = self._fold_soft_hyphens(body_lines)
+        body_lines = self._fold_toc_name_wraps(body_lines)
+
         return body_lines
+
+    @staticmethod
+    def _strip_layout_artifacts(lines: list[str], right_col_start: int) -> list[str]:
+        """Drop extended footers, layout-label lines (e.g. "23.47A Map Book A"),
+        and column-split running headers (a bare section/chapter number at
+        the start of the right column followed by a name line).
+
+        These artifacts were polluting prev_line for the first body
+        section after a chapter TOC, defeating _is_section_boundary and
+        causing the section to be silently dropped.
+        """
+        out: list[str] = []
+        skip_next = False
+        for i, ln in enumerate(lines):
+            if skip_next:
+                skip_next = False
+                continue
+            stripped = ln.strip()
+            if FOOTER_RE.match(stripped):
+                continue
+            if LAYOUT_LABEL_RE.match(stripped):
+                continue
+            if (
+                i == right_col_start
+                and BARE_SECTION_NUMBER_RE.match(stripped)
+                and i + 1 < len(lines)
+            ):
+                # Right column running header like "23.47A.009" + name on
+                # the next line. Skip both.
+                skip_next = True
+                continue
+            out.append(ln)
+        return out
+
+    @staticmethod
+    def _fold_soft_hyphens(lines: list[str]) -> list[str]:
+        """Where line N ends with `-` (a soft-line-break in the PDF) and
+        line N+1 is a non-empty lowercase continuation that doesn't itself
+        start a new heading, join them. Drops the hyphen and concatenates.
+
+        Without this, a section heading that wraps via a soft hyphen
+        leaves the wrap continuation as the prev_line of any following
+        section, and prev_line fails the boundary check.
+        """
+        if not lines:
+            return lines
+        out = [lines[0]]
+        for ln in lines[1:]:
+            sp = out[-1].rstrip()
+            sl = ln.lstrip()
+            if (
+                sp.endswith("-")
+                and sl
+                and sl[0].islower()
+                and not SECTION_RE.match(sl)
+                and not CHAPTER_HEADING_RE.match(sl)
+                and not SUBCHAPTER_LINE_RE.match(sl)
+            ):
+                out[-1] = sp[:-1] + sl
+            else:
+                out.append(ln)
+        return out
+
+    @staticmethod
+    def _fold_toc_name_wraps(lines: list[str]) -> list[str]:
+        """Within a chapter TOC (between the `Sections:` marker and the
+        first enumerated body subsection), fold every name-continuation
+        line into its preceding section-shaped line.
+
+        Catches multi-line TOC wraps without soft hyphens, e.g.:
+          23.47A.040 Alternative standards for development of affordable units on
+          property owned or controlled by
+          a religious organization
+        becomes one section-shaped line, restoring boundary detection
+        for the first body section after the TOC.
+
+        Exits TOC mode on a clear body-start signal (an enumerated
+        subsection like `A. ` or `1. `). Subchapter / chapter headings
+        within a TOC reset the fold target but stay in TOC mode so the
+        next subchapter's TOC entries continue folding correctly.
+        """
+        out: list[str] = []
+        in_toc = False
+        last_section_idx = -1
+        for ln in lines:
+            stripped = ln.strip()
+            if SECTIONS_MARKER_RE.match(stripped):
+                in_toc = True
+                out.append(ln)
+                last_section_idx = -1
+                continue
+            if SUBCHAPTER_LINE_RE.match(stripped) or CHAPTER_HEADING_RE.match(stripped):
+                out.append(ln)
+                last_section_idx = -1
+                continue
+            if SECTION_RE.match(stripped):
+                out.append(ln)
+                last_section_idx = len(out) - 1
+                continue
+            if in_toc and last_section_idx >= 0 and stripped:
+                if ENUMERATED_BODY_RE.match(stripped):
+                    in_toc = False
+                    out.append(ln)
+                    continue
+                sp = out[last_section_idx].rstrip()
+                if sp.endswith("-"):
+                    out[last_section_idx] = sp[:-1] + stripped
+                else:
+                    out[last_section_idx] = sp + " " + stripped
+                continue
+            out.append(ln)
+        return out
 
     @staticmethod
     def _words_to_lines(words: list[dict]) -> list[str]:
