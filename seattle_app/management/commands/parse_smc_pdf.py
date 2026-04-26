@@ -948,6 +948,40 @@ class Command(BaseCommand):
                 out.append(ln)
         return out
 
+    # Bounds on the TOC-wrap fold so a chapter without enumerated body
+    # subsections (where the ENUMERATED_BODY_RE exit signal never fires)
+    # can't fold the entire body into the last TOC entry's title.
+    # Real TOC names rarely wrap past 3 segments and are well under 200
+    # chars total; real body prose lines run longer than 50 chars.
+    _TOC_MAX_FOLD_LINES = 3
+    _TOC_MAX_TITLE_CHARS = 200
+    _TOC_MAX_WRAP_LINE_CHARS = 50
+    _TOC_MAX_CAPITAL_WRAP_CHARS = 15
+
+    @staticmethod
+    def _looks_like_toc_continuation(stripped: str) -> bool:
+        """A line that's plausibly the wrap of a TOC entry's name.
+
+        TOC names are short noun phrases and almost always wrap with the
+        continuation starting in lowercase (a fragment of a longer phrase
+        like `'property owned or controlled by'`). Capital-starting
+        continuations do occur for proper nouns (`'Areas'` in `Standards
+        Applicable to Specific Areas`), but they're invariably one short
+        word — multi-word capital-start lines are body sentences (`'The
+        provisions of this Code...'`).
+        """
+        if not stripped:
+            return False
+        if stripped[0].islower():
+            return True
+        # Capital start: only safe if very short and single word
+        if (
+            len(stripped) <= Command._TOC_MAX_CAPITAL_WRAP_CHARS
+            and " " not in stripped
+        ):
+            return True
+        return False
+
     @staticmethod
     def _fold_toc_name_wraps(lines: list[str]) -> list[str]:
         """Within a chapter TOC (between the `Sections:` marker and the
@@ -961,31 +995,49 @@ class Command(BaseCommand):
         becomes one section-shaped line, restoring boundary detection
         for the first body section after the TOC.
 
-        Exits TOC mode on a clear body-start signal (an enumerated
-        subsection like `A. ` or `1. `). Subchapter / chapter headings
-        within a TOC reset the fold target but stay in TOC mode so the
-        next subchapter's TOC entries continue folding correctly.
+        Exits TOC mode on any of: an enumerated subsection (`A. `/`1. `),
+        a continuation that's too long to be a TOC name fragment,
+        already-folded too many lines into this section, or the
+        accumulated title growing past sane length. Subchapter / chapter
+        headings within a TOC reset the fold target but stay in TOC mode
+        so the next subchapter's TOC entries continue folding correctly.
         """
         out: list[str] = []
         in_toc = False
         last_section_idx = -1
+        folds_into_last = 0
         for ln in lines:
             stripped = ln.strip()
             if SECTIONS_MARKER_RE.match(stripped):
                 in_toc = True
                 out.append(ln)
                 last_section_idx = -1
+                folds_into_last = 0
                 continue
             if SUBCHAPTER_LINE_RE.match(stripped) or CHAPTER_HEADING_RE.match(stripped):
                 out.append(ln)
                 last_section_idx = -1
+                folds_into_last = 0
                 continue
             if SECTION_RE.match(stripped):
                 out.append(ln)
                 last_section_idx = len(out) - 1
+                folds_into_last = 0
                 continue
             if in_toc and last_section_idx >= 0 and stripped:
-                if ENUMERATED_BODY_RE.match(stripped):
+                # Body has clearly started: enumerated subsection, line
+                # doesn't look like a TOC name continuation (capital
+                # start of a multi-word sentence), too long to be a name
+                # fragment, already folded enough into this section, or
+                # accumulated title hit the cap. Exit TOC and emit the
+                # line normally.
+                if (
+                    ENUMERATED_BODY_RE.match(stripped)
+                    or not Command._looks_like_toc_continuation(stripped)
+                    or len(stripped) > Command._TOC_MAX_WRAP_LINE_CHARS
+                    or folds_into_last >= Command._TOC_MAX_FOLD_LINES
+                    or len(out[last_section_idx]) >= Command._TOC_MAX_TITLE_CHARS
+                ):
                     in_toc = False
                     out.append(ln)
                     continue
@@ -994,6 +1046,7 @@ class Command(BaseCommand):
                     out[last_section_idx] = sp[:-1] + stripped
                 else:
                     out[last_section_idx] = sp + " " + stripped
+                folds_into_last += 1
                 continue
             out.append(ln)
         return out
