@@ -406,6 +406,20 @@ class _TocScanner:
             self.current_draft.name = (
                 (self.current_draft.name + " " + stripped).strip()
             )
+        elif self.state == self._STATE_AFTER_CHAPTER and any(
+            c.islower() for c in stripped
+        ):
+            # AFTER_CHAPTER expects either an all-caps chapter name
+            # continuation (e.g. `ENVIRONMENTAL POLICIES AND PROCEDURES`
+            # following `Chapter 25.05`) or a `Sections:` marker. The
+            # first line with lowercase content means we've moved into
+            # body — chapters with no `Sections:` marker (table-only
+            # chapters like `25.32 HISTORICAL LANDMARKS`) would
+            # otherwise stay in AFTER_CHAPTER state forever, letting
+            # body cross-references like `'Subchapter VI of Chapter
+            # 23.69; amends'` pass the in_toc_state guard and create
+            # phantom subchapter drafts.
+            self.state = self._STATE_IDLE
         return None
 
     def _finalize_current_draft(self):
