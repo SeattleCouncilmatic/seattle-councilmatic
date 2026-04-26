@@ -130,6 +130,24 @@ ENUMERATED_BODY_RE = re.compile(r"^(?:[A-Z]|\d+)\.\s+\S")
 # that signals the chapter's body has begun. Used by the TOC fold to
 # decide when to exit TOC mode.
 
+APPENDIX_HEADING_RE = re.compile(
+    r"^APPEND(?:IX|ICES)\s+"
+    r"([IVXLCDM]+(?:\s+AND\s+[IVXLCDM]+)?)"   # group 1: label e.g. "I" / "I AND II"
+    r"(?:\s+TO\s+TITLE\s+(\d+[A-Z]?))?"       # group 2: title number (optional)
+    r"\s*$"
+)
+# Matches an appendix heading like "APPENDICES I" or
+# "APPENDICES I AND II TO TITLE 15". Currently only Title 15 has this
+# in the SMC (parks/scenic-routes appendix referenced by SEPA), but
+# other titles may add appendices in future revisions. Used as both
+# a section terminator (so the last section in the title doesn't bleed
+# the appendix content into its body) and as the trigger for the
+# appendix accumulator that collects the appendix as a TitleAppendix
+# row. The same heading line repeats as a running header on every
+# appendix page; the first occurrence starts the accumulator and
+# subsequent matches for the same (title, label) are treated as
+# headers and discarded.
+
 
 def _looks_like_subchapter_name_continuation(line: str) -> bool:
     """True if `line` looks like a wrapped name from a preceding subchapter
@@ -412,6 +430,21 @@ class ParsedSection:
         return "\n".join(self.text_lines).strip()
 
 
+@dataclass
+class ParsedAppendix:
+    """Parsed appendix attached to a Title — currently only Title 15's
+    parks/scenic-routes appendix. Yielded by _walk_sections alongside
+    ParsedSection records; the consumer dispatches on type."""
+    title_number: str
+    label: str
+    source_pdf_page: int
+    text_lines: list[str] = field(default_factory=list)
+
+    @property
+    def full_text(self) -> str:
+        return "\n".join(self.text_lines).strip()
+
+
 class Command(BaseCommand):
     help = "Parse the Seattle Municipal Code PDF into MunicipalCodeSection rows."
 
@@ -511,7 +544,10 @@ class Command(BaseCommand):
             f"({'DRY RUN' if dry_run else 'writing to DB'})"
         )
 
-        counts = {"emitted": 0, "created": 0, "updated_text": 0, "unchanged": 0}
+        counts = {
+            "emitted": 0, "created": 0, "updated_text": 0, "unchanged": 0,
+            "appendices": 0,
+        }
         current_title: Optional[str] = None
         title_section_count = 0
 
@@ -524,7 +560,20 @@ class Command(BaseCommand):
         self._emitted_section_keys: set[tuple[str, str, str]] = set()
 
         try:
-            for section in self._walk_sections(pdf, start_page, end_page):
+            for record in self._walk_sections(pdf, start_page, end_page):
+                if isinstance(record, ParsedAppendix):
+                    counts["appendices"] += 1
+                    if verbose_sections:
+                        self.stdout.write(
+                            f"  [p{record.source_pdf_page:>5}] "
+                            f"Title {record.title_number} Appendix "
+                            f"{record.label} ({len(record.full_text)} chars)"
+                        )
+                    if not dry_run:
+                        self._persist_appendix(record)
+                    continue
+
+                section = record
                 counts["emitted"] += 1
 
                 if section.title_number != current_title:
@@ -573,6 +622,8 @@ class Command(BaseCommand):
                 f" | refs_synced={counts.get('refs_synced', 0)} "
                 f"across {counts.get('sections_with_refs', 0)} sections"
             )
+        if counts.get("appendices", 0):
+            summary += f" | appendices={counts['appendices']}"
         self.stdout.write(self.style.SUCCESS(summary))
 
         if not dry_run:
@@ -626,6 +677,7 @@ class Command(BaseCommand):
         body subchapter so emitted sections can be stamped with a FK key.
         """
         current: Optional[ParsedSection] = None
+        current_appendix: Optional[ParsedAppendix] = None
         prev_line: Optional[str] = None
         current_body_subchapter_key: Optional[tuple[str, str]] = None
 
@@ -655,6 +707,70 @@ class Command(BaseCommand):
             i = 0
             while i < len(lines):
                 line = lines[i]
+
+                # Appendix handling — terminates the current section and
+                # accumulates appendix body until a new chapter heading
+                # ends it. Currently the only appendix in the SMC is
+                # Title 15's parks/scenic-routes appendix (pages
+                # 2047-2086+), which previously bled into 15.91.045's
+                # body (pumping it to 44k chars from a real ~277-char
+                # section). We capture it as a separate TitleAppendix
+                # row instead.
+                m_appendix = APPENDIX_HEADING_RE.match(line)
+                if m_appendix:
+                    label = m_appendix.group(1)
+                    title_num = m_appendix.group(2)
+                    if title_num is None and current is not None:
+                        title_num = current.title_number
+                    if title_num is None and current_appendix is not None:
+                        title_num = current_appendix.title_number
+                    if title_num is not None:
+                        if (
+                            current_appendix is not None
+                            and current_appendix.title_number == title_num
+                        ):
+                            # Same appendix — running header repeats on
+                            # every page. Adopt the longer label form
+                            # ('I AND II TO TITLE 15' beats 'I'); skip
+                            # the line so it doesn't pollute body.
+                            if len(label) > len(current_appendix.label):
+                                current_appendix.label = label
+                            i += 1
+                            continue
+                        # New appendix start. Yield any open section /
+                        # appendix first.
+                        if current is not None:
+                            yield current
+                            current = None
+                        if current_appendix is not None:
+                            yield current_appendix
+                        current_appendix = ParsedAppendix(
+                            title_number=title_num,
+                            label=label,
+                            source_pdf_page=page_num,
+                        )
+                        prev_line = line
+                        i += 1
+                        continue
+
+                # In appendix mode, accumulate body until a chapter
+                # heading ends it. Skip the TOC scanner and section
+                # detection entirely to avoid misinterpreting appendix
+                # content.
+                if current_appendix is not None:
+                    if (
+                        CHAPTER_HEADING_RE.match(line)
+                        and _is_section_boundary(prev_line)
+                    ):
+                        yield current_appendix
+                        current_appendix = None
+                        # Fall through to normal chapter handling below.
+                    else:
+                        current_appendix.text_lines.append(line)
+                        prev_line = line
+                        i += 1
+                        continue
+
                 # The TOC scanner sees every line first. It returns a
                 # subchapter key only when the line is an inline body
                 # divider (e.g. "Subchapter IX Categorical Exemptions"),
@@ -807,6 +923,8 @@ class Command(BaseCommand):
 
         if current is not None:
             yield current
+        if current_appendix is not None:
+            yield current_appendix
 
     def _extract_page_lines(self, page) -> list[str]:
         """Return the page's body lines in reading order, headers/footers stripped.
@@ -1165,6 +1283,20 @@ class Command(BaseCommand):
 
     # ------------------------------------------------------------------
     # Persistence
+
+    @transaction.atomic
+    def _persist_appendix(self, appendix: ParsedAppendix) -> None:
+        """Upsert a TitleAppendix row keyed by (title_number, label)."""
+        from seattle_app.models import TitleAppendix
+
+        TitleAppendix.objects.update_or_create(
+            title_number=appendix.title_number,
+            label=appendix.label,
+            defaults={
+                "full_text": appendix.full_text,
+                "source_pdf_page": appendix.source_pdf_page,
+            },
+        )
 
     @transaction.atomic
     def _persist(self, section: ParsedSection, Model, counts: dict, extract_refs: bool) -> None:
