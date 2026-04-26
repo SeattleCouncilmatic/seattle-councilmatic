@@ -1542,18 +1542,30 @@ class Command(BaseCommand):
 
         if not self._subchapter_cache:
             return 0
-        # _emitted_section_keys holds (title_number, chapter_number,
-        # section_number); chapter_number is at index 1, not 0.
-        parsed_chapters = {key[1] for key in self._emitted_section_keys}
-        if not parsed_chapters:
+        # Scope by parsed *titles*, not parsed chapters. Subchapters
+        # belonging to a section-less chapter (e.g. 25.32 — the
+        # table-only Historical Landmarks chapter) would otherwise
+        # be invisible to cleanup, since 25.32 itself never appears
+        # in _emitted_section_keys. Phantoms in such chapters
+        # (e.g. `25.32 VI 'of Chapter 23.69; amends'` from a body
+        # cross-ref) wouldn't be cleaned up. Match the title-level
+        # scoping that _cleanup_orphan_sections uses.
+        parsed_titles = {key[0] for key in self._emitted_section_keys}
+        if not parsed_titles:
             return 0
 
-        candidates = Subchapter.objects.filter(
-            chapter_number__in=parsed_chapters
-        ).values_list("id", "chapter_number", "roman", "name")
+        all_subchapters = Subchapter.objects.values_list(
+            "id", "chapter_number", "roman", "name"
+        )
 
         orphan_ids: list[int] = []
-        for row_id, chap, roman, name in candidates:
+        for row_id, chap, roman, name in all_subchapters:
+            # chapter_number always starts with title_number followed by
+            # a dot ('25.32', '23.47A', '12A.14'); split-and-take-first
+            # gives the title number.
+            title = chap.split(".")[0]
+            if title not in parsed_titles:
+                continue
             if (chap, roman) not in self._subchapter_cache:
                 orphan_ids.append(row_id)
                 self.stdout.write(self.style.WARNING(
