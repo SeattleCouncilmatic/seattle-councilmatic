@@ -217,18 +217,21 @@ def _is_section_boundary(prev_line: Optional[str]) -> bool:
     # column. Without recognizing these as boundaries, the divider on
     # 23.50 III's body page (p3209) fails the boundary check and 19
     # sections of "Development Standards in All Zones" get stamped to
-    # subchapter II instead.
+    # subchapter II instead. The recovered 5.48.050 case has a similar
+    # column-broken Ord./§ tail (`'change]; Ord. 118397, § 84, 1996
+    # [department/'`) that doesn't end with comma or semicolon.
     #
-    # Anchor on `§ + trailing , or ;` rather than just `§`. Body cross-
-    # references in chapter 25.32 (table-only HISTORICAL LANDMARKS) are
-    # mid-sentence and end on prose words — `'new § 23.54.016; renumbers
-    # Subchapter V to be'` ends with `be`, `'adds §§ ...; amends'` ends
-    # with `amends`. Treating those as boundaries lets body cross-refs
-    # like `'Subchapter VI of Chapter 23.69; amends'` fire as phantom
-    # body subchapter dividers, creating synthesized drafts with
-    # garbage names. Real ordinance-citation continuations are list
-    # separators and always end with `,` or `;`.
-    if "§" in stripped and stripped[-1] in ",;":
+    # Anchor on `Ord. + §`, not on either alone. Body cross-references
+    # in chapter 25.32 (table-only HISTORICAL LANDMARKS) describe
+    # ordinance actions in prose without the `Ord.` token — `'new §
+    # 23.54.016; renumbers Subchapter V to be'`, `'(Miscellaneous
+    # Provisions) before § 21.36.180,'`, `'adds §§ 3.14.700-3.14.750
+    # and 5.78.190; amends'`. Accepting them as boundaries let
+    # follow-on cross-refs like `'Subchapter VI of Chapter 23.69;
+    # amends'` fire as phantom body subchapter dividers, creating
+    # synthesized drafts with garbage names. Real ordinance-citation
+    # continuations always have `Ord.` somewhere in the wrapped block.
+    if "§" in stripped and "Ord." in stripped:
         return True
     return False
 
