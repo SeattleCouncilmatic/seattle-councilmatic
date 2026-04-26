@@ -76,12 +76,15 @@ SUBCHAPTER_RE = re.compile(r"^Subchapter\s+[IVXLCDM]+\b")
 # _is_section_boundary and its heading + body are appended to the
 # preceding section's body instead.
 
-SUBCHAPTER_LINE_RE = re.compile(r"^Subchapter\s+([IVXLCDM]+)(?:\s+(.+?))?\s*$")
+SUBCHAPTER_LINE_RE = re.compile(r"^Subchapter\s+([IVXLCDM]+)\.?(?:\s+(.+?))?\s*$")
 # Captures the roman numeral and an optional trailing name.
-#   group(2) is None → bare "Subchapter <Roman>" (TOC-style, split layout)
+#   group(2) is None → bare "Subchapter <Roman>" or "Subchapter <Roman>."
+#                      (TOC-style, split layout)
 #   group(2) is set  → inline "Subchapter <Roman> <Name>" (body divider)
 # Used to distinguish TOC entries from body dividers, since in the PDF's
 # column-aware extraction TOCs put the name on the following line.
+# Optional `.` after the roman handles chapters like 25.10 / 25.12 /
+# 25.28 / 5.56 that use the `Subchapter I.` style.
 
 SECTIONS_MARKER_RE = re.compile(r"^Sections\s*:\s*$", re.IGNORECASE)
 # The "Sections:" header that introduces the TOC list inside a chapter.
@@ -632,6 +635,9 @@ class Command(BaseCommand):
             orphans = (
                 self._cleanup_orphan_sections() if allow_deletes else 0
             )
+            orphan_subchapters = (
+                self._cleanup_orphan_subchapters() if allow_deletes else 0
+            )
             vcounts = self._run_validation()
             sc_total = len(self._subchapter_cache)
             official = sum(
@@ -649,6 +655,10 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING(
                     f"Orphan sections deleted: {orphans} "
                     f"(stale rows in parsed titles not emitted by this run)."
+                ))
+                self.stdout.write(self.style.WARNING(
+                    f"Orphan subchapters deleted: {orphan_subchapters} "
+                    f"(stale rows in parsed chapters not re-emitted)."
                 ))
             issue_total = vcounts["missing_from_body"] + vcounts["undeclared_in_toc"]
             if issue_total:
@@ -1506,6 +1516,52 @@ class Command(BaseCommand):
             return 0
 
         MunicipalCodeSection.objects.filter(id__in=orphan_ids).delete()
+        return len(orphan_ids)
+
+    @transaction.atomic
+    def _cleanup_orphan_subchapters(self) -> int:
+        """Delete Subchapter rows for chapters that this run parsed
+        sections in but which the run did NOT re-emit (i.e. the row was
+        in `_subchapter_cache` last time but isn't now).
+
+        Use case: phantom subchapters created by older parses where
+        body text matched SUBCHAPTER_LINE_RE — e.g. `25.32 VI` with
+        name `'of Chapter 23.69; amends'` came from a body cross-ref
+        like `'... renumbers Subchapter V to be Subchapter VI of
+        Chapter 23.69; amends ...'`. The current TOC scanner correctly
+        rejects body cross-refs via the boundary check, but the row
+        from the older buggy parse lingers.
+
+        Scoped to chapters where this run emitted at least one section,
+        so subchapters in chapters outside the parse range are safe.
+        Cascade drops ParseValidationIssue rows linked to the
+        subchapter; sections lose their subchapter FK to NULL via
+        SET_NULL.
+        """
+        from seattle_app.models import Subchapter
+
+        if not self._subchapter_cache:
+            return 0
+        parsed_chapters = {key[0] for key in self._emitted_section_keys}
+        if not parsed_chapters:
+            return 0
+
+        candidates = Subchapter.objects.filter(
+            chapter_number__in=parsed_chapters
+        ).values_list("id", "chapter_number", "roman", "name")
+
+        orphan_ids: list[int] = []
+        for row_id, chap, roman, name in candidates:
+            if (chap, roman) not in self._subchapter_cache:
+                orphan_ids.append(row_id)
+                self.stdout.write(self.style.WARNING(
+                    f"  orphan subchapter delete: chapter {chap} "
+                    f"Subchapter {roman} ({name!r})"
+                ))
+
+        if not orphan_ids:
+            return 0
+        Subchapter.objects.filter(id__in=orphan_ids).delete()
         return len(orphan_ids)
 
     def _flush_unreferenced_drafts(self) -> int:
