@@ -217,10 +217,18 @@ def _is_section_boundary(prev_line: Optional[str]) -> bool:
     # column. Without recognizing these as boundaries, the divider on
     # 23.50 III's body page (p3209) fails the boundary check and 19
     # sections of "Development Standards in All Zones" get stamped to
-    # subchapter II instead. The section symbol § is a legal-citation
-    # marker that doesn't appear in SMC body prose, so its presence on
-    # a non-terminal line is a reliable continuation signal.
-    if "§" in stripped:
+    # subchapter II instead.
+    #
+    # Anchor on `§ + trailing , or ;` rather than just `§`. Body cross-
+    # references in chapter 25.32 (table-only HISTORICAL LANDMARKS) are
+    # mid-sentence and end on prose words — `'new § 23.54.016; renumbers
+    # Subchapter V to be'` ends with `be`, `'adds §§ ...; amends'` ends
+    # with `amends`. Treating those as boundaries lets body cross-refs
+    # like `'Subchapter VI of Chapter 23.69; amends'` fire as phantom
+    # body subchapter dividers, creating synthesized drafts with
+    # garbage names. Real ordinance-citation continuations are list
+    # separators and always end with `,` or `;`.
+    if "§" in stripped and stripped[-1] in ",;":
         return True
     return False
 
