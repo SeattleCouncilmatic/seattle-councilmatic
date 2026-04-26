@@ -81,6 +81,46 @@ class MunicipalCodeSection(models.Model):
         return f"SMC {self.section_number} - {self.title}"
 
 
+class TitleAppendix(models.Model):
+    """
+    An appendix attached to an SMC Title — currently only Title 15's
+    parks/scenic-routes appendix (pages 2047–2086, referenced by SEPA
+    and zoning code). Appendices are standalone from MunicipalCodeSection
+    because they have no section number and follow a different structure
+    (lists of named items like park drives, view rights-of-way), not
+    numbered paragraphs.
+    """
+    title_number = models.CharField(
+        max_length=10,
+        db_index=True,
+        help_text="SMC title number this appendix attaches to (e.g., '15')"
+    )
+    label = models.CharField(
+        max_length=20,
+        help_text="Roman-numeral label as it appears in the heading "
+                  "(e.g., 'I', 'I AND II')"
+    )
+    full_text = models.TextField(
+        help_text="Body text of the appendix"
+    )
+    source_pdf_page = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Page number where the appendix heading appears in the source PDF"
+    )
+    last_updated = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['title_number', 'label']
+        unique_together = ['title_number', 'label']
+        verbose_name = "Title Appendix"
+        verbose_name_plural = "Title Appendices"
+
+    def __str__(self):
+        return f"Title {self.title_number} Appendix {self.label}"
+
+
 class LegislationSummary(models.Model):
     """
     Plain-English summary and analysis of legislation (bills, ordinances, etc.).
