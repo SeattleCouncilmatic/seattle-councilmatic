@@ -6,6 +6,7 @@ import re
 from functools import reduce
 from operator import or_
 
+from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.utils import timezone
@@ -744,7 +745,16 @@ def smc_tree(request):
         for a in TitleAppendix.objects.order_by('title_number', 'label')
     ]
 
-    return JsonResponse({'titles': title_list, 'appendices': appendices})
+    pdf_path = getattr(settings, 'SMC_PDF_PATH', None)
+    source_pdf = None
+    if pdf_path and pdf_path.exists():
+        source_pdf = {
+            'url':        '/smc.pdf',
+            'filename':   pdf_path.name,
+            'size_bytes': pdf_path.stat().st_size,
+        }
+
+    return JsonResponse({'titles': title_list, 'appendices': appendices, 'source_pdf': source_pdf})
 
 
 @require_GET

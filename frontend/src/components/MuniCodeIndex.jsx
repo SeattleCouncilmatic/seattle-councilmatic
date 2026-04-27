@@ -191,14 +191,14 @@ function BrowseTree({ tree, error }) {
   return (
     <section className="smc-browse" aria-label="Browse by title">
       <h2 className="smc-browse-heading">Browse by Title</h2>
-      <ul className="smc-title-grid">
+      <ul className="smc-toc-list">
         {tree.titles.map(t => {
           const totalSections = t.chapters.reduce((sum, c) => sum + c.section_count, 0)
           return (
-            <li key={t.title_number} className="smc-title-card">
-              <Link to={`/municode/${t.title_number}`} className="smc-title-link">
-                <span className="smc-title-num">Title {t.title_number}</span>
-                <span className="smc-title-meta">
+            <li key={t.title_number}>
+              <Link to={`/municode/${t.title_number}`} className="smc-toc-row">
+                <span className="smc-toc-row-label">Title {t.title_number}</span>
+                <span className="smc-toc-row-meta">
                   {t.chapters.length} chapter{t.chapters.length === 1 ? '' : 's'} ·{' '}
                   {totalSections.toLocaleString()} section{totalSections === 1 ? '' : 's'}
                 </span>
@@ -211,16 +211,34 @@ function BrowseTree({ tree, error }) {
       {tree.appendices.length > 0 && (
         <>
           <h2 className="smc-browse-heading">Appendices</h2>
-          <ul className="smc-appendix-list">
+          <ul className="smc-toc-list">
             {tree.appendices.map(a => (
               <li key={`${a.title_number}-${a.label_slug}`}>
                 <Link to={`/municode/${a.title_number}/appendix/${a.label_slug}`}
-                      className="smc-appendix-link">
-                  Title {a.title_number} — Appendix {a.label}
+                      className="smc-toc-row">
+                  <span className="smc-toc-row-label">
+                    Title {a.title_number} — Appendix {a.label}
+                  </span>
                 </Link>
               </li>
             ))}
           </ul>
+        </>
+      )}
+
+      {tree.source_pdf && (
+        <>
+          <h2 className="smc-browse-heading">Source</h2>
+          <p className="smc-source-pdf">
+            The complete Seattle Municipal Code is also available as a single PDF.
+            <a
+              href={tree.source_pdf.url}
+              download={tree.source_pdf.filename}
+              className="smc-source-pdf-btn"
+            >
+              Download PDF ({Math.round(tree.source_pdf.size_bytes / 1_000_000)} MB)
+            </a>
+          </p>
         </>
       )}
     </section>

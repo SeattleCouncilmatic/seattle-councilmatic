@@ -155,6 +155,13 @@ STATICFILES_DIRS = [
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# SMC source PDF — served at /smc.pdf as a download link on the
+# /municode/ index page. Filename is dated; SMC_PDF_FILENAME env var
+# overrides for deploys with a different snapshot.
+SMC_PDF_PATH = BASE_DIR / "_data" / os.getenv(
+    "SMC_PDF_FILENAME", "seattle_municipal_code_20260421.pdf"
+)
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
