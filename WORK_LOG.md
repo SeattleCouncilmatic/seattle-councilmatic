@@ -55,6 +55,9 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Frontend — index breadcrumbs + clickable Header logo (far-left) — merged 2026-04-26 (PR #32)
+SPA index pages had no built-in way back to the homepage. Added a breadcrumb (`This Week / <name>`) at the top of `LegislationIndex` and `EventsIndex` matching the detail-page pattern. Also made the Header logo + title a `<Link to="/">` so it works as a universal "go home" affordance from any page (homepage, indexes, detail) — hover shifts the title color, focus-visible adds an outline. Header container changed from `max-width: 1280px; margin: 0 auto` to `width: 100%` so the logo sits in the far-left viewport corner with just `1rem` padding, matching the convention on other Councilmatic sites.
+
 ### Frontend — events index + meetings → events rename — merged 2026-04-26 (PR #31)
 Second SPA index page plus a full rename sweep. The council's calendar has multiple event types (committee meetings, council briefings, full council meetings, hearings) so "events" is the umbrella term and "meeting" only describes a subset. The API path was already `/api/meetings/` from a previous user-facing rename, so this PR finished alignment in one sweep: API paths/view-fns, component files (`MeetingCard`/`MeetingDetail` → `EventCard`/`EventDetail`), routes (`/events*`), labels (NavBar `Events`, page header, NotFound, breadcrumb, ThisWeek section title `Upcoming Events`).
 
