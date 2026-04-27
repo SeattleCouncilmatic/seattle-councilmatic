@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Landmark } from 'lucide-react';
+import NavBar from './NavBar';
 
 export default function Header() {
   return (
@@ -24,6 +25,7 @@ export default function Header() {
             </div>
           </Link>
 
+          <NavBar />
         </div>
       </div>
     </header>

@@ -70,7 +70,7 @@ export default function ThisWeek() {
           <div>
             <SectionHeader
               icon={Gavel}
-              title="New Legislation"
+              title="Recent Legislation"
               subtitle="Bills and resolutions introduced recently."
             />
             {billsLoading && <LoadingSpinner />}
