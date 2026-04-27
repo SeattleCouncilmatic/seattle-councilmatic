@@ -1,0 +1,13 @@
+{# Vendored from https://github.com/datamade/django-councilmatic/blob/5.x/councilmatic_search/templates/indexes/bill_text.txt #}
+{# The django-councilmatic 5.0 wheel ships without this template even though #}
+{# councilmatic_search.search_indexes.BillIndex hardcodes its path. The doubled #}
+{# `templates/` directory matches BillIndex's `template_name` exactly. #}
+{{ object.identifier }}
+{{ object.friendly_name }}
+{{ object.classification }}
+{{ object.description }}
+{{ object.abstract }}
+{{ object.full_text }}
+{% for t in object.topics %}
+	{{ t }}
+{% endfor %}

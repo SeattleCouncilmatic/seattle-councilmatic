@@ -56,6 +56,13 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Scheduler — vendor missing `bill_text.txt` haystack template — committed 2026-04-26
+The `update_index` step in the daily scrape (step 3 of `update_seattle.sh`) was crashing with `TemplateDoesNotExist: councilmatic_search/templates/indexes/bill_text.txt`. `councilmatic_search.search_indexes.BillIndex` (in the `django-councilmatic[all]==5.0` package, installed from `https://github.com/datamade/django-councilmatic/archive/refs/heads/5.x.zip`) hardcodes that exact `template_name` but the wheel built from the 5.x branch ships without the template directory at all — packaging bug in `MANIFEST.in` / `pyproject.toml`. The template exists in the upstream git source.
+
+This was a pre-existing bug, not visible until the env-loss fix below let cron jobs progress past step 1. Since nothing surfaces a missed cron run, the index was silently stale for whatever window the env-loss outage covered.
+
+Fix: vendored the template at `seattle_app/templates/councilmatic_search/templates/indexes/bill_text.txt` (the doubled `templates/` directory matches the BillIndex's `template_name` exactly so Django's app-dirs loader resolves it). Content copied verbatim from the upstream `5.x` branch. Verified `python manage.py update_index` exits 0 and indexes all 378 bills.
+
 ### Scheduler — fix env-loss in cron jobs (DATABASE_URL etc.) — committed 2026-04-26
 Daily 2 AM UTC scrape was firing on schedule but crashing immediately with `OperationalError: connection to server at "localhost" (::1), port 5432 failed`. Root cause: cron sanitizes the environment of every job it launches, so vars from `env_file: - .env` (set on the container's PID 1) weren't visible to the cron-launched script. Django's settings then fell back to `localhost:5432` instead of the `postgres` service hostname, and the connection died. The container itself, the schedule, the script, and the crontab were all fine — silent data-pipeline outage hidden behind a noisy stack trace in `/var/log/cron/sync.log` that nothing was reading.
 
