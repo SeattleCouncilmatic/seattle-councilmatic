@@ -14,10 +14,6 @@ echo "2. Syncing to Councilmatic models..."
 python manage.py sync_councilmatic
 
 echo ""
-echo "3. Rebuilding search index..."
-python manage.py update_index
-
-echo ""
 echo "================================"
 echo "✓ Update complete!"
 echo "================================"

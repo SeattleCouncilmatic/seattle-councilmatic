@@ -62,6 +62,15 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Search — strip Elasticsearch + Haystack — committed 2026-04-27
+Elasticsearch was plumbed in but not actually serving search: only `update_index` (run nightly) wrote to it, and the SPA's user-facing search bars (`/api/legislation/`, `/api/events/`) bypass it entirely with Postgres `Q(... __icontains=q)` queries. The legacy server-rendered `/search/` page existed via `councilmatic_search.urls` but the SPA never linked there. Net cost: a 1 GB ES container, the `bill_text.txt` packaging-bug surface we vendored around, and the daily `update_index` step that masked the cron env-loss outage in 2026-04.
+
+Decision (after weighing options): rip ES now, plan to add Postgres FTS as part of the upcoming `/municode/` build (legal prose at 7.4k sections is well within PG FTS range; pgvector for LLM-driven retrieval composes naturally in the same DB). Three-PR plan: (1) this rip-out, (2) FTS infra on `MunicipalCodeSection` (search vector column + GIN index + trigger), (3) `/municode/` SPA index page + browse/detail.
+
+Removed: `elasticsearch:7.14.2` service + `seattle_es_data` volume + `app.depends_on.elasticsearch` from docker-compose, `councilmatic_search` and `haystack` from `INSTALLED_APPS`, the `HAYSTACK_CONNECTIONS` block + `HAYSTACK_SIGNAL_PROCESSOR`, `councilmatic_search.urls` mount in `urls.py`, [seattle_app/search_indexes.py](seattle_app/search_indexes.py), the vendored `seattle_app/templates/councilmatic_search/templates/indexes/bill_text.txt`, the `update_index` step in `scripts/update_seattle.sh`, `SEARCH_URL` from `.env.example`, the `[all]` extras from `django-councilmatic` in `requirements.txt`, and ES references throughout `ARCHITECTURE.md` (Stage 4 Index section, troubleshooting, deployment checklist, performance section). Verified: `python manage.py check` clean; `/api/legislation/`, `/api/events/`, and SPA root all return 200 after restart; the old `/search/` URL now falls through to the SPA catch-all and renders `<NotFound />` client-side.
+
+Operator follow-ups (not in the diff): drop `SEARCH_URL` from real `.env` files; `docker compose stop elasticsearch && docker compose rm -f elasticsearch && docker volume rm seattle_es_data` to reclaim the volume after merge; `pip install -r requirements.txt` (or rebuild the app image) to drop the `[all]` extras (haystack, elasticsearch7).
+
 ### Frontend — NavBar in header, site-wide footer, copy fix — merged 2026-04-26 (PR #33)
 NavBar moved from a separate row below the Header into the Header itself, right-aligned beside the logo, so it shows on every route (not just the homepage). Dropped the `activeItem` prop in favor of `useLocation`-driven detection (`/legislation*` → `Legislation` active, etc.); hash-anchor stubs only highlight on the homepage. NavBar removed from `HomePage` since it's global now. NavBar's `.css` simplified to drop the standalone background/container — Header owns those. Mobile NavBar wraps via `flex-wrap`; a proper hamburger is deferred unless narrow-screen usability becomes a problem.
 

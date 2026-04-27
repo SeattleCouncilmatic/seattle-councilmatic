@@ -87,23 +87,7 @@ WHERE id NOT IN (SELECT person_id FROM councilmatic_core_person)
 - `councilmatic_core_person` (links to `opencivicdata_person`)
 - Eventually: `councilmatic_core_bill`, `councilmatic_core_event`, etc.
 
-### Stage 4: Index (Haystack + Elasticsearch)
-
-**Command:** `python manage.py update_index`
-
-**Process:**
-
-1. Reads from Councilmatic models
-2. Generates search documents
-3. Writes to Elasticsearch indices
-
-**Indices Created:**
-
-- People index
-- Bills index
-- Events index
-
-### Stage 5: Presentation (Django Views)
+### Stage 4: Presentation (Django Views)
 
 **Location:** `seattle_app/` and `councilmatic_core/`
 
@@ -114,7 +98,6 @@ Django views query Councilmatic models and render templates.
 - Homepage: Recent bills, upcoming meetings
 - Person detail: Council member profile, sponsored bills
 - Bill detail: Full text, actions, votes
-- Search: Full-text search across all content
 
 ---
 
@@ -201,9 +184,6 @@ DEBUG=True
 # Database
 DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
 
-# Search
-SEARCH_URL=http://elasticsearch:9200
-
 # Optional
 DJANGO_MANAGEPY_MIGRATE=on
 ```
@@ -254,7 +234,6 @@ When adapting this for another city:
 ```bash
    pupa update portland
    python manage.py sync_councilmatic
-   python manage.py update_index
 ```
 
 ### Testing Scrapers
@@ -296,7 +275,6 @@ cat _data/person_*.json | jq .
 - [ ] Set `DEBUG=False`
 - [ ] Use strong `SECRET_KEY`
 - [ ] Configure real database (not SQLite)
-- [ ] Set up proper Elasticsearch cluster
 - [ ] Configure static file serving (WhiteNoise or CDN)
 - [ ] Set up SSL/TLS
 - [ ] Configure logging
@@ -325,12 +303,6 @@ cat _data/person_*.json | jq .
 - Use `select_related()` and `prefetch_related()` in queries
 - Consider database connection pooling
 
-**Search:**
-
-- Tune Elasticsearch heap size
-- Optimize index settings
-- Use result caching
-
 **Caching:**
 
 - Redis for session/cache backend
@@ -351,7 +323,6 @@ cat _data/person_*.json | jq .
 
 ```bash
 python manage.py sync_councilmatic
-python manage.py rebuild_index
 ```
 
 ---
@@ -364,22 +335,6 @@ python manage.py rebuild_index
 
 ```bash
 pupa dbinit us
-```
-
----
-
-**Issue:** Search not working
-
-**Cause:** Elasticsearch index not built or Elasticsearch down
-
-**Fix:**
-
-```bash
-# Check Elasticsearch
-curl http://localhost:9200
-
-# Rebuild index
-python manage.py rebuild_index --noinput
 ```
 
 ---
