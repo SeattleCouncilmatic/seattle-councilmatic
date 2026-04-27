@@ -19,7 +19,6 @@ urlpatterns = [
     path("api/events/upcoming/", api_views.upcoming_events, name="api_events_upcoming"),
     path("api/events/", api_views.events_index, name="api_events_index"),
     path("api/events/<slug:slug>/", api_views.event_detail, name="api_event_detail"),
-    path("", include("councilmatic_search.urls")),
     # Wagtail admin + documents only — wagtail's "" catch-all is intentionally not included
     # so the React SPA can own all non-API, non-admin routes.
     path("cms/", include(wagtailadmin_urls)),

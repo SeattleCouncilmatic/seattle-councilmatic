@@ -7,7 +7,7 @@ psycopg2-binary>=2.9.9
 dj-database-url>=2.1.0
 
 # Councilmatic core
-django-councilmatic[all] @ https://github.com/datamade/django-councilmatic/archive/refs/heads/5.x.zip
+django-councilmatic @ https://github.com/datamade/django-councilmatic/archive/refs/heads/5.x.zip
 
 # Legislative data scraping
 pupa>=0.11.0

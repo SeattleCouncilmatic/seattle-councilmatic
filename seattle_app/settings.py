@@ -35,9 +35,6 @@ INSTALLED_APPS = [
     "seattle_app",
     "seattle",
     "reps",
-    # Search layer - Remove if search not required
-    "councilmatic_search",
-    "haystack",
     # CMS layer - Remove if CMS not required
     "councilmatic_cms",
     "wagtail.contrib.forms",
@@ -176,19 +173,6 @@ if DEBUG:
         "localhost",
         "0.0.0.0",
     ]
-
-# Haystack search settings
-HAYSTACK_CONNECTIONS = {
-    "default": {
-        "ENGINE": "haystack.backends.elasticsearch7_backend.Elasticsearch7SearchEngine",
-        "URL": os.environ["SEARCH_URL"],
-        "ADMIN_URL": os.environ["SEARCH_URL"],
-        "INDEX_NAME": "seattle_councilmatic",
-        "SILENTLY_FAIL": False,
-    }
-}
-
-HAYSTACK_SIGNAL_PROCESSOR = "haystack.signals.RealtimeSignalProcessor"
 
 WAGTAIL_SITE_NAME = "Seattle Councilmatic"
 
