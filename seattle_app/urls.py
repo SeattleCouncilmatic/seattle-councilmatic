@@ -19,6 +19,12 @@ urlpatterns = [
     path("api/events/upcoming/", api_views.upcoming_events, name="api_events_upcoming"),
     path("api/events/", api_views.events_index, name="api_events_index"),
     path("api/events/<slug:slug>/", api_views.event_detail, name="api_event_detail"),
+    path("api/smc/", api_views.smc_search, name="api_smc_search"),
+    path("api/smc/tree/", api_views.smc_tree, name="api_smc_tree"),
+    path("api/smc/titles/<str:title_number>/", api_views.smc_title_detail, name="api_smc_title_detail"),
+    path("api/smc/chapters/<str:chapter_number>/", api_views.smc_chapter_detail, name="api_smc_chapter_detail"),
+    path("api/smc/sections/<str:section_number>/", api_views.smc_section_detail, name="api_smc_section_detail"),
+    path("api/smc/appendices/<str:title_number>/<slug:label_slug>/", api_views.smc_appendix_detail, name="api_smc_appendix_detail"),
     # Wagtail admin + documents only — wagtail's "" catch-all is intentionally not included
     # so the React SPA can own all non-API, non-admin routes.
     path("cms/", include(wagtailadmin_urls)),

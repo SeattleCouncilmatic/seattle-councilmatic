@@ -2,15 +2,19 @@
 JSON API views for the React frontend homepage.
 """
 
+import re
 from functools import reduce
 from operator import or_
 
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.utils import timezone
-from django.db.models import Max, Q
+from django.contrib.postgres.search import SearchQuery, SearchRank
+from django.db.models import Count, Max, Q
 from councilmatic_core.models import Bill, Event
 from django.shortcuts import get_object_or_404
+
+from .models import MunicipalCodeSection, Subchapter, TitleAppendix
 
 
 # Status label mapping from Legistar's MatterStatusName values (case-insensitive keys)
@@ -476,4 +480,285 @@ def legislation_detail(request, slug):
         'actions':         actions,
         'documents':       documents,
         'slug':            bill.slug,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Seattle Municipal Code (SMC) endpoints
+# ---------------------------------------------------------------------------
+
+# Section numbers look like "23.47A.004", chapter numbers like "23.47A",
+# title numbers like "23" or "12A". Anything matching this regex is treated
+# as a citation prefix and routed through trigram/btree on section_number
+# rather than the FTS path.
+_CITATION_RE = re.compile(r'^[0-9]+[A-Za-z]?(?:\.[0-9A-Za-z]+){0,2}$')
+
+
+def _appendix_label_to_slug(label: str) -> str:
+    """'I AND II' -> 'i-and-ii'. Lossy in theory but the label set is tiny
+    (Title 15 only, today) and characters outside [A-Za-z0-9 ] don't appear."""
+    return re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')
+
+
+def _serialize_section_card(s: MunicipalCodeSection, snippet: str | None = None) -> dict:
+    """Compact shape for search results and chapter listings."""
+    sub = s.subchapter
+    return {
+        'section_number':    s.section_number,
+        'title':              s.title,
+        'title_number':       s.title_number,
+        'chapter_number':     s.chapter_number,
+        'subchapter_roman':   sub.roman if sub else None,
+        'subchapter_name':    sub.name if sub else None,
+        'has_summary':        bool(s.plain_summary),
+        'snippet':            snippet,
+    }
+
+
+@require_GET
+def smc_search(request):
+    """
+    GET /api/smc/?q=<text>&title=<n>&chapter=<n>&limit=20&offset=0
+
+    Searches MunicipalCodeSection. If `q` looks like a section/chapter/title
+    citation prefix (e.g. "23.47A"), prefix-matches on section_number
+    backed by the pg_trgm GIN index. Otherwise runs FTS against the
+    pre-computed `search_vector` (weighted A/B/C over section_number,
+    title, full_text) ordered by SearchRank.
+
+    The optional `title` and `chapter` params narrow results to a single
+    title or chapter — primarily for in-chapter search from the chapter
+    page.
+    """
+    q = request.GET.get('q', '').strip()
+    title_filter = request.GET.get('title', '').strip()
+    chapter_filter = request.GET.get('chapter', '').strip()
+    limit = _safe_int(request.GET.get('limit'), default=20, max_value=100)
+    offset = _safe_int(request.GET.get('offset'), default=0)
+
+    sections = MunicipalCodeSection.objects.select_related('subchapter')
+
+    if title_filter:
+        sections = sections.filter(title_number=title_filter)
+    if chapter_filter:
+        sections = sections.filter(chapter_number=chapter_filter)
+
+    is_citation = bool(q) and _CITATION_RE.match(q) is not None
+
+    if not q:
+        # Browse-style listing inside a title/chapter filter — no search.
+        sections = sections.order_by('section_number')
+    elif is_citation:
+        # Citation prefix lookup. Trigram GIN index handles ILIKE 'q%'.
+        sections = sections.filter(section_number__istartswith=q).order_by('section_number')
+    else:
+        # FTS path. websearch_to_tsquery handles quoted phrases and OR/-
+        # operators the way users expect from search engines.
+        query = SearchQuery(q, search_type='websearch')
+        sections = (sections
+                    .filter(search_vector=query)
+                    .annotate(rank=SearchRank('search_vector', query))
+                    .order_by('-rank', 'section_number'))
+
+    total_count = sections.count()
+    sections = sections[offset:offset + limit]
+
+    results = [_serialize_section_card(s) for s in sections]
+
+    return JsonResponse({
+        'results':     results,
+        'total_count': total_count,
+        'limit':       limit,
+        'offset':      offset,
+        'q':           q,
+        'mode':        'citation' if is_citation else ('fts' if q else 'browse'),
+    })
+
+
+@require_GET
+def smc_tree(request):
+    """
+    GET /api/smc/tree/
+
+    Browse-tree skeleton: every title with its chapters and section
+    counts, plus the appendix list. Sections aren't included — they're
+    too numerous (7k+) and the chapter page fetches them on demand.
+    """
+    # Chapter section counts grouped by (title_number, chapter_number)
+    chapter_rows = (
+        MunicipalCodeSection.objects
+        .values('title_number', 'chapter_number')
+        .annotate(section_count=Count('id'))
+        .order_by('title_number', 'chapter_number')
+    )
+
+    titles = {}
+    for row in chapter_rows:
+        tn = row['title_number']
+        if tn not in titles:
+            titles[tn] = {'title_number': tn, 'chapters': []}
+        titles[tn]['chapters'].append({
+            'chapter_number': row['chapter_number'],
+            'section_count':  row['section_count'],
+        })
+
+    # Sort titles by their numeric prefix so '23' lands before '23A' lands
+    # before '25' rather than lexicographic (which puts '10' before '2').
+    def _title_sort_key(tn: str) -> tuple[int, str]:
+        m = re.match(r'^(\d+)', tn)
+        return (int(m.group(1)) if m else 0, tn)
+
+    title_list = sorted(titles.values(), key=lambda t: _title_sort_key(t['title_number']))
+
+    appendices = [
+        {
+            'title_number': a.title_number,
+            'label':        a.label,
+            'label_slug':   _appendix_label_to_slug(a.label),
+        }
+        for a in TitleAppendix.objects.order_by('title_number', 'label')
+    ]
+
+    return JsonResponse({'titles': title_list, 'appendices': appendices})
+
+
+@require_GET
+def smc_title_detail(request, title_number):
+    """
+    GET /api/smc/titles/<title_number>/
+
+    Single title: list of chapters with section counts. 404s when no
+    section in the parsed PDF carries this title number.
+    """
+    chapters = (
+        MunicipalCodeSection.objects
+        .filter(title_number=title_number)
+        .values('chapter_number')
+        .annotate(section_count=Count('id'))
+        .order_by('chapter_number')
+    )
+    chapter_list = [
+        {'chapter_number': c['chapter_number'], 'section_count': c['section_count']}
+        for c in chapters
+    ]
+    if not chapter_list:
+        return JsonResponse({'error': 'Title not found'}, status=404)
+
+    appendices = [
+        {'label': a.label, 'label_slug': _appendix_label_to_slug(a.label)}
+        for a in TitleAppendix.objects.filter(title_number=title_number).order_by('label')
+    ]
+
+    return JsonResponse({
+        'title_number': title_number,
+        'chapters':     chapter_list,
+        'appendices':   appendices,
+    })
+
+
+@require_GET
+def smc_chapter_detail(request, chapter_number):
+    """
+    GET /api/smc/chapters/<chapter_number>/
+
+    Single chapter: sections grouped by subchapter, in document order.
+    Sections without a subchapter appear in a leading "ungrouped" group.
+    Subchapters with no sections in this run still appear (with empty
+    section list) so the chapter TOC reflects the PDF structure.
+    """
+    sections = (
+        MunicipalCodeSection.objects
+        .filter(chapter_number=chapter_number)
+        .select_related('subchapter')
+        .order_by('section_number')
+    )
+    if not sections.exists():
+        return JsonResponse({'error': 'Chapter not found'}, status=404)
+
+    title_number = sections.first().title_number
+
+    # All subchapters declared for this chapter — we list them even if
+    # empty, so the user sees the official structure.
+    subchapters_qs = Subchapter.objects.filter(chapter_number=chapter_number).order_by('ordinal')
+    subchapter_index = {sc.id: sc for sc in subchapters_qs}
+
+    # Build groups: ungrouped first, then each declared subchapter in
+    # ordinal order. Sections fall into their FK group regardless of
+    # arrival order in the queryset.
+    ungrouped_sections = []
+    grouped_sections = {sc_id: [] for sc_id in subchapter_index}
+    for s in sections:
+        card = {'section_number': s.section_number, 'title': s.title,
+                'has_summary': bool(s.plain_summary)}
+        if s.subchapter_id and s.subchapter_id in grouped_sections:
+            grouped_sections[s.subchapter_id].append(card)
+        else:
+            ungrouped_sections.append(card)
+
+    groups = []
+    if ungrouped_sections:
+        groups.append({'subchapter': None, 'sections': ungrouped_sections})
+    for sc in subchapters_qs:
+        groups.append({
+            'subchapter': {'roman': sc.roman, 'name': sc.name},
+            'sections':   grouped_sections[sc.id],
+        })
+
+    return JsonResponse({
+        'title_number':   title_number,
+        'chapter_number': chapter_number,
+        'groups':         groups,
+    })
+
+
+@require_GET
+def smc_section_detail(request, section_number):
+    """
+    GET /api/smc/sections/<section_number>/
+
+    Full section: identifier, title, full_text, subchapter info, and
+    LLM summary fields (placeholder until the summarize_smc_sections
+    command lands).
+    """
+    s = get_object_or_404(
+        MunicipalCodeSection.objects.select_related('subchapter'),
+        section_number=section_number,
+    )
+    sub = s.subchapter
+    return JsonResponse({
+        'section_number':       s.section_number,
+        'title':                s.title,
+        'title_number':         s.title_number,
+        'chapter_number':       s.chapter_number,
+        'subchapter_roman':     sub.roman if sub else None,
+        'subchapter_name':      sub.name if sub else None,
+        'full_text':            s.full_text,
+        'plain_summary':        s.plain_summary or None,
+        'summary_model':        s.summary_model or None,
+        'summary_generated_at': s.summary_generated_at.isoformat() if s.summary_generated_at else None,
+        'source_pdf_page':      s.source_pdf_page,
+    })
+
+
+@require_GET
+def smc_appendix_detail(request, title_number, label_slug):
+    """
+    GET /api/smc/appendices/<title_number>/<label_slug>/
+
+    Appendix detail. Only Title 15 has appendices in the SMC today.
+    The slug is the lowercased/dashed label ('i-and-ii') because the
+    raw label contains spaces.
+    """
+    matches = [
+        a for a in TitleAppendix.objects.filter(title_number=title_number)
+        if _appendix_label_to_slug(a.label) == label_slug
+    ]
+    if not matches:
+        return JsonResponse({'error': 'Appendix not found'}, status=404)
+    a = matches[0]
+    return JsonResponse({
+        'title_number':    a.title_number,
+        'label':           a.label,
+        'full_text':       a.full_text,
+        'source_pdf_page': a.source_pdf_page,
     })
