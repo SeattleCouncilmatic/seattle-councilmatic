@@ -50,15 +50,20 @@ EMBEDDED_SECTION_RE = re.compile(r"\b\d+[A-Z]?\.\d+[A-Z]?\.\d+[A-Z]?\b")
 # number, but whose "title" group is actually a list of citations.
 
 LEGITIMATE_SECTION_CITATION_RE = re.compile(
-    r"\bSection(?:s)?\s+\d+[A-Z]?\.\d+[A-Z]?\.\d+",
+    r"\b(?:Section(?:s)?|RCW|U\.S\.C\.)\s+\d+[A-Z]?\.\d+[A-Z]?\.\d+",
     re.IGNORECASE,
 )
 # A section number preceded by "Section" or "Sections" in the title.
 # Real titles legitimately reference other sections this way (e.g.
 # "Penalty for violation of Section 3.30.050.", "Violation of Sections
-# 6.240.020,"). Ghost headings from citation-list lines in the
-# "ORDINANCES CODIFIED" appendix have section numbers without this
-# lead-in (e.g. "ChartA, 23.50.012 ChartA, 23.54.015 Chart").
+# 6.240.020,"). Also accept `RCW X.Y.Z` (Revised Code of Washington)
+# and `U.S.C. X.Y.Z` (United States Code) — title 23.76.067
+# ("Amendments to Title 23 to implement RCW 43.21C.420 (SEPA)") was
+# silently dropped because `43.21C.420` matched EMBEDDED_SECTION_RE
+# without the lead-in. Ghost headings from citation-list lines in
+# the "ORDINANCES CODIFIED" appendix have section numbers without
+# any of these lead-ins (e.g. "ChartA, 23.50.012 ChartA, 23.54.015
+# Chart").
 
 CHAPTER_FRAGMENT_RE = re.compile(r"^(?:Chapter|\d+[A-Z]?\.\d+[A-Z]?)\s*$")
 # Matches a single fragment of a "Chapter X.Y" heading on its own line —
@@ -201,6 +206,18 @@ def _is_section_boundary(prev_line: Optional[str]) -> bool:
     if stripped.startswith(("Chapter ", "Subchapter ", "Title ", "Subtitle ")):
         return True
     if SECTION_RE.match(stripped):
+        return True
+    # Layout label for an exhibit / map / table / chart / figure that
+    # sits between sections — e.g. `'Exhibit "A"—Pike Place'` on p4362
+    # right before `25.24.030 Commission created.`. These are figure
+    # captions, not body prose; the body of the prior section ended
+    # before them. Without recognizing them as boundaries the next
+    # section's heading is silently dropped (25.24.030 was missing
+    # for this reason). Match the label keyword at the start, with or
+    # without quotes/punctuation; prose lines starting with these
+    # words ("Exhibit hall ...", "Figure out ...") would be very
+    # unusual immediately before a SECTION_RE-matching line.
+    if stripped.startswith(("Exhibit ", "Map ", "Table ", "Chart ", "Figure ")):
         return True
     # All-uppercase standalone lines (no lowercase) are either structural
     # headings or page running headers that leaked through the header
@@ -1045,6 +1062,7 @@ class Command(BaseCommand):
                     new_left_count += 1
 
         body_lines = self._strip_layout_artifacts(body_lines, new_left_count)
+        body_lines = self._strip_revisers_notes(body_lines)
 
         # Chapter-transition pages have a heading like "Chapter 25.32"
         # that spans the full page width. Two-column extraction fragments
@@ -1124,6 +1142,44 @@ class Command(BaseCommand):
                     )
                     if looks_like_header_name:
                         skip_next = True
+                continue
+            out.append(ln)
+        return out
+
+    @staticmethod
+    def _strip_revisers_notes(lines: list[str]) -> list[str]:
+        """Drop "Reviser's note" blocks. They span the full page width but
+        the column-aware reader splits them at page midpoint, producing
+        reading-order fragments — e.g. on p3246 the note ends as
+        `'reference has been codified as subsection'`, a mid-sentence
+        fragment with no terminal punctuation. When that fragment lands
+        immediately before the next section heading (`23.50A.160`), it
+        fails _is_section_boundary's terminal-punctuation check and the
+        section is silently dropped.
+
+        Reviser's notes are editorial annotations about renumbering or
+        codification history, not normative section text. Drop everything
+        from the "Reviser's note" marker until the next structural
+        heading (section / chapter / subchapter) or end of page. The
+        section above keeps its body (the Renumbered/Ord stamp closes it
+        before the note begins); the section below sees the
+        pre-note line as prev_line.
+        """
+        out: list[str] = []
+        in_note = False
+        for ln in lines:
+            stripped = ln.strip()
+            if in_note:
+                if (
+                    SECTION_RE.match(stripped)
+                    or CHAPTER_HEADING_RE.match(stripped)
+                    or SUBCHAPTER_LINE_RE.match(stripped)
+                ):
+                    in_note = False
+                    out.append(ln)
+                continue
+            if stripped.startswith("Reviser's note"):
+                in_note = True
                 continue
             out.append(ln)
         return out

@@ -27,6 +27,93 @@ function StatusBadge({ status }) {
   return <span className={`meeting-badge ${cls}`}>{label}</span>
 }
 
+function MatterChip({ type }) {
+  if (!type) return null
+  // Extract the short code from e.g. "Council Bill (CB)" → "CB"
+  const match = type.match(/\(([^)]+)\)$/)
+  const code = match ? match[1] : type
+  const cls =
+    code === 'CB'  ? 'matter-chip--cb'  :
+    code === 'Res' ? 'matter-chip--res' :
+    code === 'Inf' ? 'matter-chip--inf' : 'matter-chip--other'
+  return <span className={`matter-chip ${cls}`}>{code}</span>
+}
+
+function DocIcon({ mediaType }) {
+  if (mediaType === 'application/pdf') return <span className="mtg-att-icon mtg-att-icon--pdf">PDF</span>
+  if (mediaType?.includes('word'))     return <span className="mtg-att-icon mtg-att-icon--doc">DOC</span>
+  return <span className="mtg-att-icon">FILE</span>
+}
+
+function AgendaDocButtons({ agendaUrl, agendaStatus, packetUrl, minutesUrl, minutesStatus }) {
+  if (!agendaUrl && !packetUrl && !minutesUrl) return null
+  return (
+    <div className="mtg-docs-row">
+      {agendaUrl && (
+        <a href={agendaUrl} target="_blank" rel="noopener noreferrer" className="mtg-doc-btn mtg-doc-btn--agenda">
+          <span className="mtg-doc-btn-icon">📄</span>
+          Agenda
+          {agendaStatus && <span className="mtg-doc-btn-status">{agendaStatus}</span>}
+        </a>
+      )}
+      {packetUrl && (
+        <a href={packetUrl} target="_blank" rel="noopener noreferrer" className="mtg-doc-btn mtg-doc-btn--packet">
+          <span className="mtg-doc-btn-icon">📦</span>
+          Agenda Packet
+        </a>
+      )}
+      {minutesUrl && (
+        <a href={minutesUrl} target="_blank" rel="noopener noreferrer" className="mtg-doc-btn mtg-doc-btn--minutes">
+          <span className="mtg-doc-btn-icon">📋</span>
+          Minutes
+          {minutesStatus && <span className="mtg-doc-btn-status">{minutesStatus}</span>}
+        </a>
+      )}
+    </div>
+  )
+}
+
+function AgendaItemRow({ item, index }) {
+  const { description, matter_file, matter_type, matter_status, bill_slug, attachments, action_text } = item
+
+  const titleNode = bill_slug ? (
+    <Link to={`/legislation/${bill_slug}`} className="mtg-agenda-link">{description}</Link>
+  ) : (
+    <span>{description}</span>
+  )
+
+  return (
+    <li className="mtg-agenda-item">
+      <div className="mtg-agenda-item-header">
+        <span className="mtg-agenda-seq">{index + 1}.</span>
+        <div className="mtg-agenda-item-body">
+          <div className="mtg-agenda-title-row">
+            <MatterChip type={matter_type} />
+            <span className="mtg-agenda-title">{titleNode}</span>
+          </div>
+          <div className="mtg-agenda-meta">
+            {matter_file && <span className="mtg-agenda-file">{matter_file}</span>}
+            {matter_status && <span className="mtg-agenda-status">{matter_status}</span>}
+            {action_text && <span className="mtg-agenda-action">{action_text}</span>}
+          </div>
+          {attachments?.length > 0 && (
+            <ul className="mtg-att-list">
+              {attachments.map((att, i) => (
+                <li key={i} className="mtg-att-item">
+                  <DocIcon mediaType={att.media_type} />
+                  <a href={att.url} target="_blank" rel="noopener noreferrer" className="mtg-att-link">
+                    {att.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </li>
+  )
+}
+
 export default function MeetingDetail() {
   const { slug } = useParams()
   const [meeting, setMeeting] = useState(null)
@@ -59,6 +146,10 @@ export default function MeetingDetail() {
   if (error)    return <div className="mtg-detail-error">Could not load meeting: {error}</div>
 
   const legistarUrl = meeting.legistar_url || null
+  // Filter out items that have no matter_file and no attachments (pure procedural notes)
+  const substantiveItems = (meeting.agenda_items || []).filter(
+    item => item.matter_file || (item.attachments && item.attachments.length > 0)
+  )
 
   return (
     <main className="mtg-detail-page">
@@ -74,6 +165,15 @@ export default function MeetingDetail() {
             <StatusBadge status={meeting.status} />
           </div>
         </header>
+
+        {/* Agenda & Minutes PDF buttons */}
+        <AgendaDocButtons
+          agendaUrl={meeting.agenda_file_url}
+          agendaStatus={meeting.agenda_status}
+          packetUrl={meeting.packet_url}
+          minutesUrl={meeting.minutes_file_url}
+          minutesStatus={meeting.minutes_status}
+        />
 
         {/* Body */}
         <div className="mtg-detail-body">
@@ -119,26 +219,25 @@ export default function MeetingDetail() {
             </section>
           </aside>
 
-          {/* Main: description (or placeholder) */}
+          {/* Main: agenda items */}
           <section className="mtg-detail-main">
-            <h2 className="mtg-detail-section-title">About This Meeting</h2>
-            {meeting.description ? (
-              <p className="mtg-detail-description">{meeting.description}</p>
-            ) : (
+            <h2 className="mtg-detail-section-title">Agenda Items</h2>
+            {substantiveItems.length === 0 ? (
               <p className="mtg-detail-empty">
-                No additional details available. Check the{' '}
+                No agenda items available. Check the{' '}
                 {legistarUrl ? (
-                  <a
-                    href={legistarUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mtg-detail-external-link"
-                  >
+                  <a href={legistarUrl} target="_blank" rel="noopener noreferrer" className="mtg-detail-external-link">
                     Legistar event page
                   </a>
                 ) : 'Legistar'}{' '}
-                for agenda and documents.
+                for the full agenda.
               </p>
+            ) : (
+              <ol className="mtg-agenda-list">
+                {substantiveItems.map((item, i) => (
+                  <AgendaItemRow key={i} item={item} index={i} />
+                ))}
+              </ol>
             )}
           </section>
 
