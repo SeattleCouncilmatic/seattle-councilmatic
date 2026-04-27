@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Landmark } from 'lucide-react';
 
 export default function Header() {
@@ -6,8 +7,8 @@ export default function Header() {
       <div className="header-container">
         <div className="header-content">
 
-          {/* logo and title */}
-          <div className="logo-section">
+          {/* Logo + title — clickable, returns to homepage from any page */}
+          <Link to="/" className="logo-section" aria-label="Seattle Councilmatic — Home">
 
             {/* logo icon */}
             <div className="logo-icon">
@@ -21,7 +22,7 @@ export default function Header() {
                 An easy way to follow Seattle City Council activity and find local bills.
               </p>
             </div>
-          </div>
+          </Link>
 
         </div>
       </div>

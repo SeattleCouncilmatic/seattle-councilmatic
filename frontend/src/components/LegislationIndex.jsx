@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import LegislationCard from './LegislationCard'
 import './LegislationIndex.css'
 
@@ -89,6 +89,11 @@ export default function LegislationIndex() {
   return (
     <main className="leg-index-page">
       <div className="leg-index-container">
+        <nav className="leg-index-breadcrumb" aria-label="Breadcrumb">
+          <Link to="/">This Week</Link>
+          <span className="leg-index-breadcrumb-sep" aria-hidden="true">/</span>
+          <span className="leg-index-breadcrumb-current">Legislation</span>
+        </nav>
         <header className="leg-index-header">
           <h1 className="leg-index-title">Legislation</h1>
           <p className="leg-index-subtitle">
