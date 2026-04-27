@@ -500,6 +500,93 @@ def _appendix_label_to_slug(label: str) -> str:
     return re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')
 
 
+def _title_sort_key(title_number: str) -> tuple[int, str]:
+    """Sort titles by numeric prefix so '10' lands after '2', not after '1'.
+    '12A' compares right because the numeric prefix tuple ties first."""
+    m = re.match(r'^(\d+)', title_number)
+    return (int(m.group(1)) if m else 0, title_number)
+
+
+def _section_path_parts(section_number: str) -> tuple[str, str, str] | None:
+    """'23.47A.004' -> ('23', '47A', '004'). None if shape is wrong."""
+    parts = section_number.split('.')
+    if len(parts) != 3:
+        return None
+    return parts[0], parts[1], parts[2]
+
+
+def _section_neighbor(direction: str, section_number: str) -> dict | None:
+    """Lookup the previous or next section across the whole code by lex
+    order on section_number. Lex works across chapter boundaries because
+    the differing byte (e.g. '7' vs '8' at position 4 of '23.47A.180' vs
+    '23.48.001') comes before any letter suffix."""
+    qs = MunicipalCodeSection.objects
+    if direction == 'prev':
+        n = qs.filter(section_number__lt=section_number).order_by('-section_number').first()
+    else:
+        n = qs.filter(section_number__gt=section_number).order_by('section_number').first()
+    if not n:
+        return None
+    parts = _section_path_parts(n.section_number)
+    return {
+        'primary':   n.section_number,
+        'secondary': n.title,
+        'path':      f'/municode/{parts[0]}/{parts[1]}/{parts[2]}' if parts else None,
+    }
+
+
+def _chapter_neighbor(direction: str, chapter_number: str, title_number: str) -> dict | None:
+    """Previous/next chapter within the same title. Lex on chapter_number
+    works because every chapter within a title shares the same title prefix
+    and chapter-number differences land before any letter suffix."""
+    qs = MunicipalCodeSection.objects.filter(title_number=title_number)
+    if direction == 'prev':
+        n = (qs.filter(chapter_number__lt=chapter_number)
+               .values_list('chapter_number', flat=True)
+               .order_by('-chapter_number').first())
+    else:
+        n = (qs.filter(chapter_number__gt=chapter_number)
+               .values_list('chapter_number', flat=True)
+               .order_by('chapter_number').first())
+    if not n:
+        return None
+    short = '.'.join(n.split('.')[1:])
+    return {
+        'primary':   f'Chapter {n}',
+        'secondary': None,
+        'path':      f'/municode/{title_number}/{short}',
+    }
+
+
+def _title_neighbor(direction: str, title_number: str) -> dict | None:
+    """Previous/next title in numeric-prefix order. Can't lex-compare in
+    SQL because '10' < '2' bytewise, so we pull the distinct title list
+    and sort in Python."""
+    # Explicit .order_by('title_number') overrides the model's default Meta
+    # ordering (which appends chapter_number + section_number to the SQL
+    # ORDER BY, defeating DISTINCT and returning all 7k rows instead of
+    # ~22 distinct titles). Python re-sort below applies the numeric-prefix
+    # rule the SQL collation can't.
+    titles = list(MunicipalCodeSection.objects
+                  .order_by('title_number')
+                  .values_list('title_number', flat=True)
+                  .distinct())
+    titles.sort(key=_title_sort_key)
+    try:
+        idx = titles.index(title_number)
+    except ValueError:
+        return None
+    target_idx = idx - 1 if direction == 'prev' else idx + 1
+    if target_idx < 0 or target_idx >= len(titles):
+        return None
+    n = titles[target_idx]
+    return {
+        'primary':   f'Title {n}',
+        'secondary': None,
+        'path':      f'/municode/{n}',
+    }
+
+
 def _serialize_section_card(s: MunicipalCodeSection, snippet: str | None = None) -> dict:
     """Compact shape for search results and chapter listings."""
     sub = s.subchapter
@@ -602,12 +689,6 @@ def smc_tree(request):
             'section_count':  row['section_count'],
         })
 
-    # Sort titles by their numeric prefix so '23' lands before '23A' lands
-    # before '25' rather than lexicographic (which puts '10' before '2').
-    def _title_sort_key(tn: str) -> tuple[int, str]:
-        m = re.match(r'^(\d+)', tn)
-        return (int(m.group(1)) if m else 0, tn)
-
     title_list = sorted(titles.values(), key=lambda t: _title_sort_key(t['title_number']))
 
     appendices = [
@@ -653,6 +734,10 @@ def smc_title_detail(request, title_number):
         'title_number': title_number,
         'chapters':     chapter_list,
         'appendices':   appendices,
+        'neighbors': {
+            'prev': _title_neighbor('prev', title_number),
+            'next': _title_neighbor('next', title_number),
+        },
     })
 
 
@@ -708,6 +793,10 @@ def smc_chapter_detail(request, chapter_number):
         'title_number':   title_number,
         'chapter_number': chapter_number,
         'groups':         groups,
+        'neighbors': {
+            'prev': _chapter_neighbor('prev', chapter_number, title_number),
+            'next': _chapter_neighbor('next', chapter_number, title_number),
+        },
     })
 
 
@@ -737,6 +826,10 @@ def smc_section_detail(request, section_number):
         'summary_model':        s.summary_model or None,
         'summary_generated_at': s.summary_generated_at.isoformat() if s.summary_generated_at else None,
         'source_pdf_page':      s.source_pdf_page,
+        'neighbors': {
+            'prev': _section_neighbor('prev', s.section_number),
+            'next': _section_neighbor('next', s.section_number),
+        },
     })
 
 

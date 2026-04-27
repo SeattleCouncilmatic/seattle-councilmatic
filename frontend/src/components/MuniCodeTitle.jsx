@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import NotFound from './NotFound'
+import NeighborNav from './NeighborNav'
 import './MuniCodeDetail.css'
 
 // Routed at /municode/:slug. The slug is either a title number (e.g. "23"
@@ -58,6 +59,8 @@ function TitlePage({ titleNumber }) {
           </p>
         </header>
 
+        <NeighborNav neighbors={data.neighbors} ariaLabel="Title navigation" />
+
         <h2 className="smc-detail-h2">Chapters</h2>
         <ul className="smc-listing">
           {data.chapters.map(c => (
@@ -92,6 +95,8 @@ function TitlePage({ titleNumber }) {
             </ul>
           </>
         )}
+
+        <NeighborNav neighbors={data.neighbors} ariaLabel="Title navigation" />
       </div>
     </main>
   )

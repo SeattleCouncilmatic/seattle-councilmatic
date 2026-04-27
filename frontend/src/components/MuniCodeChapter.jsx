@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import NotFound from './NotFound'
+import NeighborNav from './NeighborNav'
 import { Breadcrumb, LoadingView, ErrorView } from './MuniCodeTitle'
 import './MuniCodeDetail.css'
 
@@ -44,6 +45,8 @@ export default function MuniCodeChapter() {
           <h1 className="smc-detail-h1">Chapter {data.chapter_number}</h1>
         </header>
 
+        <NeighborNav neighbors={data.neighbors} ariaLabel="Chapter navigation" />
+
         {data.groups.map((g, i) => (
           <section key={i} className="smc-chapter-group">
             {g.subchapter ? (
@@ -75,6 +78,8 @@ export default function MuniCodeChapter() {
             )}
           </section>
         ))}
+
+        <NeighborNav neighbors={data.neighbors} ariaLabel="Chapter navigation" />
       </div>
     </main>
   )

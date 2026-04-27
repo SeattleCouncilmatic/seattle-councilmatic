@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import NotFound from './NotFound'
+import NeighborNav from './NeighborNav'
 import SectionText from './SectionText'
 import { Breadcrumb, LoadingView, ErrorView } from './MuniCodeTitle'
 import './MuniCodeDetail.css'
@@ -53,6 +54,8 @@ export default function MuniCodeSection() {
           )}
         </header>
 
+        <NeighborNav neighbors={data.neighbors} ariaLabel="Section navigation" />
+
         {/* Plain-language summary slot. The summarize_smc_sections command
             isn't built yet (see WORK_LOG); this panel hides until a row
             has plain_summary populated. */}
@@ -75,6 +78,8 @@ export default function MuniCodeSection() {
             Source: Seattle Municipal Code, PDF page {data.source_pdf_page}.
           </p>
         )}
+
+        <NeighborNav neighbors={data.neighbors} ariaLabel="Section navigation" />
       </div>
     </main>
   )
