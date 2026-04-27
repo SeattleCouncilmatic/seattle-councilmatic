@@ -16,9 +16,9 @@ locked decisions, known follow-up threads, and a chronological merge log.
 Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **SPA index/search pages** (each likely its own PR; specifics TBD when we pick them up)
-- `/legislation/` — search and browse all legislation. `ThisWeek` only shows recent; needs an API search endpoint (or extend `/api/legislation/recent/` with query params) plus a list/filter UI. After shipping, update the `NotFound` `legislation` variant link from `/` to `/legislation/`.
-- `/events/` — search and browse all council meetings. Same shape as the legislation index. After shipping, update the `NotFound` `meeting` variant link from `/` to `/events/`.
+- `/events/` — search and browse all council meetings. Near copy-paste of the legislation index (PR #30) — same shape, just swap the model and API endpoint. After shipping, update the `NotFound` `meeting` variant link from `/` to `/events/`.
 - `/municode/` — search and browse the Seattle Municipal Code. First user-facing surface for the `MunicipalCodeSection` rows the parser populates. Big open questions: search vs hierarchical browse (Title → Chapter → Section), full-text vs metadata filters, how to render section text. Natural place to surface section-level LLM summaries when those wire up.
+- **Legislation index polish** (deferred from PR #30): classification filter (Bill/Resolution/etc.), sort controls, date-range filter, sponsor filter. NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#meetings`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on `/legislation` itself (only on the homepage); think about whether the index pages should get their own header/nav.
 
 **LLM summaries — wire up the existing infrastructure**
 - Models, service module, and prompts already exist (`seattle_app/models.py:47,84` for `MunicipalCodeSection.plain_summary` + `LegislationSummary`; `seattle_app/services/claude_service.py` for `summarize_section`/`summarize_legislation` with full prompts). Nothing runs them and nothing surfaces them to users yet.
@@ -55,6 +55,13 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Frontend — legislation index page (`/legislation/`) — merged 2026-04-26 (PR #30)
+First of the three SPA index pages. New `GET /api/legislation/` endpoint with `q`/`status`/`limit`/`offset` params returns paginated, filtered results plus `total_count` and the valid `status_values`. Search matches `identifier` OR `title` (case-insensitive `Q` filter); status filter reverse-maps the normalized label (e.g. `"Passed"`) to all raw `MatterStatusName` values that map to it via `_STATUS_LABELS`. Invalid status values short-circuit to `qs.none()` rather than silently ignoring the param.
+
+Frontend `LegislationIndex` component: debounced search (300ms), status dropdown, "Previous / Page X of Y / Next" pagination. URL-synced state via `useSearchParams` so filters and page are bookmarkable and survive browser back/forward. Reuses the existing `LegislationCard`. NavBar's `Legislation` entry converted from a `#legislation` hash stub to a real React Router `Link` to `/legislation` (other entries stay as homepage hash anchors until those sections ship — NavBar now mixes `Link` and `<a>` based on item shape). `NotFound` legislation variant updated from `/` to `/legislation` (carryover from PR #16's note).
+
+`LegislationDetail` header: replaced the single "Back to This Week" link with a breadcrumb (`This Week / Legislation / <identifier>`). When the user arrives via a card on the index, the index's URL params are stashed in `location.state.backToSearch` so the breadcrumb's `Legislation` link returns to the same filtered/paginated view rather than a fresh search. Direct deep links and cards rendered outside the index (e.g. ThisWeek) have no state and fall back to a fresh `/legislation`.
 
 ### Scheduler — vendor missing `bill_text.txt` haystack template — committed 2026-04-26
 The `update_index` step in the daily scrape (step 3 of `update_seattle.sh`) was crashing with `TemplateDoesNotExist: councilmatic_search/templates/indexes/bill_text.txt`. `councilmatic_search.search_indexes.BillIndex` (in the `django-councilmatic[all]==5.0` package, installed from `https://github.com/datamade/django-councilmatic/archive/refs/heads/5.x.zip`) hardcodes that exact `template_name` but the wheel built from the 5.x branch ships without the template directory at all — packaging bug in `MANIFEST.in` / `pyproject.toml`. The template exists in the upstream git source.
