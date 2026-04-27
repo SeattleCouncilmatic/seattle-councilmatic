@@ -2,10 +2,13 @@
 JSON API views for the React frontend homepage.
 """
 
+from functools import reduce
+from operator import or_
+
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.utils import timezone
-from django.db.models import Max
+from django.db.models import Max, Q
 from councilmatic_core.models import Bill, Event
 from django.shortcuts import get_object_or_404
 
@@ -92,6 +95,97 @@ def recent_legislation(request):
         })
 
     return JsonResponse({'results': results})
+
+
+# Status filter values exposed to the frontend (the normalized labels from
+# _STATUS_VARIANTS, in display order). Anything not in this list is rejected
+# server-side so a typo doesn't silently return zero results.
+_STATUS_FILTER_VALUES = ['Passed', 'Adopted', 'Signed', 'Failed', 'Vetoed',
+                         'Tabled', 'In Committee', 'Full Council', 'Introduced']
+
+
+def _safe_int(raw, default, max_value=None):
+    try:
+        v = int(raw)
+    except (TypeError, ValueError):
+        return default
+    if v < 0:
+        return default
+    if max_value is not None and v > max_value:
+        return max_value
+    return v
+
+
+@require_GET
+def legislation_index(request):
+    """
+    GET /api/legislation/?q=<text>&status=<label>&limit=20&offset=0
+
+    Search and filter all legislation; paginated. Sorted by latest action
+    descending (same as recent_legislation). `status` is one of the
+    normalized labels from _STATUS_VARIANTS (case-sensitive); the filter
+    expands to all raw `MatterStatusName` values that map to that label.
+    """
+    q = request.GET.get('q', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    limit = _safe_int(request.GET.get('limit'), default=20, max_value=100)
+    offset = _safe_int(request.GET.get('offset'), default=0)
+
+    bills = Bill.objects.all()
+
+    if q:
+        bills = bills.filter(Q(identifier__icontains=q) | Q(title__icontains=q))
+
+    if status_filter:
+        if status_filter not in _STATUS_FILTER_VALUES:
+            bills = bills.none()
+        else:
+            raw_matches = [raw for raw, label in _STATUS_LABELS.items()
+                           if label == status_filter]
+            if raw_matches:
+                status_q = reduce(or_, (Q(extras__MatterStatusName__iexact=v)
+                                        for v in raw_matches))
+                bills = bills.filter(status_q)
+            else:
+                bills = bills.none()
+
+    total_count = bills.count()
+
+    bills = (
+        bills
+        .prefetch_related('actions', 'sponsorships')
+        .annotate(latest_action_date=Max('actions__date'))
+        .order_by('-latest_action_date')[offset:offset + limit]
+    )
+
+    results = []
+    for bill in bills:
+        sponsorship = bill.sponsorships.first()
+        sponsor_name = sponsorship.entity_name if sponsorship else None
+
+        earliest_action = bill.actions.order_by('date').first()
+        intro_date = earliest_action.date[:10] if earliest_action and earliest_action.date else None
+
+        raw_status = bill.extras.get('MatterStatusName', '')
+        status_label, status_variant = _normalise_status(raw_status)
+
+        results.append({
+            'identifier':      bill.identifier,
+            'title':           bill.title,
+            'sponsor':         sponsor_name,
+            'status':          status_label,
+            'status_variant':  status_variant,
+            'date_introduced': intro_date,
+            'slug':            bill.slug,
+        })
+
+    return JsonResponse({
+        'results':       results,
+        'total_count':   total_count,
+        'limit':         limit,
+        'offset':        offset,
+        'status_values': _STATUS_FILTER_VALUES,
+    })
 
 
 @require_GET

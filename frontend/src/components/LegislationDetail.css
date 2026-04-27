@@ -11,19 +11,36 @@
   margin: 0 auto;
 }
 
-/* ── Back link ────────────────────────────────────────────────── */
+/* ── Breadcrumb ───────────────────────────────────────────────── */
 
-.leg-detail-back {
-  display: inline-block;
+.leg-detail-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #2E3D5B;
-  text-decoration: none;
   margin-bottom: 1.5rem;
 }
 
-.leg-detail-back:hover {
+.leg-detail-breadcrumb a {
+  color: #2E3D5B;
+  text-decoration: none;
+}
+
+.leg-detail-breadcrumb a:hover {
   text-decoration: underline;
+}
+
+.leg-detail-breadcrumb-sep {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.leg-detail-breadcrumb-current {
+  color: #6b7280;
+  font-family: monospace;
+  font-weight: 500;
 }
 
 /* ── Header ───────────────────────────────────────────────────── */

@@ -20,7 +20,7 @@ function formatDate(isoString) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function LegislationCard({ bill }) {
+export default function LegislationCard({ bill, backToSearch }) {
   const {
     identifier,
     title,
@@ -31,13 +31,20 @@ export default function LegislationCard({ bill }) {
     slug,
   } = bill;
 
+  // When the card is rendered inside the legislation index, the parent passes
+  // the current URL search params so the detail page can render a breadcrumb
+  // link that returns to the same filtered/paginated view. Cards rendered
+  // outside the index (e.g. ThisWeek) leave it undefined, which falls back to
+  // a fresh /legislation view.
+  const linkState = backToSearch ? { backToSearch } : undefined;
+
   return (
     <article className="leg-card">
       <p className="leg-card-identifier">{identifier}</p>
 
       <h4 className="leg-card-title">
         {slug ? (
-          <Link to={`/legislation/${slug}`} className="leg-card-link">
+          <Link to={`/legislation/${slug}`} state={linkState} className="leg-card-link">
             {title}
           </Link>
         ) : (

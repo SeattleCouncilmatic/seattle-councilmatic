@@ -14,6 +14,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/reps/", include("reps.urls")),
     path("api/legislation/recent/", api_views.recent_legislation, name="api_legislation_recent"),
+    path("api/legislation/", api_views.legislation_index, name="api_legislation_index"),
     path("api/legislation/<slug:slug>/", api_views.legislation_detail, name="api_legislation_detail"),
     path("api/meetings/upcoming/", api_views.upcoming_meetings, name="api_meetings_upcoming"),
     path("api/meetings/<slug:slug>/", api_views.meeting_detail, name="api_meeting_detail"),
