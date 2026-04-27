@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useLocation, Link } from 'react-router-dom'
 import NotFound from './NotFound'
-import './MeetingDetail.css'
+import './EventDetail.css'
 
 function formatDateTime(isoString) {
   if (!isoString) return '—'
@@ -114,9 +114,18 @@ function AgendaItemRow({ item, index }) {
   )
 }
 
-export default function MeetingDetail() {
+export default function EventDetail() {
   const { slug } = useParams()
-  const [meeting, setMeeting] = useState(null)
+  const location = useLocation()
+  // If we arrived via a card on the events index, the current search params
+  // are stashed in location.state.backToSearch so the breadcrumb can return
+  // to the same filtered view. Direct deep links and ThisWeek cards have no
+  // state and fall back to a fresh /events.
+  const eventsHref = location.state?.backToSearch
+    ? `/events?${location.state.backToSearch}`
+    : '/events'
+
+  const [event, setEvent] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [notFound, setNotFound] = useState(false)
@@ -125,7 +134,7 @@ export default function MeetingDetail() {
     setLoading(true)
     setError(null)
     setNotFound(false)
-    fetch(`/api/meetings/${slug}/`)
+    fetch(`/api/events/${slug}/`)
       .then(r => {
         if (r.status === 404) {
           setNotFound(true)
@@ -136,18 +145,18 @@ export default function MeetingDetail() {
         return r.json()
       })
       .then(data => {
-        if (data) { setMeeting(data); setLoading(false) }
+        if (data) { setEvent(data); setLoading(false) }
       })
       .catch(e => { setError(e.message); setLoading(false) })
   }, [slug])
 
   if (loading)  return <div className="mtg-detail-loading">Loading…</div>
-  if (notFound) return <NotFound kind="meeting" />
-  if (error)    return <div className="mtg-detail-error">Could not load meeting: {error}</div>
+  if (notFound) return <NotFound kind="event" />
+  if (error)    return <div className="mtg-detail-error">Could not load event: {error}</div>
 
-  const legistarUrl = meeting.legistar_url || null
+  const legistarUrl = event.legistar_url || null
   // Filter out items that have no matter_file and no attachments (pure procedural notes)
-  const substantiveItems = (meeting.agenda_items || []).filter(
+  const substantiveItems = (event.agenda_items || []).filter(
     item => item.matter_file || (item.attachments && item.attachments.length > 0)
   )
 
@@ -155,24 +164,30 @@ export default function MeetingDetail() {
     <main className="mtg-detail-page">
       <div className="mtg-detail-container">
 
-        {/* Back link */}
-        <Link to="/" className="mtg-detail-back">← Back to This Week</Link>
+        {/* Breadcrumb */}
+        <nav className="mtg-detail-breadcrumb" aria-label="Breadcrumb">
+          <Link to="/">This Week</Link>
+          <span className="mtg-detail-breadcrumb-sep" aria-hidden="true">/</span>
+          <Link to={eventsHref}>Events</Link>
+          <span className="mtg-detail-breadcrumb-sep" aria-hidden="true">/</span>
+          <span className="mtg-detail-breadcrumb-current">{event.name}</span>
+        </nav>
 
         {/* Header */}
         <header className="mtg-detail-header">
-          <h1 className="mtg-detail-title">{meeting.name}</h1>
+          <h1 className="mtg-detail-title">{event.name}</h1>
           <div className="mtg-detail-meta-row">
-            <StatusBadge status={meeting.status} />
+            <StatusBadge status={event.status} />
           </div>
         </header>
 
         {/* Agenda & Minutes PDF buttons */}
         <AgendaDocButtons
-          agendaUrl={meeting.agenda_file_url}
-          agendaStatus={meeting.agenda_status}
-          packetUrl={meeting.packet_url}
-          minutesUrl={meeting.minutes_file_url}
-          minutesStatus={meeting.minutes_status}
+          agendaUrl={event.agenda_file_url}
+          agendaStatus={event.agenda_status}
+          packetUrl={event.packet_url}
+          minutesUrl={event.minutes_file_url}
+          minutesStatus={event.minutes_status}
         />
 
         {/* Body */}
@@ -184,19 +199,19 @@ export default function MeetingDetail() {
               <h2 className="mtg-detail-section-title">Details</h2>
               <dl className="mtg-detail-dl">
                 <dt>Date &amp; Time</dt>
-                <dd>{formatDateTime(meeting.start_date)}</dd>
+                <dd>{formatDateTime(event.start_date)}</dd>
 
-                {meeting.end_date && (
+                {event.end_date && (
                   <>
                     <dt>Ends</dt>
-                    <dd>{formatDateTime(meeting.end_date)}</dd>
+                    <dd>{formatDateTime(event.end_date)}</dd>
                   </>
                 )}
 
-                {meeting.location && (
+                {event.location && (
                   <>
                     <dt>Location</dt>
-                    <dd className="mtg-detail-location">{meeting.location}</dd>
+                    <dd className="mtg-detail-location">{event.location}</dd>
                   </>
                 )}
 

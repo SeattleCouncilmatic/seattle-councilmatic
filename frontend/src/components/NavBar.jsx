@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { label: 'This Week',          href: '#this-week' },
   { label: 'About',              href: '#about' },
   { label: 'How It Works',       href: '#how-it-works' },
-  { label: 'Meetings',           href: '#meetings' },
+  { label: 'Events',             to:   '/events' },
   { label: 'Legislation',        to:   '/legislation' },
   { label: 'My Council Members', href: '#my-council-members' },
   { label: 'Glossary',           href: '#glossary' },

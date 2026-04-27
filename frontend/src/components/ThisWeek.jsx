@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Gavel, CalendarDays, ArrowRight, Loader2 } from 'lucide-react';
 import LegislationCard from './LegislationCard';
-import MeetingCard from './MeetingCard';
+import EventCard from './EventCard';
 import './ThisWeek.css';
 
 function SectionHeader({ icon: Icon, title, subtitle }) {
@@ -39,11 +39,11 @@ function ErrorMessage({ message }) {
 
 export default function ThisWeek() {
   const [bills, setBills] = useState([]);
-  const [meetings, setMeetings] = useState([]);
+  const [events, setEvents] = useState([]);
   const [billsLoading, setBillsLoading] = useState(true);
-  const [meetingsLoading, setMeetingsLoading] = useState(true);
+  const [eventsLoading, setEventsLoading] = useState(true);
   const [billsError, setBillsError] = useState(null);
-  const [meetingsError, setMeetingsError] = useState(null);
+  const [eventsError, setEventsError] = useState(null);
 
   useEffect(() => {
     fetch('/api/legislation/recent/?limit=4')
@@ -54,11 +54,11 @@ export default function ThisWeek() {
   }, []);
 
   useEffect(() => {
-    fetch('/api/meetings/upcoming/?limit=4')
+    fetch('/api/events/upcoming/?limit=4')
       .then((r) => r.json())
-      .then((data) => setMeetings(data.results || []))
-      .catch(() => setMeetingsError('Could not load meetings.'))
-      .finally(() => setMeetingsLoading(false));
+      .then((data) => setEvents(data.results || []))
+      .catch(() => setEventsError('Could not load events.'))
+      .finally(() => setEventsLoading(false));
   }, []);
 
   return (
@@ -88,26 +88,26 @@ export default function ThisWeek() {
             <ViewAllLink href="/legislation/" label="View All Legislation" />
           </div>
 
-          {/* ── Upcoming Meetings ── */}
+          {/* ── Upcoming Events ── */}
           <div>
             <SectionHeader
               icon={CalendarDays}
-              title="Upcoming Meetings"
-              subtitle="Public meetings scheduled soon."
+              title="Upcoming Events"
+              subtitle="Council and committee meetings scheduled soon."
             />
-            {meetingsLoading && <LoadingSpinner />}
-            {meetingsError && <ErrorMessage message={meetingsError} />}
-            {!meetingsLoading && !meetingsError && (
+            {eventsLoading && <LoadingSpinner />}
+            {eventsError && <ErrorMessage message={eventsError} />}
+            {!eventsLoading && !eventsError && (
               <div className="tw-card-list">
-                {meetings.length > 0
-                  ? meetings.map((meeting, i) => (
-                      <MeetingCard key={i} meeting={meeting} />
+                {events.length > 0
+                  ? events.map((event, i) => (
+                      <EventCard key={i} event={event} />
                     ))
-                  : <p className="tw-empty">No upcoming meetings found.</p>
+                  : <p className="tw-empty">No upcoming events found.</p>
                 }
               </div>
             )}
-            <ViewAllLink href="/events/" label="View All Meetings" />
+            <ViewAllLink href="/events/" label="View All Events" />
           </div>
 
         </div>

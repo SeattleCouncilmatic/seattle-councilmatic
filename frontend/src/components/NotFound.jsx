@@ -8,11 +8,11 @@ const VARIANTS = {
     linkLabel: '← Browse all legislation',
     linkTo: '/legislation',
   },
-  meeting: {
-    title: 'Meeting not found',
-    message: "We couldn't find that meeting. It may have been removed, or the link may be incorrect.",
-    linkLabel: '← Back to upcoming meetings',
-    linkTo: '/',
+  event: {
+    title: 'Event not found',
+    message: "We couldn't find that event. It may have been removed, or the link may be incorrect.",
+    linkLabel: '← Browse all events',
+    linkTo: '/events',
   },
 }
 

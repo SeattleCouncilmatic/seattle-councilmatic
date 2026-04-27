@@ -1,0 +1,158 @@
+.evt-index-page {
+  background: #f9fafb;
+  min-height: calc(100vh - 4rem);
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+.evt-index-container {
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.evt-index-header {
+  margin-bottom: 2rem;
+}
+
+.evt-index-title {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: #1f2937;
+  margin: 0 0 0.5rem;
+}
+
+.evt-index-subtitle {
+  font-size: 1rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* ── Controls ─────────────────────────────────────────────────── */
+
+.evt-index-controls {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.evt-index-search {
+  flex: 1 1 16rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  color: #1f2937;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.evt-index-search:focus {
+  outline: none;
+  border-color: #2E3D5B;
+  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.15);
+}
+
+.evt-index-type {
+  padding: 0.625rem 0.875rem;
+  font-size: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  color: #1f2937;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  min-width: 9rem;
+}
+
+.evt-index-type:focus {
+  outline: none;
+  border-color: #2E3D5B;
+  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.15);
+}
+
+.evt-index-time-toggle {
+  display: inline-flex;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.evt-index-time-btn {
+  padding: 0 1rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  background: #ffffff;
+  color: #4b5563;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  border-right: 1px solid #e5e7eb;
+}
+
+.evt-index-time-btn:last-child {
+  border-right: none;
+}
+
+.evt-index-time-btn:hover:not(.evt-index-time-btn--active) {
+  background: #f3f4f6;
+}
+
+.evt-index-time-btn--active {
+  background: #2E3D5B;
+  color: #ffffff;
+}
+
+.evt-index-summary {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+/* ── Results list ─────────────────────────────────────────────── */
+
+.evt-index-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  margin-bottom: 2rem;
+}
+
+/* ── Pagination ───────────────────────────────────────────────── */
+
+.evt-index-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.evt-index-page-btn {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  background: #ffffff;
+  color: #2E3D5B;
+  border: 2px solid #2E3D5B;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.evt-index-page-btn:hover:not(:disabled) {
+  background: #2E3D5B;
+  color: #ffffff;
+}
+
+.evt-index-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.evt-index-page-info {
+  font-size: 0.9375rem;
+  color: #4b5563;
+  font-weight: 500;
+}
