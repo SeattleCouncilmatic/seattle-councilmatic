@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useLocation, Link } from 'react-router-dom'
 import NotFound from './NotFound'
 import './LegislationDetail.css'
 
@@ -30,6 +30,15 @@ function MediaIcon({ mediaType }) {
 
 export default function LegislationDetail() {
   const { slug } = useParams()
+  const location = useLocation()
+  // If we arrived via a card on the index page, the current search params
+  // are stashed in location.state.backToSearch so the breadcrumb can return
+  // to the exact filtered view. Direct deep links have no state and fall
+  // back to a fresh /legislation.
+  const legislationHref = location.state?.backToSearch
+    ? `/legislation?${location.state.backToSearch}`
+    : '/legislation'
+
   const [bill, setBill] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -66,8 +75,14 @@ export default function LegislationDetail() {
     <main className="leg-detail-page">
       <div className="leg-detail-container">
 
-        {/* Back link */}
-        <Link to="/" className="leg-detail-back">← Back to This Week</Link>
+        {/* Breadcrumb */}
+        <nav className="leg-detail-breadcrumb" aria-label="Breadcrumb">
+          <Link to="/">This Week</Link>
+          <span className="leg-detail-breadcrumb-sep" aria-hidden="true">/</span>
+          <Link to={legislationHref}>Legislation</Link>
+          <span className="leg-detail-breadcrumb-sep" aria-hidden="true">/</span>
+          <span className="leg-detail-breadcrumb-current">{bill.identifier}</span>
+        </nav>
 
         {/* Header */}
         <header className="leg-detail-header">

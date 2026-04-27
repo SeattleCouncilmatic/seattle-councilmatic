@@ -1,0 +1,124 @@
+.leg-index-page {
+  background: #f9fafb;
+  min-height: calc(100vh - 4rem);
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+.leg-index-container {
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.leg-index-header {
+  margin-bottom: 2rem;
+}
+
+.leg-index-title {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: #1f2937;
+  margin: 0 0 0.5rem;
+}
+
+.leg-index-subtitle {
+  font-size: 1rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* ── Controls ─────────────────────────────────────────────────── */
+
+.leg-index-controls {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.leg-index-search {
+  flex: 1 1 16rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  color: #1f2937;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.leg-index-search:focus {
+  outline: none;
+  border-color: #2E3D5B;
+  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.15);
+}
+
+.leg-index-status {
+  padding: 0.625rem 0.875rem;
+  font-size: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  color: #1f2937;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  min-width: 11rem;
+}
+
+.leg-index-status:focus {
+  outline: none;
+  border-color: #2E3D5B;
+  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.15);
+}
+
+.leg-index-summary {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+/* ── Results list ─────────────────────────────────────────────── */
+
+.leg-index-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  margin-bottom: 2rem;
+}
+
+/* ── Pagination ───────────────────────────────────────────────── */
+
+.leg-index-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.leg-index-page-btn {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  background: #ffffff;
+  color: #2E3D5B;
+  border: 2px solid #2E3D5B;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.leg-index-page-btn:hover:not(:disabled) {
+  background: #2E3D5B;
+  color: #ffffff;
+}
+
+.leg-index-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.leg-index-page-info {
+  font-size: 0.9375rem;
+  color: #4b5563;
+  font-weight: 500;
+}
