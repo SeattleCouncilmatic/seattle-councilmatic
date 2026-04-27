@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Header from './components/Header'
-import NavBar from './components/NavBar'
+import Footer from './components/Footer'
 import RepLookup from './components/RepLookup'
 import ThisWeek from './components/ThisWeek'
 import LegislationIndex from './components/LegislationIndex'
@@ -14,7 +14,6 @@ function HomePage() {
   return (
     <>
       <RepLookup />
-      <NavBar activeItem="This Week" />
       <ThisWeek />
     </>
   )
@@ -34,6 +33,7 @@ function App() {
         <Route path="/events/:slug" element={<EventDetail />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      <Footer />
     </BrowserRouter>
   )
 }

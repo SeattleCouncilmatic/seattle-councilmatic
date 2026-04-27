@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import './NavBar.css';
 
 // Items with `to` use React Router (full-page surfaces); items with `href`
@@ -15,13 +15,23 @@ const NAV_ITEMS = [
   { label: 'Glossary',           href: '#glossary' },
 ];
 
-export default function NavBar({ activeItem = 'This Week' }) {
+function isActive(pathname, item) {
+  if (item.to) return pathname === item.to || pathname.startsWith(item.to + '/');
+  // Hash items are only "active" on the homepage's This Week stub.
+  if (item.label === 'This Week') return pathname === '/';
+  return false;
+}
+
+export default function NavBar() {
+  const { pathname } = useLocation();
   return (
     <nav className="navbar" aria-label="Main Navigation">
       <div className="navbar-inner">
-        {NAV_ITEMS.map(({ label, href, to }) => {
-          const className = `navbar-item${label === activeItem ? ' navbar-item--active' : ''}`;
-          const ariaCurrent = label === activeItem ? 'page' : undefined;
+        {NAV_ITEMS.map((item) => {
+          const { label, href, to } = item;
+          const active = isActive(pathname, item);
+          const className = `navbar-item${active ? ' navbar-item--active' : ''}`;
+          const ariaCurrent = active ? 'page' : undefined;
           return to ? (
             <Link key={label} to={to} className={className} aria-current={ariaCurrent}>
               {label}

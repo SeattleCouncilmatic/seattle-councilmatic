@@ -25,7 +25,11 @@
   .header-content {
     display: flex;
     align-items: center;
-    height: 64px;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    min-height: 64px;
+    padding: 0.5rem 0;
   }
   
   .logo-section {
