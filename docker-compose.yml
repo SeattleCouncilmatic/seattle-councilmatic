@@ -67,7 +67,7 @@ services:
     volumes:
       - .:/app
       - seattle_cron_logs:/var/log/cron
-    command: sh -c "cron && tail -f /var/log/cron/sync.log"
+    command: sh /app/scripts/scheduler-entrypoint.sh
 
 volumes:
   seattle_postgres_data:

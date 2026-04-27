@@ -1,4 +1,8 @@
-# Run full update (scrape + sync) daily at 2 AM
-0 2 * * * cd /app && /app/scripts/update_seattle.sh >> /var/log/cron/sync.log 2>&1
+# Run full update (scrape + sync) daily at 2 AM.
+# Source /etc/cron-env first — cron sanitizes the environment, so without
+# this DATABASE_URL etc. from .env aren't visible and Django falls back
+# to localhost:5432. The file is written by scripts/scheduler-entrypoint.sh
+# at container start.
+0 2 * * * . /etc/cron-env && cd /app && /app/scripts/update_seattle.sh >> /var/log/cron/sync.log 2>&1
 
 # Empty line required at end of crontab file
