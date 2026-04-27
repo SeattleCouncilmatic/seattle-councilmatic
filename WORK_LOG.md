@@ -19,6 +19,15 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 - `/municode/` — search and browse the Seattle Municipal Code. First user-facing surface for the `MunicipalCodeSection` rows the parser populates. Big open questions: search vs hierarchical browse (Title → Chapter → Section), full-text vs metadata filters, how to render section text. Natural place to surface section-level LLM summaries when those wire up.
 - **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
+**Frontend polish & site chrome**
+- **Fix OpenStreetMap 403 blocked tiles** in RepLookup. Likely OSM tile-server rate limiting (their TOS requires using a third-party provider or self-hosted tiles for non-trivial traffic). Swap to Carto / Stadia / Mapbox or self-host. Affects users hitting the homepage today.
+- **Move Rep Lookup to its own index page** (`/reps/` or `/my-council-members/`). Currently lives in the homepage hero; pattern matches `/legislation/` and `/events/`. Frees the hero space for #3 below.
+- **Legislation search bar in the homepage hero** where Rep Lookup currently lives. Big prominent search box that submits to `/legislation?q=...` — reuses the search infra from PR #30. Most direct way to point users into the data.
+- **Site-wide footer.** Doesn't exist; should render on every route. Standard contents: source/about/contact links, copyright. New `Footer.jsx` rendered in `App.jsx` so all routes inherit it.
+- **NavBar links to top-right of header.** NavBar is currently a separate row below the Header — fold into the Header itself, right-aligned beside the logo. Probably collapses to a hamburger on mobile.
+- **"New Legislation" → "Recent Legislation"** copy fix in `ThisWeek.jsx` *(quick)*.
+- **About page** at `/about`. NavBar's `#about` is currently a hash stub — turn into a real route. Content TBD (project description, source code link, contact).
+
 **LLM summaries — wire up the existing infrastructure**
 - Models, service module, and prompts already exist (`seattle_app/models.py:47,84` for `MunicipalCodeSection.plain_summary` + `LegislationSummary`; `seattle_app/services/claude_service.py` for `summarize_section`/`summarize_legislation` with full prompts). Nothing runs them and nothing surfaces them to users yet.
 - Three pieces to ship the feature end-to-end:
