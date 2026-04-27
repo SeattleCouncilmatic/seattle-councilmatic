@@ -21,12 +21,10 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **Frontend polish & site chrome**
 - **Fix OpenStreetMap 403 blocked tiles** in RepLookup. Likely OSM tile-server rate limiting (their TOS requires using a third-party provider or self-hosted tiles for non-trivial traffic). Swap to Carto / Stadia / Mapbox or self-host. Affects users hitting the homepage today.
-- **Move Rep Lookup to its own index page** (`/reps/` or `/my-council-members/`). Currently lives in the homepage hero; pattern matches `/legislation/` and `/events/`. Frees the hero space for #3 below.
+- **Move Rep Lookup to its own index page** (`/reps/` or `/my-council-members/`). Currently lives in the homepage hero; pattern matches `/legislation/` and `/events/`. Frees the hero space for the next item.
 - **Legislation search bar in the homepage hero** where Rep Lookup currently lives. Big prominent search box that submits to `/legislation?q=...` — reuses the search infra from PR #30. Most direct way to point users into the data.
-- **Site-wide footer.** Doesn't exist; should render on every route. Standard contents: source/about/contact links, copyright. New `Footer.jsx` rendered in `App.jsx` so all routes inherit it.
-- **NavBar links to top-right of header.** NavBar is currently a separate row below the Header — fold into the Header itself, right-aligned beside the logo. Probably collapses to a hamburger on mobile.
-- **"New Legislation" → "Recent Legislation"** copy fix in `ThisWeek.jsx` *(quick)*.
 - **About page** at `/about`. NavBar's `#about` is currently a hash stub — turn into a real route. Content TBD (project description, source code link, contact).
+- **NavBar mobile hamburger** (deferred from PR #33). NavBar currently wraps via `flex-wrap` on narrow screens; if usability becomes a problem, replace with a proper hamburger menu.
 
 **LLM summaries — wire up the existing infrastructure**
 - Models, service module, and prompts already exist (`seattle_app/models.py:47,84` for `MunicipalCodeSection.plain_summary` + `LegislationSummary`; `seattle_app/services/claude_service.py` for `summarize_section`/`summarize_legislation` with full prompts). Nothing runs them and nothing surfaces them to users yet.
@@ -63,6 +61,13 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Frontend — NavBar in header, site-wide footer, copy fix — merged 2026-04-26 (PR #33)
+NavBar moved from a separate row below the Header into the Header itself, right-aligned beside the logo, so it shows on every route (not just the homepage). Dropped the `activeItem` prop in favor of `useLocation`-driven detection (`/legislation*` → `Legislation` active, etc.); hash-anchor stubs only highlight on the homepage. NavBar removed from `HomePage` since it's global now. NavBar's `.css` simplified to drop the standalone background/container — Header owns those. Mobile NavBar wraps via `flex-wrap`; a proper hamburger is deferred unless narrow-screen usability becomes a problem.
+
+New `Footer.jsx` rendered in `App.jsx` outside `<Routes>` so every page inherits it. Contents: copyright (auto-current-year), GitHub link, "Powered by Councilmatic". Sticks to the bottom on short pages via `margin-top: auto` plus the existing `#root` flex-column.
+
+Copy: "New Legislation" → "Recent Legislation" in ThisWeek's section header.
 
 ### Frontend — index breadcrumbs + clickable Header logo (far-left) — merged 2026-04-26 (PR #32)
 SPA index pages had no built-in way back to the homepage. Added a breadcrumb (`This Week / <name>`) at the top of `LegislationIndex` and `EventsIndex` matching the detail-page pattern. Also made the Header logo + title a `<Link to="/">` so it works as a universal "go home" affordance from any page (homepage, indexes, detail) — hover shifts the title color, focus-visible adds an outline. Header container changed from `max-width: 1280px; margin: 0 auto` to `width: 100%` so the logo sits in the far-left viewport corner with just `1rem` padding, matching the convention on other Councilmatic sites.
