@@ -1,4 +1,10 @@
-# Run full update (scrape + sync) daily at 2 AM.
+# Belt-and-suspenders: also tell cron to interpret schedules in Pacific
+# time. The scheduler container's TZ env (set in docker-compose.yml) is
+# what actually drives this; CRON_TZ is included so the schedule reads
+# obviously local-time without grepping the compose file.
+CRON_TZ=America/Los_Angeles
+
+# Run full update (scrape + sync) daily at 2 AM Pacific.
 # Source /etc/cron-env first — cron sanitizes the environment, so without
 # this DATABASE_URL etc. from .env aren't visible and Django falls back
 # to localhost:5432. The file is written by scripts/scheduler-entrypoint.sh

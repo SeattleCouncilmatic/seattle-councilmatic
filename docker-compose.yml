@@ -64,6 +64,10 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      # Cron schedule is interpreted as Seattle local — DST is handled
+      # automatically. Other containers stay in UTC.
+      TZ: America/Los_Angeles
     volumes:
       - .:/app
       - seattle_cron_logs:/var/log/cron
