@@ -9,6 +9,35 @@
   margin: 0 auto;
 }
 
+.evt-index-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+}
+
+.evt-index-breadcrumb a {
+  color: #2E3D5B;
+  text-decoration: none;
+}
+
+.evt-index-breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.evt-index-breadcrumb-sep {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.evt-index-breadcrumb-current {
+  color: #6b7280;
+  font-weight: 500;
+}
+
 .evt-index-header {
   margin-bottom: 2rem;
 }

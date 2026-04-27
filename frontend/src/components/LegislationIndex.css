@@ -9,6 +9,35 @@
   margin: 0 auto;
 }
 
+.leg-index-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+}
+
+.leg-index-breadcrumb a {
+  color: #2E3D5B;
+  text-decoration: none;
+}
+
+.leg-index-breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.leg-index-breadcrumb-sep {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.leg-index-breadcrumb-current {
+  color: #6b7280;
+  font-weight: 500;
+}
+
 .leg-index-header {
   margin-bottom: 2rem;
 }

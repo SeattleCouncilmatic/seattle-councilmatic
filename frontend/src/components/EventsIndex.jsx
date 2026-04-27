@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import EventCard from './EventCard'
 import './EventsIndex.css'
 
@@ -103,6 +103,11 @@ export default function EventsIndex() {
   return (
     <main className="evt-index-page">
       <div className="evt-index-container">
+        <nav className="evt-index-breadcrumb" aria-label="Breadcrumb">
+          <Link to="/">This Week</Link>
+          <span className="evt-index-breadcrumb-sep" aria-hidden="true">/</span>
+          <span className="evt-index-breadcrumb-current">Events</span>
+        </nav>
         <header className="evt-index-header">
           <h1 className="evt-index-title">Events</h1>
           <p className="evt-index-subtitle">
