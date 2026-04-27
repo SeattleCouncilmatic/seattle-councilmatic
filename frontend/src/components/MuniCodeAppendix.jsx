@@ -48,15 +48,7 @@ export default function MuniCodeAppendix() {
 
         {data.source_pdf_page && (
           <p className="smc-source-note">
-            Source: Seattle Municipal Code,{' '}
-            <a
-              href={`/smc.pdf#page=${data.source_pdf_page}`}
-              target="_blank"
-              rel="noopener"
-              className="smc-source-link"
-            >
-              PDF page {data.source_pdf_page} ↗
-            </a>.
+            Source: Seattle Municipal Code, PDF page {data.source_pdf_page}.
           </p>
         )}
       </div>

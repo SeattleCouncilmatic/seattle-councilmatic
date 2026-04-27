@@ -25,7 +25,6 @@ urlpatterns = [
     path("api/smc/chapters/<str:chapter_number>/", api_views.smc_chapter_detail, name="api_smc_chapter_detail"),
     path("api/smc/sections/<str:section_number>/", api_views.smc_section_detail, name="api_smc_section_detail"),
     path("api/smc/appendices/<str:title_number>/<slug:label_slug>/", api_views.smc_appendix_detail, name="api_smc_appendix_detail"),
-    path("smc.pdf", views.smc_pdf, name="smc_pdf"),
     # Wagtail admin + documents only — wagtail's "" catch-all is intentionally not included
     # so the React SPA can own all non-API, non-admin routes.
     path("cms/", include(wagtailadmin_urls)),

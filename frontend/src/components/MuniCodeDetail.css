@@ -152,13 +152,3 @@
   color: #9ca3af;
   font-style: italic;
 }
-
-.smc-source-link {
-  color: #2E3D5B;
-  text-decoration: none;
-  font-style: normal;
-  font-weight: 500;
-}
-.smc-source-link:hover {
-  text-decoration: underline;
-}
