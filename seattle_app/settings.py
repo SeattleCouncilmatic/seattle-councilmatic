@@ -155,6 +155,13 @@ STATICFILES_DIRS = [
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# SMC source PDF — served at /smc.pdf so section detail pages can link to
+# a specific page. The dated filename matches a DB-bound snapshot:
+# source_pdf_page values point into this exact file. Update both together.
+SMC_PDF_PATH = BASE_DIR / "_data" / os.getenv(
+    "SMC_PDF_FILENAME", "seattle_municipal_code_20260421.pdf"
+)
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

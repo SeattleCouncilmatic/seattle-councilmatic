@@ -59,8 +59,6 @@ function TitlePage({ titleNumber }) {
           </p>
         </header>
 
-        <NeighborNav neighbors={data.neighbors} ariaLabel="Title navigation" />
-
         <h2 className="smc-detail-h2">Chapters</h2>
         <ul className="smc-listing">
           {data.chapters.map(c => (

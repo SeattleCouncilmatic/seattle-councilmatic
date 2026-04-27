@@ -45,8 +45,6 @@ export default function MuniCodeChapter() {
           <h1 className="smc-detail-h1">Chapter {data.chapter_number}</h1>
         </header>
 
-        <NeighborNav neighbors={data.neighbors} ariaLabel="Chapter navigation" />
-
         {data.groups.map((g, i) => (
           <section key={i} className="smc-chapter-group">
             {g.subchapter ? (

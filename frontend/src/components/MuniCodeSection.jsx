@@ -54,8 +54,6 @@ export default function MuniCodeSection() {
           )}
         </header>
 
-        <NeighborNav neighbors={data.neighbors} ariaLabel="Section navigation" />
-
         {/* Plain-language summary slot. The summarize_smc_sections command
             isn't built yet (see WORK_LOG); this panel hides until a row
             has plain_summary populated. */}
@@ -75,7 +73,15 @@ export default function MuniCodeSection() {
 
         {data.source_pdf_page && (
           <p className="smc-source-note">
-            Source: Seattle Municipal Code, PDF page {data.source_pdf_page}.
+            Source: Seattle Municipal Code,{' '}
+            <a
+              href={`/smc.pdf#page=${data.source_pdf_page}`}
+              target="_blank"
+              rel="noopener"
+              className="smc-source-link"
+            >
+              PDF page {data.source_pdf_page} ↗
+            </a>.
           </p>
         )}
 
