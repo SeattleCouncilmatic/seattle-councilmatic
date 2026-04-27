@@ -188,12 +188,132 @@ def legislation_index(request):
     })
 
 
-@require_GET
-def upcoming_meetings(request):
-    """
-    GET /api/meetings/upcoming/
+_TIME_FILTER_VALUES = ['upcoming', 'past', 'all']
+_TYPE_FILTER_VALUES = ['Council', 'Briefing', 'Committee', 'Hearing', 'Other']
 
-    Returns the next 10 upcoming confirmed or tentative council meetings,
+
+def _classify_event(name: str) -> str:
+    """Bucket a Legistar event into one of _TYPE_FILTER_VALUES based on its
+    name. The Legistar API doesn't expose a structured "event type" — type
+    is implicit in `EventBodyName` — so we derive it. `Committee` is the
+    fallback for anything name-shaped because some committees come back
+    truncated (e.g. `'Transportation and Seattle Public Utilities'` lacks
+    the trailing word "Committee" in the Legistar source data); reserving
+    `Other` for clearly-non-meeting entries like quorum notices keeps the
+    chip useful instead of noisy.
+    """
+    n = (name or '').lower().strip()
+    if not n:
+        return 'Other'
+    if 'public hearing' in n:
+        return 'Hearing'
+    if 'briefing' in n:
+        return 'Briefing'
+    if n.startswith('city council'):
+        return 'Council'
+    if n.startswith('notice'):
+        return 'Other'
+    return 'Committee'
+
+
+def _serialize_event(event) -> dict:
+    """Shape used by /api/events/ and /api/events/upcoming/. Includes the
+    document URLs and the agenda_status so the frontend card can surface
+    cancellations and let users open Agenda/Packet/Minutes without
+    clicking through to the detail page. `legistar_url` requires
+    `sources` to be prefetched on the queryset."""
+    source = event.sources.first()
+    return {
+        'name':             event.name,
+        'type':             _classify_event(event.name),
+        'start_date':       event.start_date if isinstance(event.start_date, str) else event.start_date.isoformat(),
+        'status':           event.status,
+        'description':      event.description or '',
+        'slug':             event.slug,
+        'agenda_file_url':  event.extras.get('agenda_file_url'),
+        'agenda_status':    event.extras.get('agenda_status'),
+        'packet_url':       event.extras.get('packet_url'),
+        'minutes_file_url': event.extras.get('minutes_file_url'),
+        'minutes_status':   event.extras.get('minutes_status'),
+        'legistar_url':     source.url if source else None,
+    }
+
+
+@require_GET
+def events_index(request):
+    """
+    GET /api/events/?q=<text>&time=<upcoming|past|all>&type=<label>&limit=20&offset=0
+
+    Search and browse all events; paginated. The `time` param controls
+    both the slice of events returned and the sort direction:
+      - upcoming (default) — start_date >= now, sorted soonest first
+      - past                — start_date <  now, sorted most-recent first
+      - all                 — every event, sorted most-recent first
+    `type` is one of _TYPE_FILTER_VALUES; filtering by type happens
+    in-Python after the queryset slice because event type is derived
+    from the name rather than stored as a column.
+    """
+    q = request.GET.get('q', '').strip()
+    time_filter = request.GET.get('time', 'upcoming').strip().lower()
+    type_filter = request.GET.get('type', '').strip()
+    limit = _safe_int(request.GET.get('limit'), default=20, max_value=100)
+    offset = _safe_int(request.GET.get('offset'), default=0)
+
+    if time_filter not in _TIME_FILTER_VALUES:
+        time_filter = 'upcoming'
+    if type_filter and type_filter not in _TYPE_FILTER_VALUES:
+        # Reject unknown types rather than silently ignore.
+        return JsonResponse({
+            'results': [], 'total_count': 0,
+            'limit': limit, 'offset': offset,
+            'time_values': _TIME_FILTER_VALUES,
+            'type_values': _TYPE_FILTER_VALUES,
+        })
+
+    events = Event.objects.prefetch_related('sources')
+
+    if q:
+        events = events.filter(name__icontains=q)
+
+    now = timezone.now()
+    if time_filter == 'upcoming':
+        events = events.filter(start_date__gte=now).order_by('start_date')
+    elif time_filter == 'past':
+        events = events.filter(start_date__lt=now).order_by('-start_date')
+    else:
+        events = events.order_by('-start_date')
+
+    if type_filter:
+        # Type is derived from name; expand to the names that classify to
+        # the requested type so we can filter at the DB layer.
+        all_names = list(events.values_list('name', flat=True).distinct())
+        matching_names = [n for n in all_names if _classify_event(n) == type_filter]
+        if not matching_names:
+            events = events.none()
+        else:
+            events = events.filter(name__in=matching_names)
+
+    total_count = events.count()
+    events = events[offset:offset + limit]
+
+    results = [_serialize_event(e) for e in events]
+
+    return JsonResponse({
+        'results':     results,
+        'total_count': total_count,
+        'limit':       limit,
+        'offset':      offset,
+        'time_values': _TIME_FILTER_VALUES,
+        'type_values': _TYPE_FILTER_VALUES,
+    })
+
+
+@require_GET
+def upcoming_events(request):
+    """
+    GET /api/events/upcoming/
+
+    Returns the next 10 upcoming confirmed or tentative events,
     ordered soonest first.
     """
     limit = min(int(request.GET.get('limit', 10)), 50)
@@ -201,28 +321,19 @@ def upcoming_meetings(request):
 
     events = (
         Event.objects
+        .prefetch_related('sources')
         .filter(start_date__gte=now)
         .exclude(status='cancelled')
         .order_by('start_date')[:limit]
     )
 
-    results = []
-    for event in events:
-        results.append({
-            'name':        event.name,
-            'start_date':  event.start_date if isinstance(event.start_date, str) else event.start_date.isoformat(),
-            'status':      event.status,
-            'description': event.description or '',
-            'slug':        event.slug,
-        })
-
-    return JsonResponse({'results': results})
+    return JsonResponse({'results': [_serialize_event(e) for e in events]})
 
 
 @require_GET
-def meeting_detail(request, slug):
+def event_detail(request, slug):
     """
-    GET /api/meetings/<slug>/
+    GET /api/events/<slug>/
 
     Returns full detail for a single event: core fields, agenda/minutes
     document URLs, and a list of substantive agenda items with attachments
