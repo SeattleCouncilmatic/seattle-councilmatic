@@ -15,9 +15,6 @@ locked decisions, known follow-up threads, and a chronological merge log.
 
 Prioritized to-do. Quick wins flagged with *(quick)*.
 
-**Frontend**
-- **Meeting agenda items (WIP).** Pick up the work in worktree `claude/zealous-tharp` at `.claude/worktrees/zealous-tharp`, commit `baa719c`. Touches `seattle/events.py` (uncomment + implement `_add_agenda_items`, scrape `hypAgendaPacket` from Legistar HTML), `seattle_app/api_views.py` (return `agenda_items`, `agenda_file_url`, `packet_url`, `minutes_file_url`, `minutes_status`), `frontend/src/components/MeetingDetail.jsx` (~93 LoC of new components: `MatterChip`, `DocIcon`, `AgendaDocButtons`, `AgendaItemRow`). When ready: branch from `main`, cherry-pick `baa719c`, open PR.
-
 **SPA index/search pages** (each likely its own PR; specifics TBD when we pick them up)
 - `/legislation/` — search and browse all legislation. `ThisWeek` only shows recent; needs an API search endpoint (or extend `/api/legislation/recent/` with query params) plus a list/filter UI. After shipping, update the `NotFound` `legislation` variant link from `/` to `/legislation/`.
 - `/events/` — search and browse all council meetings. Same shape as the legislation index. After shipping, update the `NotFound` `meeting` variant link from `/` to `/events/`.
@@ -58,6 +55,11 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Frontend — meeting agenda items, documents, and agenda packet — merged 2026-04-26 (PR #29)
+Backend scraper enriches each event with substantive agenda items (skipping procedural lines like "Call to Order" / "Roll Call"), per-item attachments, and Bill links via pupa's `add_agenda_item` / `add_bill`. Agenda + Minutes PDF URLs come from Legistar API event fields; the Agenda Packet URL isn't exposed via API and is scraped from the Legistar HTML page (regex on `id="ctl00_ContentPlaceHolder1_hypAgendaPacket"` href). API extension: `GET /api/meetings/<slug>/` now returns `agenda_items[]` (with `matter_file`, `matter_type`, `matter_status`, `action_text`, `bill_slug`, `attachments[]`), `agenda_file_url`, `agenda_status`, `packet_url`, `minutes_file_url`, `minutes_status`. Frontend: four new components in `MeetingDetail.jsx` (`MatterChip` for CB/Res/Inf badges, `DocIcon` for PDF/DOC affordances, `AgendaDocButtons` for the top-of-page Agenda/Packet/Minutes pill buttons, `AgendaItemRow` for the numbered list with attachments and React Router links to `/legislation/<bill_slug>` for matched bills).
+
+Originally drafted in worktree `claude/zealous-tharp` at commit `baa719c` (2026-02-24, Sonnet 4.6); cherry-picked clean (single auto-merge in `MeetingDetail.jsx`) onto current `main`. Worktree + branch removed post-merge. Verified end-to-end on Human Services committee meeting (5 substantive items, packet URL, attachments, bill linkage to `res-32191`).
 
 ### Parser — recover 3 missing sections via citation lead-ins, figure-caption boundary, Reviser's-note strip — committed 2026-04-26
 Three independent fixes, each addressing one section in the 5-small-missing pool. All verified via focused dry-runs.
