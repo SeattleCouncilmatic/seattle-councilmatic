@@ -62,6 +62,19 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Municode — Postgres FTS infra on `MunicipalCodeSection` — committed 2026-04-27
+PR 2 of the three-PR `/municode/` build. Adds a tsvector search column + GIN index to `MunicipalCodeSection`; the API endpoint and SPA page land in PR 3.
+
+Implemented as a Postgres **generated column** (`GENERATED ALWAYS AS ... STORED`) rather than a trigger or a Django `save()` override. Generated columns are computed by PG itself on every insert/update of the source columns, so the vector stays in sync regardless of insertion path — Django ORM, parser `bulk_create`, raw SQL, fixtures, admin all benefit equally with zero application code. Requires PG 12+; we're on `postgis/postgis:14-3.2`.
+
+Vector body weights `section_number` (A, the legal citation), `title` (B, the heading), and `full_text` (C, the body) using `english` config. Migration `0014` adds the column via `migrations.RunSQL` (Django's `AddField` doesn't speak `GENERATED ALWAYS AS`) with `state_operations=[AddField(...)]` so Django's migration graph stays consistent with the model. `migrations.AddIndex` builds `smc_section_search_idx` as a `GinIndex`. Model gains `search_vector = SearchVectorField(null=True, editable=False)` plus the `Meta.indexes` entry.
+
+`django.contrib.postgres` added to `INSTALLED_APPS` for migration framework awareness of `SearchVectorField`/`GinIndex`.
+
+Verified end-to-end: migration applies in ~6 s wall-clock (Django bootstrap dominates; PG fills the column inline during `ALTER TABLE` for all 7,435 existing rows — no `RunPython` backfill needed); column shows `is_generated='ALWAYS'` with the expected expression; GIN index exists; 7435/7435 rows have non-null vectors. Sample `SearchRank` query for "short-term rental" returns Chapter 6.600 (Seattle's STR chapter) `6.600.065 Summaries of short-term` → `License fees` → `License applications` → `23.44.051 Bed and breakfasts` — the kind of relevance ranking that motivated keeping this in-database rather than reaching for ES.
+
+`pg_trgm` deferred to PR 3 (when the search endpoint actually needs fuzzy section-number lookup).
+
 ### Search — strip Elasticsearch + Haystack — committed 2026-04-27
 Elasticsearch was plumbed in but not actually serving search: only `update_index` (run nightly) wrote to it, and the SPA's user-facing search bars (`/api/legislation/`, `/api/events/`) bypass it entirely with Postgres `Q(... __icontains=q)` queries. The legacy server-rendered `/search/` page existed via `councilmatic_search.urls` but the SPA never linked there. Net cost: a 1 GB ES container, the `bill_text.txt` packaging-bug surface we vendored around, and the daily `update_index` step that masked the cron env-loss outage in 2026-04.
 
