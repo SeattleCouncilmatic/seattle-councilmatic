@@ -1,5 +1,7 @@
 from django.conf import settings
 from django.contrib.gis.db import models as gis_models
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVectorField
 from django.db import models
 from councilmatic_core.models import Bill, Event, Person, Organization
 from datetime import datetime
@@ -70,10 +72,16 @@ class MunicipalCodeSection(models.Model):
     created_at = models.DateTimeField(
         auto_now_add=True
     )
+    # PG-generated tsvector. Column is GENERATED ALWAYS AS ... STORED at the
+    # DB level (see migration 0014); Django never writes to it.
+    search_vector = SearchVectorField(null=True, editable=False)
 
     class Meta:
         ordering = ['title_number', 'chapter_number', 'section_number']
         unique_together = ['title_number', 'chapter_number', 'section_number']
+        indexes = [
+            GinIndex(fields=['search_vector'], name='smc_section_search_idx'),
+        ]
         verbose_name = "Municipal Code Section"
         verbose_name_plural = "Municipal Code Sections"
 
