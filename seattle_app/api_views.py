@@ -515,24 +515,68 @@ def _section_path_parts(section_number: str) -> tuple[str, str, str] | None:
     return parts[0], parts[1], parts[2]
 
 
-def _section_neighbor(direction: str, section_number: str) -> dict | None:
-    """Lookup the previous or next section across the whole code by lex
-    order on section_number. Lex works across chapter boundaries because
-    the differing byte (e.g. '7' vs '8' at position 4 of '23.47A.180' vs
-    '23.48.001') comes before any letter suffix."""
-    qs = MunicipalCodeSection.objects
-    if direction == 'prev':
-        n = qs.filter(section_number__lt=section_number).order_by('-section_number').first()
-    else:
-        n = qs.filter(section_number__gt=section_number).order_by('section_number').first()
-    if not n:
-        return None
-    parts = _section_path_parts(n.section_number)
-    return {
-        'primary':   n.section_number,
-        'secondary': n.title,
-        'path':      f'/municode/{parts[0]}/{parts[1]}/{parts[2]}' if parts else None,
-    }
+def _section_sort_key(section_number: str) -> tuple:
+    """Document-order sort key for section_number. Each dotted component
+    splits into (numeric_prefix, suffix), which makes 9 < 9A < 10 (numeric
+    prefix 9 == 9 ties on first part; '' < 'A' on second) and 1.x < 2.x <
+    10.x (the title-level int beats lex ordering where '.'<'0' would
+    otherwise jump from 1 to 10 before 2)."""
+    parts = section_number.split('.')
+    out = []
+    for p in parts:
+        m = re.match(r'^(\d*)(.*)$', p)
+        num_str = m.group(1)
+        suffix = m.group(2)
+        out.append((int(num_str) if num_str else 0, suffix))
+    return tuple(out)
+
+
+# Cache the sorted section list so prev/next doesn't re-fetch + re-sort
+# 7k rows on every detail request. The mtime invalidator picks up the
+# parser's most recent run; new sections will appear after the next
+# parse cycle. Tradeoff: a few seconds of staleness is fine for a code
+# of laws that updates monthly.
+_SECTION_NEIGHBORS_CACHE = {'mtime': None, 'sorted': None}
+
+
+def _get_sorted_sections() -> list[tuple[str, str]]:
+    """Returns [(section_number, title), ...] in document order. Cached
+    until the latest MunicipalCodeSection.last_updated changes."""
+    latest = MunicipalCodeSection.objects.aggregate(Max('last_updated'))['last_updated__max']
+    if _SECTION_NEIGHBORS_CACHE['mtime'] == latest and _SECTION_NEIGHBORS_CACHE['sorted'] is not None:
+        return _SECTION_NEIGHBORS_CACHE['sorted']
+    rows = list(MunicipalCodeSection.objects
+                .order_by()
+                .values_list('section_number', 'title'))
+    rows.sort(key=lambda r: _section_sort_key(r[0]))
+    _SECTION_NEIGHBORS_CACHE['mtime'] = latest
+    _SECTION_NEIGHBORS_CACHE['sorted'] = rows
+    return rows
+
+
+def _section_neighbors_pair(section_number: str) -> dict:
+    """Returns {'prev': ..., 'next': ...} for a section by document-order
+    position. Cross-title lex on raw section_number doesn't work because
+    '.' (46) < '0' (48) makes '1.99.999' < '10.01.010' byte-wise, so SQL
+    ordering would jump from title 1 directly to title 10 instead of
+    going to title 2. Sort happens in Python on a cached list."""
+    rows = _get_sorted_sections()
+    idx = next((i for i, r in enumerate(rows) if r[0] == section_number), None)
+    if idx is None:
+        return {'prev': None, 'next': None}
+
+    def _make(target_idx: int) -> dict | None:
+        if target_idx < 0 or target_idx >= len(rows):
+            return None
+        sn, t = rows[target_idx]
+        parts = _section_path_parts(sn)
+        return {
+            'primary':   sn,
+            'secondary': t,
+            'path':      f'/municode/{parts[0]}/{parts[1]}/{parts[2]}' if parts else None,
+        }
+
+    return {'prev': _make(idx - 1), 'next': _make(idx + 1)}
 
 
 def _chapter_neighbor(direction: str, chapter_number: str, title_number: str) -> dict | None:
@@ -826,10 +870,7 @@ def smc_section_detail(request, section_number):
         'summary_model':        s.summary_model or None,
         'summary_generated_at': s.summary_generated_at.isoformat() if s.summary_generated_at else None,
         'source_pdf_page':      s.source_pdf_page,
-        'neighbors': {
-            'prev': _section_neighbor('prev', s.section_number),
-            'next': _section_neighbor('next', s.section_number),
-        },
+        'neighbors':            _section_neighbors_pair(s.section_number),
     })
 
 
