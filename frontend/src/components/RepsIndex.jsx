@@ -174,6 +174,7 @@ function AddressLookup() {
           value={address}
           onChange={e => setAddress(e.target.value)}
           aria-label="Address"
+          autoFocus
         />
         <button type="submit" className="reps-lookup-btn" disabled={loading}>
           {loading ? 'Looking up…' : 'Look up'}

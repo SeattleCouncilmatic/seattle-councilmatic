@@ -123,6 +123,7 @@ export default function EventsIndex() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             aria-label="Search events"
+            autoFocus
           />
           <select
             className="evt-index-type"

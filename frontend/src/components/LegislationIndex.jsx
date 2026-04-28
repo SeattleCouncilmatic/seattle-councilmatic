@@ -109,6 +109,7 @@ export default function LegislationIndex() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             aria-label="Search legislation"
+            autoFocus
           />
           <select
             className="leg-index-status"
