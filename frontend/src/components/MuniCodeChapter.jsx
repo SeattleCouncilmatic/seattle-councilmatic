@@ -42,7 +42,11 @@ export default function MuniCodeChapter() {
           { current: `Chapter ${data.chapter_number}` },
         ]} />
         <header className="smc-detail-header">
-          <h1 className="smc-detail-h1">Chapter {data.chapter_number}</h1>
+          <div className="smc-detail-eyebrow">Chapter {data.chapter_number}</div>
+          <h1 className="smc-detail-h1">{data.chapter_name || `Chapter ${data.chapter_number}`}</h1>
+          {data.title_name && (
+            <p className="smc-detail-sub">Title {data.title_number} · {data.title_name}</p>
+          )}
         </header>
 
         {data.groups.map((g, i) => (

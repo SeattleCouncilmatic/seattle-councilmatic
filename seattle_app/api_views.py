@@ -15,7 +15,7 @@ from django.db.models import Count, Max, Q
 from councilmatic_core.models import Bill, Event
 from django.shortcuts import get_object_or_404
 
-from .models import MunicipalCodeSection, Subchapter, TitleAppendix
+from .models import CodeChapter, CodeTitle, MunicipalCodeSection, Subchapter, TitleAppendix
 
 
 # Status label mapping from Legistar's MatterStatusName values (case-insensitive keys)
@@ -596,9 +596,10 @@ def _chapter_neighbor(direction: str, chapter_number: str, title_number: str) ->
     if not n:
         return None
     short = '.'.join(n.split('.')[1:])
+    name = CodeChapter.objects.filter(chapter_number=n).values_list('name', flat=True).first()
     return {
         'primary':   f'Chapter {n}',
-        'secondary': None,
+        'secondary': name,
         'path':      f'/municode/{title_number}/{short}',
     }
 
@@ -625,9 +626,10 @@ def _title_neighbor(direction: str, title_number: str) -> dict | None:
     if target_idx < 0 or target_idx >= len(titles):
         return None
     n = titles[target_idx]
+    name = CodeTitle.objects.filter(title_number=n).values_list('name', flat=True).first()
     return {
         'primary':   f'Title {n}',
-        'secondary': None,
+        'secondary': name,
         'path':      f'/municode/{n}',
     }
 
@@ -724,13 +726,21 @@ def smc_tree(request):
         .order_by('title_number', 'chapter_number')
     )
 
+    title_names = dict(CodeTitle.objects.values_list('title_number', 'name'))
+    chapter_names = dict(CodeChapter.objects.values_list('chapter_number', 'name'))
+
     titles = {}
     for row in chapter_rows:
         tn = row['title_number']
         if tn not in titles:
-            titles[tn] = {'title_number': tn, 'chapters': []}
+            titles[tn] = {
+                'title_number': tn,
+                'name':         title_names.get(tn),
+                'chapters':     [],
+            }
         titles[tn]['chapters'].append({
             'chapter_number': row['chapter_number'],
+            'name':           chapter_names.get(row['chapter_number']),
             'section_count':  row['section_count'],
         })
 
@@ -772,8 +782,13 @@ def smc_title_detail(request, title_number):
         .annotate(section_count=Count('id'))
         .order_by('chapter_number')
     )
+    chapter_names = dict(CodeChapter.objects.values_list('chapter_number', 'name'))
     chapter_list = [
-        {'chapter_number': c['chapter_number'], 'section_count': c['section_count']}
+        {
+            'chapter_number': c['chapter_number'],
+            'name':           chapter_names.get(c['chapter_number']),
+            'section_count':  c['section_count'],
+        }
         for c in chapters
     ]
     if not chapter_list:
@@ -784,8 +799,11 @@ def smc_title_detail(request, title_number):
         for a in TitleAppendix.objects.filter(title_number=title_number).order_by('label')
     ]
 
+    title_name = CodeTitle.objects.filter(title_number=title_number).values_list('name', flat=True).first()
+
     return JsonResponse({
         'title_number': title_number,
+        'name':         title_name,
         'chapters':     chapter_list,
         'appendices':   appendices,
         'neighbors': {
@@ -843,9 +861,14 @@ def smc_chapter_detail(request, chapter_number):
             'sections':   grouped_sections[sc.id],
         })
 
+    title_name = CodeTitle.objects.filter(title_number=title_number).values_list('name', flat=True).first()
+    chapter_name = CodeChapter.objects.filter(chapter_number=chapter_number).values_list('name', flat=True).first()
+
     return JsonResponse({
         'title_number':   title_number,
+        'title_name':     title_name,
         'chapter_number': chapter_number,
+        'chapter_name':   chapter_name,
         'groups':         groups,
         'neighbors': {
             'prev': _chapter_neighbor('prev', chapter_number, title_number),
@@ -868,11 +891,15 @@ def smc_section_detail(request, section_number):
         section_number=section_number,
     )
     sub = s.subchapter
+    title_name = CodeTitle.objects.filter(title_number=s.title_number).values_list('name', flat=True).first()
+    chapter_name = CodeChapter.objects.filter(chapter_number=s.chapter_number).values_list('name', flat=True).first()
     return JsonResponse({
         'section_number':       s.section_number,
         'title':                s.title,
         'title_number':         s.title_number,
+        'title_name':           title_name,
         'chapter_number':       s.chapter_number,
+        'chapter_name':         chapter_name,
         'subchapter_roman':     sub.roman if sub else None,
         'subchapter_name':      sub.name if sub else None,
         'full_text':            s.full_text,

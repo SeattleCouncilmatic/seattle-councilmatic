@@ -198,6 +198,7 @@ function BrowseTree({ tree, error }) {
             <li key={t.title_number}>
               <Link to={`/municode/${t.title_number}`} className="smc-toc-row">
                 <span className="smc-toc-row-label">Title {t.title_number}</span>
+                <span className="smc-toc-row-name">{t.name}</span>
                 <span className="smc-toc-row-meta">
                   {t.chapters.length} chapter{t.chapters.length === 1 ? '' : 's'} ·{' '}
                   {totalSections.toLocaleString()} section{totalSections === 1 ? '' : 's'}
@@ -216,9 +217,9 @@ function BrowseTree({ tree, error }) {
               <li key={`${a.title_number}-${a.label_slug}`}>
                 <Link to={`/municode/${a.title_number}/appendix/${a.label_slug}`}
                       className="smc-toc-row">
-                  <span className="smc-toc-row-label">
-                    Title {a.title_number} — Appendix {a.label}
-                  </span>
+                  <span className="smc-toc-row-label">Title {a.title_number}</span>
+                  <span className="smc-toc-row-name">Appendix {a.label}</span>
+                  <span className="smc-toc-row-meta"></span>
                 </Link>
               </li>
             ))}

@@ -13,7 +13,8 @@
 
 .smc-detail-header { margin: 0.5rem 0 2rem; }
 
-.smc-section-num {
+.smc-section-num,
+.smc-detail-eyebrow {
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
   font-size: 0.9375rem;
   font-weight: 600;

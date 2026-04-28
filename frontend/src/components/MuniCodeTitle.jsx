@@ -53,22 +53,24 @@ function TitlePage({ titleNumber }) {
           { current: `Title ${data.title_number}` },
         ]} />
         <header className="smc-detail-header">
-          <h1 className="smc-detail-h1">Title {data.title_number}</h1>
+          <div className="smc-detail-eyebrow">Title {data.title_number}</div>
+          <h1 className="smc-detail-h1">{data.name || `Title ${data.title_number}`}</h1>
           <p className="smc-detail-sub">
             {data.chapters.length} chapter{data.chapters.length === 1 ? '' : 's'}
           </p>
         </header>
 
         <h2 className="smc-detail-h2">Chapters</h2>
-        <ul className="smc-listing">
+        <ul className="smc-toc-list">
           {data.chapters.map(c => (
             <li key={c.chapter_number}>
               <Link
                 to={`/municode/${data.title_number}/${c.chapter_number.split('.').slice(1).join('.')}`}
-                className="smc-listing-link"
+                className="smc-toc-row"
               >
-                <span className="smc-listing-num">Chapter {c.chapter_number}</span>
-                <span className="smc-listing-meta">
+                <span className="smc-toc-row-label">Chapter {c.chapter_number}</span>
+                <span className="smc-toc-row-name">{c.name}</span>
+                <span className="smc-toc-row-meta">
                   {c.section_count} section{c.section_count === 1 ? '' : 's'}
                 </span>
               </Link>

@@ -185,9 +185,10 @@
 }
 
 .smc-toc-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 7rem 1fr auto;
   align-items: baseline;
-  gap: 0.875rem;
+  gap: 1rem;
   padding: 0.625rem 0.875rem;
   border: 1px solid #e5e7eb;
   border-radius: 0.375rem;
@@ -204,12 +205,26 @@
 .smc-toc-row-label {
   font-weight: 600;
   color: #2E3D5B;
-  flex-shrink: 0;
-  min-width: 7rem;
+}
+.smc-toc-row-name {
+  color: #1f2937;
+  font-weight: 500;
 }
 .smc-toc-row-meta {
   color: #6b7280;
   font-size: 0.875rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .smc-toc-row {
+    grid-template-columns: auto 1fr;
+    grid-template-areas: "label name" "meta meta";
+  }
+  .smc-toc-row-label { grid-area: label; }
+  .smc-toc-row-name { grid-area: name; }
+  .smc-toc-row-meta { grid-area: meta; text-align: left; font-size: 0.8125rem; }
 }
 
 .smc-source-pdf {

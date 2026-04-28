@@ -17,7 +17,6 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **SPA index/search pages** (each likely its own PR; specifics TBD when we pick them up)
 - **Municode follow-ups** (deferred from the PR-3 build):
-  - **Title and chapter names.** The parser captures section names but not the headings of titles (`Title 23 — Land Use Code`) or chapters (`Chapter 23.47A — Commercial`). Frontend currently shows `Title 23` / `Chapter 23.47A` with no human label. Two paths: (a) parser pass that captures the title/chapter name lines from the PDF and stores on a new `Title` / `Chapter` model (cleaner long-term), (b) hardcode the name list in Python (~30 titles, ~hundreds of chapters — public knowledge from the SMC TOC, faster to ship). (a) generalizes if we ever apply the parser to another city's code.
   - **Search snippets.** FTS results currently show only section number + title. A `ts_headline('english', full_text, query, 'StartSel=<mark>,StopSel=</mark>,MaxWords=30')` annotation would give a highlighted excerpt. Cost is bounded — only runs for the top N visible results — and the frontend already has a `snippet` field reserved on the result shape. Citation-mode results don't need this.
   - **In-chapter search box.** The `/api/smc/?chapter=23.47A` filter is wired and works today but not exposed in the UI. Add a search input on the chapter page that posts to `/municode?q=...&chapter=23.47A`. Useful for "find 'parking' inside this chapter" without leaving the chapter context.
 - **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
@@ -64,6 +63,26 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Municode — title and chapter names from PDF TOC — committed 2026-04-27
+Closes the "title and chapter names" Municode follow-up filed during PR 3. The browse listings now read like a real table of contents: `Title 1 — GENERAL PROVISIONS — 6 chapters · 28 sections`, and chapter listings show `Chapter 1.01 — Code Adoption — 4 sections`.
+
+New `CodeTitle(title_number, name)` and `CodeChapter(chapter_number, title_number, name)` models populated from the SMC PDF's Detailed Table of Contents (pages 149-168 of the 20260421 snapshot). Matches the Subchapter pattern — separate models keyed by the canonical number, looked up by FK-by-string in the API endpoints. Migration `0016` creates the tables.
+
+New `extract_smc_toc` management command. Walks TOC lines with a small state machine: `Title <N>` heading → accumulate following non-header non-divider lines as the title name (with soft-hyphen folding for `PRESERVA-` / `TION` wraps); `(\d+(?:[A-Z])?\.\d+(?:[A-Z])?) <name> (<roman>) <page>` → chapter row; multi-line chapter names fold from a `<num> <name-head>` line into the next-line `<name-tail> <roman> <page>` continuation. Two regex bugs caught in the dry-run: trailing `\b` on `DIVIDER_RE` failed at non-word/non-word boundaries (after `Chapters:`/`(Reserved)`), letting those lines slip into the title-name buffer; `JUNK_RE` was anchored with `$` so footers like `TC-1 (Seattle 6-25)` (single line containing both fragments) missed the literal-line match — both fixed to use prefix/start-anchored matches. Inline title format (`Title 12A CRIMINAL CODE` on one line, common when column wrap fits) handled via the optional `(?:\s+(.+))?` group on `TITLE_RE`.
+
+Output: 25 titles, 556 chapters parsed and persisted. All 22 titles that have sections in our DB get matched names; reserved titles (13, 19) are stored too (for future "browse including reserved" if we want it).
+
+API surface threading:
+- `/api/smc/tree/` returns `name` on each title and chapter.
+- `/api/smc/titles/<n>/` returns the title `name` plus chapter names.
+- `/api/smc/chapters/<n>/` returns `title_name` + `chapter_name`.
+- `/api/smc/sections/<n>/` returns `title_name` + `chapter_name` (for breadcrumb context).
+- `_title_neighbor` and `_chapter_neighbor` populate `secondary` on the prev/next pills with the title/chapter name (e.g. `Title 22 — BUILDING AND CONSTRUCTION CODES` instead of just `Title 22`).
+
+Frontend: `.smc-toc-row` is now a 3-column grid (`<label> <name> <meta>`) used uniformly across titles, chapters, and appendices on the index and title pages. Stacks to 2-line layout below 600 px. Title detail page header switches to an eyebrow pattern (small navy mono "Title 23" → big h1 "LAND USE CODE"); chapter detail page does the same with "Chapter 23.47A" → "Commercial" → "Title 23 · LAND USE CODE" sub.
+
+While in the model file, declared the trigram index `smc_section_number_trgm_idx` on the `MunicipalCodeSection.Meta.indexes` (it was created via `migrations.AddIndex` in 0015 but never declared on the model, so `makemigrations` kept proposing to remove it — would have bitten us on the next schema change).
 
 ### Municode — `/municode/` SPA index page + API + light-pass renderer — committed 2026-04-27
 PR 3 of three for the `/municode/` build (closes the `/municode/` Up-next item). User-facing search + browse over the 7,435 parsed `MunicipalCodeSection` rows, plus title/chapter/section detail pages and the Title-15 appendix.
