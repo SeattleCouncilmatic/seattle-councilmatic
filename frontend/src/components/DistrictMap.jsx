@@ -19,9 +19,13 @@ export default function DistrictMap({ geometry }) {
         scrollWheelZoom: false
       });
 
-      // Add OpenStreetMap tiles
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      // Carto Voyager basemap. We were using OSM's public tile server,
+      // which 403s third-party app traffic per OSM's TOS. Carto is free
+      // for civic-scale use, no API key, attribution required.
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20,
       }).addTo(mapInstanceRef.current);
     }
 

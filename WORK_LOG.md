@@ -22,7 +22,6 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 - **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
 **Frontend polish & site chrome**
-- **Fix OpenStreetMap 403 blocked tiles** in RepLookup. Likely OSM tile-server rate limiting (their TOS requires using a third-party provider or self-hosted tiles for non-trivial traffic). Swap to Carto / Stadia / Mapbox or self-host. Affects users hitting the homepage today.
 - **Move Rep Lookup to its own index page** (`/reps/` or `/my-council-members/`). Currently lives in the homepage hero; pattern matches `/legislation/` and `/events/`. Frees the hero space for the next item.
 - **Legislation search bar in the homepage hero** where Rep Lookup currently lives. Big prominent search box that submits to `/legislation?q=...` — reuses the search infra from PR #30. Most direct way to point users into the data.
 - **About page** at `/about`. NavBar's `#about` is currently a hash stub — turn into a real route. Content TBD (project description, source code link, contact).
@@ -63,6 +62,11 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Frontend — swap OSM tile server for Carto Voyager — committed 2026-04-27
+RepLookup's district map was hitting `tile.openstreetmap.org` directly, which OSM's TOS prohibits for embedded third-party app use. Their infra rate-limits or 403s once a deployed app generates non-trivial traffic, breaking the map for users.
+
+Swapped to Carto Voyager (`{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png`): no API key, free tier covers civic-scale traffic, neutral palette that matches the site, attribution to OSM + CARTO required (added to the Leaflet `tileLayer` config). Single-line change in [DistrictMap.jsx:23](frontend/src/components/DistrictMap.jsx#L23).
 
 ### Municode — title and chapter names from PDF TOC — committed 2026-04-27
 Closes the "title and chapter names" Municode follow-up filed during PR 3. The browse listings now read like a real table of contents: `Title 1 — GENERAL PROVISIONS — 6 chapters · 28 sections`, and chapter listings show `Chapter 1.01 — Code Adoption — 4 sections`.
