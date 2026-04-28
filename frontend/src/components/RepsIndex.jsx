@@ -27,9 +27,13 @@ export default function RepsIndex() {
         <header className="reps-header">
           <h1 className="reps-h1">Seattle City Council</h1>
           <p className="reps-subtitle">
-            Click a district on the map to see its representative, or look up your reps by address.
+            Find your district representative by address, or browse the full council below.
           </p>
         </header>
+
+        <section aria-label="Address lookup" className="reps-section reps-section--lead">
+          <AddressLookup />
+        </section>
 
         {loadError && (
           <div className="reps-alert" role="alert">
@@ -40,7 +44,7 @@ export default function RepsIndex() {
 
         {data && (
           <>
-            <section aria-label="Council map">
+            <section aria-label="Council map" className="reps-section">
               <CouncilMap districts={data.districts} />
             </section>
 
@@ -67,11 +71,6 @@ export default function RepsIndex() {
                   </li>
                 ))}
               </ul>
-            </section>
-
-            <section aria-label="Address lookup" className="reps-section">
-              <h2 className="reps-section-h2">Find Your Representatives by Address</h2>
-              <AddressLookup />
             </section>
           </>
         )}

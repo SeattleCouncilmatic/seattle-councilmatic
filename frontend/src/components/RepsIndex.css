@@ -38,6 +38,13 @@
   margin-top: 2.5rem;
 }
 
+/* Lead section follows the header directly with tighter spacing — used
+   for the address lookup that now sits at the top of the page. */
+.reps-section--lead {
+  margin-top: 0;
+  margin-bottom: 2rem;
+}
+
 .reps-section-h2 {
   font-size: 1.125rem;
   font-weight: 700;

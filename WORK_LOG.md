@@ -67,6 +67,11 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Frontend — `/reps/` reorder: address lookup above the map — committed 2026-04-27
+Reordered `/reps/` so the address lookup form sits directly under the page header, ahead of the council map. Reasoning: the lookup is the most goal-directed action on the page ("which district am I in"), so leading with it matches user intent better than asking them to scroll past a map first. The map and rep cards still follow below for browse-style navigation. Subtitle copy updated from "Click a district on the map…" to "Find your district representative by address, or browse the full council below."
+
+New `.reps-section--lead` modifier zeroes the `margin-top` so the lookup section doesn't carry the same 2.5rem gap that's appropriate for stacked browse sections.
+
 ### Frontend — `/reps/` council overview map + rep detail pages — committed 2026-04-27
 Rep Lookup graduated off the homepage into a dedicated `/reps/` index, plus a chicago.councilmatic.org-style council map showing all 7 districts at once and per-rep detail pages. Closes both "Move Rep Lookup to its own index page" and the new "interactive map highlighting reps" idea in one PR.
 
