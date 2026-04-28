@@ -93,6 +93,7 @@ export default function MuniCodeChapter() {
             value={chapterSearch}
             onChange={e => setChapterSearch(e.target.value)}
             aria-label={`Search within Chapter ${data.chapter_number}`}
+            autoFocus
           />
           {chapterSearch && (
             <button

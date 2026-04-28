@@ -104,6 +104,7 @@ function TitlePage({ titleNumber }) {
             value={titleSearch}
             onChange={e => setTitleSearch(e.target.value)}
             aria-label={`Search within Title ${data.title_number}`}
+            autoFocus
           />
           {titleSearch && (
             <button
