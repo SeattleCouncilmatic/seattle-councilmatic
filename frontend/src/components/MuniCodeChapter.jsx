@@ -60,7 +60,7 @@ export default function MuniCodeChapter() {
             {g.sections.length === 0 ? (
               <p className="smc-empty">No sections in this subchapter were captured by the parser.</p>
             ) : (
-              <ul className="smc-listing">
+              <ul className="smc-toc-list">
                 {g.sections.map(s => {
                   const parts = s.section_number.split('.')
                   const path = parts.length === 3
@@ -68,10 +68,12 @@ export default function MuniCodeChapter() {
                     : '#'
                   return (
                     <li key={s.section_number}>
-                      <Link to={path} className="smc-listing-link">
-                        <span className="smc-listing-num">{s.section_number}</span>
-                        <span className="smc-listing-title">{s.title}</span>
-                        {s.has_summary && <span className="smc-summary-badge">Plain summary</span>}
+                      <Link to={path} className="smc-toc-row">
+                        <span className="smc-toc-row-label">Section {s.section_number}</span>
+                        <span className="smc-toc-row-name">{s.title}</span>
+                        <span className="smc-toc-row-meta">
+                          {s.has_summary && <span className="smc-summary-badge">Plain summary</span>}
+                        </span>
                       </Link>
                     </li>
                   )

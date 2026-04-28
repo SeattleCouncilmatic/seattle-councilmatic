@@ -44,8 +44,13 @@ export default function MuniCodeSection() {
         ]} />
 
         <header className="smc-detail-header">
-          <div className="smc-section-num">{data.section_number}</div>
+          <div className="smc-section-num">Section {data.section_number}</div>
           <h1 className="smc-detail-h1">{data.title}</h1>
+          {data.chapter_name && (
+            <p className="smc-detail-sub">
+              Chapter {data.chapter_number} · {data.chapter_name}
+            </p>
+          )}
           {data.subchapter_roman && (
             <p className="smc-detail-sub">
               Subchapter {data.subchapter_roman}

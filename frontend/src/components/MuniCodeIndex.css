@@ -186,7 +186,9 @@
 
 .smc-toc-row {
   display: grid;
-  grid-template-columns: 7rem 1fr auto;
+  /* Label column sized for the longest used: 'Section 23.47A.004'.
+     Tweak together with anything that adds longer labels. */
+  grid-template-columns: 9rem 1fr auto;
   align-items: baseline;
   gap: 1rem;
   padding: 0.625rem 0.875rem;
