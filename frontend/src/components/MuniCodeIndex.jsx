@@ -9,6 +9,8 @@ export default function MuniCodeIndex() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const q = searchParams.get('q') ?? ''
+  const title = searchParams.get('title') ?? ''
+  const chapter = searchParams.get('chapter') ?? ''
   const offset = Number(searchParams.get('offset') ?? 0)
 
   const [results, setResults] = useState([])
@@ -28,8 +30,16 @@ export default function MuniCodeIndex() {
     if (debounceTimer.current) clearTimeout(debounceTimer.current)
     debounceTimer.current = setTimeout(() => {
       const next = new URLSearchParams(searchParams)
-      if (searchInput) next.set('q', searchInput)
-      else next.delete('q')
+      if (searchInput) {
+        next.set('q', searchInput)
+      } else {
+        // When the user clears the search input, also drop any active
+        // scope filters — they're leaving search mode entirely, not
+        // just broadening their query within the current scope.
+        next.delete('q')
+        next.delete('title')
+        next.delete('chapter')
+      }
       next.delete('offset')
       setSearchParams(next, { replace: true })
     }, SEARCH_DEBOUNCE_MS)
@@ -45,13 +55,15 @@ export default function MuniCodeIndex() {
       .catch(e => setError(e.message))
   }, [])
 
-  // Run the search whenever q/offset change.
+  // Run the search whenever q/title/chapter/offset change.
   useEffect(() => {
     if (!q) { setResults([]); setTotalCount(0); setMode('browse'); return }
     setLoading(true)
     setError(null)
     const params = new URLSearchParams()
     params.set('q', q)
+    if (title) params.set('title', title)
+    if (chapter) params.set('chapter', chapter)
     params.set('limit', PAGE_SIZE)
     params.set('offset', offset)
     fetch(`/api/smc/?${params.toString()}`)
@@ -63,7 +75,21 @@ export default function MuniCodeIndex() {
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [q, offset])
+  }, [q, title, chapter, offset])
+
+  const clearTitleFilter = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('title')
+    next.delete('offset')
+    setSearchParams(next)
+  }
+
+  const clearChapterFilter = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('chapter')
+    next.delete('offset')
+    setSearchParams(next)
+  }
 
   const goToOffset = (newOffset) => {
     const next = new URLSearchParams(searchParams)
@@ -103,6 +129,39 @@ export default function MuniCodeIndex() {
             aria-label="Search the Seattle Municipal Code"
           />
         </div>
+
+        {q && (chapter || title) && (
+          <div className="smc-filter-pills" aria-label="Active filters">
+            {/* Chapter is more specific than title, so when both are
+                somehow set we show the chapter pill only — clearing it
+                would still leave the title pill if title were also set. */}
+            {chapter ? (
+              <span className="smc-filter-pill">
+                Filtered to Chapter {chapter}
+                <button
+                  type="button"
+                  className="smc-filter-pill-clear"
+                  onClick={clearChapterFilter}
+                  aria-label={`Clear chapter ${chapter} filter`}
+                >
+                  ×
+                </button>
+              </span>
+            ) : (
+              <span className="smc-filter-pill">
+                Filtered to Title {title}
+                <button
+                  type="button"
+                  className="smc-filter-pill-clear"
+                  onClick={clearTitleFilter}
+                  aria-label={`Clear title ${title} filter`}
+                >
+                  ×
+                </button>
+              </span>
+            )}
+          </div>
+        )}
 
         {q ? (
           <SearchResults

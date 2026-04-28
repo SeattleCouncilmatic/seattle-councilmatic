@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Search as SearchIcon } from 'lucide-react'
 import NotFound from './NotFound'
 import NeighborNav from './NeighborNav'
 import './MuniCodeDetail.css'
@@ -23,9 +24,19 @@ export default function MuniCodeTitle() {
 }
 
 function TitlePage({ titleNumber }) {
+  const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [status, setStatus] = useState(null)
+  const [titleSearch, setTitleSearch] = useState('')
+
+  const handleTitleSearch = (e) => {
+    e.preventDefault()
+    const term = titleSearch.trim()
+    if (!term) return
+    const params = new URLSearchParams({ q: term, title: titleNumber })
+    navigate(`/municode?${params.toString()}`)
+  }
 
   useEffect(() => {
     setData(null); setError(null); setStatus(null)
@@ -59,6 +70,21 @@ function TitlePage({ titleNumber }) {
             {data.chapters.length} chapter{data.chapters.length === 1 ? '' : 's'}
           </p>
         </header>
+
+        <form onSubmit={handleTitleSearch} className="smc-scoped-search" role="search">
+          <SearchIcon className="smc-scoped-search-icon" size={18} aria-hidden="true" />
+          <input
+            type="search"
+            className="smc-scoped-search-input"
+            placeholder={`Search within Title ${data.title_number}…`}
+            value={titleSearch}
+            onChange={e => setTitleSearch(e.target.value)}
+            aria-label={`Search within Title ${data.title_number}`}
+          />
+          <button type="submit" className="smc-scoped-search-btn" disabled={!titleSearch.trim()}>
+            Search
+          </button>
+        </form>
 
         <h2 className="smc-detail-h2">Chapters</h2>
         <ul className="smc-toc-list">

@@ -76,6 +76,46 @@
   font-weight: 500;
 }
 
+/* Active-filter pills above the results — shown when the user arrived
+   from a chapter page's in-chapter search. The X button drops the
+   chapter filter (keeping q) so the search broadens to the full code. */
+.smc-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.smc-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+  background: #eef2ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.smc-filter-pill-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 9999px;
+  border: none;
+  background: transparent;
+  color: #3730a3;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.smc-filter-pill-clear:hover {
+  background: #c7d2fe;
+}
+
 /* ── Search results ───────────────────────────────────────────── */
 
 .smc-result-list {
