@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Header from './components/Header'
 import Footer from './components/Footer'
+import LegislationHero from './components/LegislationHero'
 import ThisWeek from './components/ThisWeek'
 import LegislationIndex from './components/LegislationIndex'
 import LegislationDetail from './components/LegislationDetail'
@@ -18,7 +19,12 @@ import NotFound from './components/NotFound'
 import './App.css'
 
 function HomePage() {
-  return <ThisWeek />
+  return (
+    <>
+      <LegislationHero />
+      <ThisWeek />
+    </>
+  )
 }
 
 function App() {

@@ -22,7 +22,6 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 - **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
 **Frontend polish & site chrome**
-- **Legislation search bar in the homepage hero** where Rep Lookup used to live. Big prominent search box that submits to `/legislation?q=...` — reuses the search infra from PR #30. Most direct way to point users into the data. (Homepage hero is currently empty after the Rep Lookup move.)
 - **Rep contact-detail lookup picks the wrong Person for at-large reps.** `reps/services.py::_rep_row_to_dict` does `OCDPerson.objects.filter(memberships__label=label).first()` to fetch contact rows. For "Position 9", multiple people have held that membership over time, so `.first()` can return a former holder — visible today as Dionne Foster's email rendering as `sara.nelson@seattle.gov`. Fix: pass the slug or `person_id` from `_query_current_council_members` straight through and filter by that instead. Affects the rep grid on `/reps/`, the rep detail page, and the new district page.
 - **About page** at `/about`. NavBar's `#about` is currently a hash stub — turn into a real route. Content TBD (project description, source code link, contact).
 - **NavBar mobile hamburger** (deferred from PR #33). NavBar currently wraps via `flex-wrap` on narrow screens; if usability becomes a problem, replace with a proper hamburger menu.
@@ -62,6 +61,11 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Frontend — homepage legislation search hero — committed 2026-04-27
+Fills the hero gap left by the Rep Lookup move (PR #38). Skyline-image background (the same `/static/images/SeattleSkyline.jpeg` served from `frontend/public/`) with a `rgba(4,44,81,0.78)` overlay; centered title + subtitle + a pill-shaped white search input. Submitting navigates to `/legislation?q=<encoded>`, which `LegislationIndex` already understands — no plumbing changes on the index side. Empty submit drops the user on `/legislation` with no filter.
+
+New `LegislationHero.jsx`, mounted above `<ThisWeek />` on the homepage. Styles cribbed from the deleted `HeroSection.css` so the visual treatment matches what was there before the Rep Lookup move, scoped under `home-hero-*` to avoid collision if we ever reintroduce a separate hero elsewhere. Background-image URL bumped from the old `/images/...` path (which would now hit the SPA catch-all because Vite's `base` is `/static/`) to `/static/images/SeattleSkyline.jpeg`.
 
 ### Frontend — `/reps/` reorder, district pages, map↔card hover sync — committed 2026-04-27
 Started as a section reorder and grew. Four things land together because they share the same scope (the `/reps/` page and how users get from map/lookup to rep info):
