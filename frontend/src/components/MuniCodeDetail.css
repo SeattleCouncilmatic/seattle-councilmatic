@@ -108,6 +108,57 @@
 
 .smc-chapter-group { margin-bottom: 1.5rem; }
 
+/* In-chapter search box, lives between the chapter header and its
+   section listing. Submitting navigates to /municode?q=…&chapter=…
+   so MuniCodeIndex runs the search scoped to this chapter. */
+.smc-chapter-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.25rem 0.25rem 0.875rem;
+  margin-bottom: 1.5rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.smc-chapter-search:focus-within {
+  border-color: #2E3D5B;
+  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.15);
+}
+.smc-chapter-search-icon {
+  color: #6b7280;
+  flex-shrink: 0;
+}
+.smc-chapter-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 0.9375rem;
+  color: #1f2937;
+  background: transparent;
+  padding: 0.4rem 0;
+  min-width: 0;
+}
+.smc-chapter-search-input::placeholder {
+  color: #9ca3af;
+}
+.smc-chapter-search-btn {
+  flex-shrink: 0;
+  padding: 0.4rem 0.875rem;
+  background: #2E3D5B;
+  color: #ffffff;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.smc-chapter-search-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ── Plain-language summary panel ─────────────────────────────── */
 
 .smc-summary-panel {

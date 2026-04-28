@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Search as SearchIcon } from 'lucide-react'
 import NotFound from './NotFound'
 import NeighborNav from './NeighborNav'
 import { Breadcrumb, LoadingView, ErrorView } from './MuniCodeTitle'
@@ -7,6 +8,7 @@ import './MuniCodeDetail.css'
 
 export default function MuniCodeChapter() {
   const { title, chapter } = useParams()
+  const navigate = useNavigate()
   // URL form is /municode/<title>/<chapter-short>; the API takes the full
   // dotted form (`23.47A`), so we reconstruct it.
   const fullChapter = `${title}.${chapter}`
@@ -14,6 +16,15 @@ export default function MuniCodeChapter() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [status, setStatus] = useState(null)
+  const [chapterSearch, setChapterSearch] = useState('')
+
+  const handleChapterSearch = (e) => {
+    e.preventDefault()
+    const term = chapterSearch.trim()
+    if (!term) return
+    const params = new URLSearchParams({ q: term, chapter: fullChapter })
+    navigate(`/municode?${params.toString()}`)
+  }
 
   useEffect(() => {
     setData(null); setError(null); setStatus(null)
@@ -48,6 +59,21 @@ export default function MuniCodeChapter() {
             <p className="smc-detail-sub">Title {data.title_number} · {data.title_name}</p>
           )}
         </header>
+
+        <form onSubmit={handleChapterSearch} className="smc-chapter-search" role="search">
+          <SearchIcon className="smc-chapter-search-icon" size={18} aria-hidden="true" />
+          <input
+            type="search"
+            className="smc-chapter-search-input"
+            placeholder={`Search within Chapter ${data.chapter_number}…`}
+            value={chapterSearch}
+            onChange={e => setChapterSearch(e.target.value)}
+            aria-label={`Search within Chapter ${data.chapter_number}`}
+          />
+          <button type="submit" className="smc-chapter-search-btn" disabled={!chapterSearch.trim()}>
+            Search
+          </button>
+        </form>
 
         {data.groups.map((g, i) => (
           <section key={i} className="smc-chapter-group">

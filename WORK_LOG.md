@@ -16,8 +16,6 @@ locked decisions, known follow-up threads, and a chronological merge log.
 Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **SPA index/search pages** (each likely its own PR; specifics TBD when we pick them up)
-- **Municode follow-ups** (deferred from the PR-3 build):
-  - **In-chapter search box.** The `/api/smc/?chapter=23.47A` filter is wired and works today but not exposed in the UI. Add a search input on the chapter page that posts to `/municode?q=...&chapter=23.47A`. Useful for "find 'parking' inside this chapter" without leaving the chapter context.
 - **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
 **Frontend polish & site chrome**
@@ -58,6 +56,18 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Municode — in-chapter search box — committed 2026-04-28
+Closes the last municode follow-up. The `/api/smc/?chapter=<n>` filter has been wired since PR #36 but wasn't surfaced anywhere in the UI; now the chapter detail page exposes it via a search input below the header, and the index page renders an "Filtered to Chapter X" pill when the filter is active.
+
+**Chapter page** (`MuniCodeChapter.jsx`) — new search input below the chapter header. Submitting navigates to `/municode?q=<term>&chapter=<full-chapter-number>` so MuniCodeIndex runs the search scoped to this chapter. Disabled until the user types something.
+
+**Index page** (`MuniCodeIndex.jsx`):
+- Reads `chapter` from URL params, passes through to `/api/smc/`, re-fetches when it changes.
+- Renders a `Filtered to Chapter <n>` pill above the results list with an X button. Click X → drops the chapter filter (keeps q), so the search broadens to the whole code.
+- Clearing the search input now also drops the chapter filter — leaving search mode entirely should clear all search-related state, not strand a chapter pill in browse mode.
+
+Verified: `q=parking` returns 878 sections code-wide; `q=parking&chapter=23.47A` returns 15. Snippets from the previous PR still render on chapter-scoped results.
 
 ### Municode — FTS search snippets via `ts_headline` — committed 2026-04-28
 Closes the "search snippets" Municode follow-up filed during PR #36. SMC FTS results now ship with a highlighted excerpt drawn from `full_text` so users can see the term-in-context without clicking through. Citation-mode results (e.g. `q=23.47A`) continue without a snippet — there's no body context to surface and the citation is already self-explanatory.
