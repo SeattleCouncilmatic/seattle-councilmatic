@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Search as SearchIcon } from 'lucide-react'
+import { Search as SearchIcon, X as XIcon } from 'lucide-react'
 import NotFound from './NotFound'
 import NeighborNav from './NeighborNav'
 import { Breadcrumb, LoadingView, ErrorView } from './MuniCodeTitle'
@@ -94,9 +94,16 @@ export default function MuniCodeChapter() {
             onChange={e => setChapterSearch(e.target.value)}
             aria-label={`Search within Chapter ${data.chapter_number}`}
           />
-          <button type="submit" className="smc-scoped-search-btn" disabled={!chapterSearch.trim()}>
-            Search
-          </button>
+          {chapterSearch && (
+            <button
+              type="button"
+              className="smc-scoped-search-clear"
+              onClick={() => setChapterSearch('')}
+              aria-label="Clear search"
+            >
+              <XIcon size={16} aria-hidden="true" />
+            </button>
+          )}
         </form>
 
         {data.groups.map((g, i) => (

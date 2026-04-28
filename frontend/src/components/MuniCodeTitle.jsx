@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
-import { Search as SearchIcon } from 'lucide-react'
+import { Search as SearchIcon, X as XIcon } from 'lucide-react'
 import NotFound from './NotFound'
 import NeighborNav from './NeighborNav'
 import './MuniCodeDetail.css'
@@ -105,9 +105,16 @@ function TitlePage({ titleNumber }) {
             onChange={e => setTitleSearch(e.target.value)}
             aria-label={`Search within Title ${data.title_number}`}
           />
-          <button type="submit" className="smc-scoped-search-btn" disabled={!titleSearch.trim()}>
-            Search
-          </button>
+          {titleSearch && (
+            <button
+              type="button"
+              className="smc-scoped-search-clear"
+              onClick={() => setTitleSearch('')}
+              aria-label="Clear search"
+            >
+              <XIcon size={16} aria-hidden="true" />
+            </button>
+          )}
         </form>
 
         <h2 className="smc-detail-h2">Chapters</h2>
