@@ -60,17 +60,17 @@ export default function MuniCodeChapter() {
           )}
         </header>
 
-        <form onSubmit={handleChapterSearch} className="smc-chapter-search" role="search">
-          <SearchIcon className="smc-chapter-search-icon" size={18} aria-hidden="true" />
+        <form onSubmit={handleChapterSearch} className="smc-scoped-search" role="search">
+          <SearchIcon className="smc-scoped-search-icon" size={18} aria-hidden="true" />
           <input
             type="search"
-            className="smc-chapter-search-input"
+            className="smc-scoped-search-input"
             placeholder={`Search within Chapter ${data.chapter_number}…`}
             value={chapterSearch}
             onChange={e => setChapterSearch(e.target.value)}
             aria-label={`Search within Chapter ${data.chapter_number}`}
           />
-          <button type="submit" className="smc-chapter-search-btn" disabled={!chapterSearch.trim()}>
+          <button type="submit" className="smc-scoped-search-btn" disabled={!chapterSearch.trim()}>
             Search
           </button>
         </form>

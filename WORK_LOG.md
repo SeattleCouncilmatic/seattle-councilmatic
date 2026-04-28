@@ -57,17 +57,21 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
-### Municode — in-chapter search box — committed 2026-04-28
-Closes the last municode follow-up. The `/api/smc/?chapter=<n>` filter has been wired since PR #36 but wasn't surfaced anywhere in the UI; now the chapter detail page exposes it via a search input below the header, and the index page renders an "Filtered to Chapter X" pill when the filter is active.
+### Municode — scoped search at title and chapter levels — committed 2026-04-28
+Closes the last municode follow-up. The `/api/smc/?title=<n>` and `?chapter=<n>` filters have been wired since PR #36 but weren't surfaced anywhere in the UI; now both the title and chapter detail pages expose scoped search via an input below their header, and the index page renders a `Filtered to Title <n>` or `Filtered to Chapter <n>` pill when either filter is active.
 
-**Chapter page** (`MuniCodeChapter.jsx`) — new search input below the chapter header. Submitting navigates to `/municode?q=<term>&chapter=<full-chapter-number>` so MuniCodeIndex runs the search scoped to this chapter. Disabled until the user types something.
+**Title page** (`MuniCodeTitle.jsx`) — search input below the title header. Submitting navigates to `/municode?q=<term>&title=<title_number>`.
+
+**Chapter page** (`MuniCodeChapter.jsx`) — search input below the chapter header. Submitting navigates to `/municode?q=<term>&chapter=<full-chapter-number>`.
+
+Both share the same `.smc-scoped-search-*` styles (renamed from `.smc-chapter-search-*` after the title use case landed). Search button is disabled until the user types something.
 
 **Index page** (`MuniCodeIndex.jsx`):
-- Reads `chapter` from URL params, passes through to `/api/smc/`, re-fetches when it changes.
-- Renders a `Filtered to Chapter <n>` pill above the results list with an X button. Click X → drops the chapter filter (keeps q), so the search broadens to the whole code.
-- Clearing the search input now also drops the chapter filter — leaving search mode entirely should clear all search-related state, not strand a chapter pill in browse mode.
+- Reads both `title` and `chapter` URL params, passes through to `/api/smc/`, re-fetches when either changes.
+- Renders a `Filtered to …` pill above the results list with an X button. When both filters are present (rare — typically chapter alone since chapter implies title), the chapter pill takes precedence.
+- Clearing the search input drops `q`, `title`, AND `chapter` — leaving search mode should clear all search-related state, not strand a scope pill in browse mode.
 
-Verified: `q=parking` returns 878 sections code-wide; `q=parking&chapter=23.47A` returns 15. Snippets from the previous PR still render on chapter-scoped results.
+Verified the filter cascade: `q=parking` returns 878 sections code-wide; scoped to `title=23` (Land Use Code) returns 336; scoped to `chapter=23.47A` returns 15.
 
 ### Municode — FTS search snippets via `ts_headline` — committed 2026-04-28
 Closes the "search snippets" Municode follow-up filed during PR #36. SMC FTS results now ship with a highlighted excerpt drawn from `full_text` so users can see the term-in-context without clicking through. Citation-mode results (e.g. `q=23.47A`) continue without a snippet — there's no body context to surface and the citation is already self-explanatory.
