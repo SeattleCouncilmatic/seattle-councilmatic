@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { label: 'Events',             to:   '/events' },
   { label: 'Legislation',        to:   '/legislation' },
   { label: 'Municode',           to:   '/municode' },
-  { label: 'My Council Members', href: '#my-council-members' },
+  { label: 'My Council Members', to:   '/reps' },
   { label: 'Glossary',           href: '#glossary' },
 ];
 

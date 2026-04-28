@@ -22,8 +22,12 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 - **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
 **Frontend polish & site chrome**
+<<<<<<< HEAD
 - **Move Rep Lookup to its own index page** (`/reps/` or `/my-council-members/`). Currently lives in the homepage hero; pattern matches `/legislation/` and `/events/`. Frees the hero space for the next item.
 - **Legislation search bar in the homepage hero** where Rep Lookup currently lives. Big prominent search box that submits to `/legislation?q=...` — reuses the search infra from PR #30. Most direct way to point users into the data.
+=======
+- **Legislation search bar in the homepage hero** where Rep Lookup used to live. Big prominent search box that submits to `/legislation?q=...` — reuses the search infra from PR #30. Most direct way to point users into the data. (Homepage hero is currently empty after the Rep Lookup move.)
+>>>>>>> 7193c8c (frontend: /reps/ council overview map + rep detail pages)
 - **About page** at `/about`. NavBar's `#about` is currently a hash stub — turn into a real route. Content TBD (project description, source code link, contact).
 - **NavBar mobile hamburger** (deferred from PR #33). NavBar currently wraps via `flex-wrap` on narrow screens; if usability becomes a problem, replace with a proper hamburger menu.
 
@@ -63,10 +67,34 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
-### Frontend — swap OSM tile server for Carto Voyager — committed 2026-04-27
+### Frontend — `/reps/` council overview map + rep detail pages — committed 2026-04-27
+Rep Lookup graduated off the homepage into a dedicated `/reps/` index, plus a chicago.councilmatic.org-style council map showing all 7 districts at once and per-rep detail pages. Closes both "Move Rep Lookup to its own index page" and the new "interactive map highlighting reps" idea in one PR.
+
+**Backend** — three new endpoints under `/api/reps/`:
+- `GET /api/reps/` returns `{districts: [{number, name, description, geometry, rep}], at_large: [{slug, name, district, ...}]}`. Geometry is GEOS-side simplified at ~5m tolerance (`preserve_topology=True`) — the unsimplified DB geometry remains for `ST_Contains` address lookup, so visual simplification can never route an address to the wrong rep. Total simplified payload ~141 KB across all 7 districts.
+- `GET /api/reps/<slug>/` returns single-rep detail by `councilmatic_core_person.slug`, scoped to currently-serving members.
+- Existing `POST /api/reps/lookup/` unchanged.
+
+`is_current` lives on `councilmatic_core_person` via the raw-SQL ALTER from `seattle_app/migrations/0001`, which is why the new helpers drop to raw SQL via a shared `_query_current_council_members` helper. Rep dict construction unified through `_rep_row_to_dict` so list and detail endpoints serialize the same way.
+
+`SimplifyPreserveTopology` from `django.contrib.gis.db.models.functions` isn't available in our Django version; switched to GEOSGeometry's Python-side `geometry.simplify(tolerance, preserve_topology=True)` per row, which is also cleaner (no Func annotation gymnastics).
+
+**Frontend** — three new components and two new routes:
+- `CouncilMap.jsx` — Leaflet map with all 7 districts as colored polygons (tab10 palette + brand navy for D7), hover tooltip showing district + rep name, click navigates to `/reps/<slug>`. Carto Voyager tiles. Includes a horizontal swatch legend below the map.
+- `RepsIndex.jsx` — `/reps/` page: header + `<CouncilMap />` + district-rep cards grid + at-large section + address-lookup form (relocated from the homepage). At-large reps render in their own grid since they have no polygon to click.
+- `RepDetail.jsx` — `/reps/:slug` page: eyebrow (district label) + h1 (name) + description + contact rows + external links (City Council profile, Office hours when available).
+- New routes in `App.jsx` (`/reps`, `/reps/`, `/reps/:slug`); NavBar's `My Council Members` flipped from a `#my-council-members` hash stub to a real `Link to="/reps"`.
+
+**Removed**: `RepLookup.jsx`, `DistrictMap.jsx`, `HeroSection.jsx` and their CSS — all three only referenced each other (HeroSection only inside RepLookup), so they're safe to delete after the move. The Carto tile switch on `DistrictMap.jsx` from PR #37 is preserved in git history but the file itself goes away here; the new `CouncilMap` was built using Carto from the start.
+
+**Homepage** is now `<ThisWeek />` only — Rep Lookup left a gap in the hero space. The next Up-next item ("Legislation search bar in the homepage hero") fills it.
+
+Verified: API endpoints return the expected shapes; `/api/reps/rob-saka/` → 200 with full detail, `/api/reps/nope/` → 404; production build clean (1741 modules, 4 s, ~436 kB JS / ~50 kB CSS); all SPA routes 200, including the new `/reps`, `/reps/<slug>`, and the previous routes still working.
+
+### Frontend — swap OSM tile server for Carto Voyager — merged 2026-04-27 (PR #37)
 RepLookup's district map was hitting `tile.openstreetmap.org` directly, which OSM's TOS prohibits for embedded third-party app use. Their infra rate-limits or 403s once a deployed app generates non-trivial traffic, breaking the map for users.
 
-Swapped to Carto Voyager (`{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png`): no API key, free tier covers civic-scale traffic, neutral palette that matches the site, attribution to OSM + CARTO required (added to the Leaflet `tileLayer` config). Single-line change in [DistrictMap.jsx:23](frontend/src/components/DistrictMap.jsx#L23).
+Swapped to Carto Voyager (`{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png`): no API key, free tier covers civic-scale traffic, neutral palette that matches the site, attribution to OSM + CARTO required (added to the Leaflet `tileLayer` config). Single-line change in `DistrictMap.jsx`. The file was removed in the immediately-following council-map PR but the Carto provider stayed.
 
 ### Municode — title and chapter names from PDF TOC — committed 2026-04-27
 Closes the "title and chapter names" Municode follow-up filed during PR 3. The browse listings now read like a real table of contents: `Title 1 — GENERAL PROVISIONS — 6 chapters · 28 sections`, and chapter listings show `Chapter 1.01 — Code Adoption — 4 sections`.
