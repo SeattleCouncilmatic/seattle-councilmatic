@@ -17,20 +17,20 @@ export default function About() {
         <header className="about-header">
           <h1 className="about-h1">About Seattle Councilmatic</h1>
           <p className="about-lead">
-            A window into Seattle City Council — bills, meetings, council
-            members, and the Municipal Code, in a form that's actually
-            browsable and searchable.
+            A free and accessible way to follow what Seattle City Council is
+            doing — the bills they're considering, the meetings they're
+            holding, who represents you, and the laws on the books.
           </p>
         </header>
 
         <section className="about-section" aria-label="Why this exists">
           <h2 className="about-h2">Why this exists</h2>
           <p>
-            The City of Seattle's records are public, but the official portal is
-            hard to navigate and the Municipal Code is a 4,300-page PDF. This
-            site puts the same data behind a single search box and a familiar
-            set of pages, so residents can follow what the Council is doing
-            without learning the city's tooling.
+            Council business shapes everything from rent rules to noise
+            ordinances to where you can park. Seattle Councilmatic is built
+            so any resident — without specialized tools or training — can
+            follow legislation, find their representatives, and read the
+            Municipal Code that governs their neighborhood.
           </p>
         </section>
 
@@ -64,6 +64,58 @@ export default function About() {
           </ul>
         </section>
 
+        <section className="about-section" aria-label="How Seattle City Council works">
+          <h2 className="about-h2">How Seattle City Council works</h2>
+          <p>
+            The Seattle City Council is the legislative body of the City of
+            Seattle. It has nine members: seven elected from geographic
+            districts (Districts 1–7) and two elected at-large (Position 8
+            and Position 9, who represent every district). Council members
+            elect one of their own to serve as Council President.
+          </p>
+          <p>
+            The full Council typically meets every Tuesday afternoon to vote
+            on legislation that has cleared its committees. Most of the
+            actual work — review, amendment, public comment — happens in
+            standing committees, which meet on their own schedules and
+            cover specific subject areas (transportation, land use, public
+            safety, and so on). Committee assignments and agendas live on
+            the <Link to="/events">Events</Link> page.
+          </p>
+          <p>
+            The Mayor of Seattle is a separate executive office. The Mayor
+            signs or vetoes legislation passed by Council and is responsible
+            for executing it through City departments — but does not vote
+            on legislation directly.
+          </p>
+        </section>
+
+        <section className="about-section" aria-label="Types of legislation">
+          <h2 className="about-h2">Types of legislation</h2>
+          <p>
+            Most items the Council acts on fall into one of three categories:
+          </p>
+          <ul className="about-bullets">
+            <li>
+              <strong>Council Bill (CB)</strong> — a proposed law working its
+              way through committee and full Council. When a Council Bill
+              passes and is signed by the Mayor, it becomes an Ordinance.
+            </li>
+            <li>
+              <strong>Ordinance (Ord)</strong> — a passed law. Most
+              ordinances become part of the{' '}
+              <Link to="/municode">Seattle Municipal Code</Link>; others
+              authorize one-time actions like budget appropriations or
+              property transactions.
+            </li>
+            <li>
+              <strong>Resolution (Res)</strong> — typically non-binding.
+              Used to adopt policies, take positions, recognize individuals
+              or organizations, or direct the Council's own internal work.
+            </li>
+          </ul>
+        </section>
+
         <section className="about-section" aria-label="Where the data comes from">
           <h2 className="about-h2">Where the data comes from</h2>
           <ul className="about-bullets">
@@ -92,16 +144,35 @@ export default function About() {
         <section className="about-section" aria-label="Credits">
           <h2 className="about-h2">Built on the work of others</h2>
           <p>
-            This site is built on{' '}
+            Councilmatic was originally created by{' '}
+            <a href="https://mjumbewu.com" target="_blank" rel="noopener noreferrer">
+              Mjumbe Poe
+            </a>{' '}
+            for Philadelphia in 2011 as a{' '}
+            <a href="https://www.codeforamerica.org" target="_blank" rel="noopener noreferrer">
+              Code for America
+            </a>{' '}
+            Fellow — the first fully-developed open data site for municipal
+            legislation in the United States. The framework has since grown
+            into the{' '}
+            <a href="https://www.councilmatic.org" target="_blank" rel="noopener noreferrer">
+              Councilmatic family
+            </a>{' '}
+            of civic-tech sites, maintained by{' '}
+            <a href="https://datamade.us" target="_blank" rel="noopener noreferrer">
+              DataMade
+            </a>. Seattle Councilmatic is built on their open-source{' '}
             <a href="https://github.com/datamade/django-councilmatic"
                target="_blank" rel="noopener noreferrer">
               django-councilmatic
-            </a>, the open-source civic-tech framework maintained by{' '}
-            <a href="https://datamade.us" target="_blank" rel="noopener noreferrer">
-              DataMade
-            </a>. With particular thanks to:
+            </a>.
           </p>
+          <p>With particular thanks to:</p>
           <ul className="about-bullets">
+            <li>
+              <strong>Mjumbe Poe</strong> and <strong>Code for America</strong>{' '}
+              for inventing this category of civic site.
+            </li>
             <li>
               <strong>DataMade</strong> for the Councilmatic ecosystem this
               site extends.
