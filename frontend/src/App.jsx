@@ -7,6 +7,11 @@ import LegislationIndex from './components/LegislationIndex'
 import LegislationDetail from './components/LegislationDetail'
 import EventsIndex from './components/EventsIndex'
 import EventDetail from './components/EventDetail'
+import MuniCodeIndex from './components/MuniCodeIndex'
+import MuniCodeTitle from './components/MuniCodeTitle'
+import MuniCodeChapter from './components/MuniCodeChapter'
+import MuniCodeSection from './components/MuniCodeSection'
+import MuniCodeAppendix from './components/MuniCodeAppendix'
 import NotFound from './components/NotFound'
 import './App.css'
 
@@ -31,6 +36,12 @@ function App() {
         <Route path="/events" element={<EventsIndex />} />
         <Route path="/events/" element={<EventsIndex />} />
         <Route path="/events/:slug" element={<EventDetail />} />
+        <Route path="/municode" element={<MuniCodeIndex />} />
+        <Route path="/municode/" element={<MuniCodeIndex />} />
+        <Route path="/municode/:title/appendix/:label" element={<MuniCodeAppendix />} />
+        <Route path="/municode/:title/:chapter/:section" element={<MuniCodeSection />} />
+        <Route path="/municode/:title/:chapter" element={<MuniCodeChapter />} />
+        <Route path="/municode/:slug" element={<MuniCodeTitle />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <Footer />

@@ -1,0 +1,25 @@
+.smc-text {
+  font-size: 1rem;
+  line-height: 1.65;
+  color: #1f2937;
+}
+
+.smc-text-empty {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.smc-text-p {
+  margin: 0 0 0.85em 0;
+}
+
+.smc-text-l0 { padding-left: 0; }
+.smc-text-l1 { padding-left: 0; }
+.smc-text-l2 { padding-left: 1.5rem; }
+.smc-text-l3 { padding-left: 3rem; }
+
+.smc-text-marker {
+  font-weight: 600;
+  color: #374151;
+  margin-right: 0.25rem;
+}

@@ -81,6 +81,11 @@ class MunicipalCodeSection(models.Model):
         unique_together = ['title_number', 'chapter_number', 'section_number']
         indexes = [
             GinIndex(fields=['search_vector'], name='smc_section_search_idx'),
+            GinIndex(
+                fields=['section_number'],
+                name='smc_section_number_trgm_idx',
+                opclasses=['gin_trgm_ops'],
+            ),
         ]
         verbose_name = "Municipal Code Section"
         verbose_name_plural = "Municipal Code Sections"
@@ -127,6 +132,70 @@ class TitleAppendix(models.Model):
 
     def __str__(self):
         return f"Title {self.title_number} Appendix {self.label}"
+
+
+class CodeTitle(models.Model):
+    """
+    Human-readable name of an SMC title (e.g., '23' -> 'LAND USE CODE').
+    Populated by the extract_smc_toc management command from the
+    Detailed Table of Contents in the SMC PDF (pages 149-168 of the
+    20260421 snapshot). Names are stored as printed in the TOC, mostly
+    in upper case.
+    """
+    title_number = models.CharField(
+        max_length=10,
+        unique=True,
+        help_text="SMC title number, e.g. '23' or '12A'"
+    )
+    name = models.CharField(
+        max_length=200,
+        help_text="Title name as printed in the TOC, e.g. 'LAND USE CODE'"
+    )
+    last_updated = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['title_number']
+        verbose_name = "Code Title"
+        verbose_name_plural = "Code Titles"
+
+    def __str__(self):
+        return f"Title {self.title_number} - {self.name}"
+
+
+class CodeChapter(models.Model):
+    """
+    Human-readable name of an SMC chapter (e.g., '23.47A' -> 'Commercial').
+    Populated by the extract_smc_toc command alongside CodeTitle. Names
+    in the TOC are mixed case ('Code Adoption', 'Election Campaign
+    Contributions') and may include em-dashes ('Citation—Hearings—
+    Penalties') or wrap onto multiple lines in the source PDF (folded
+    by the extractor).
+    """
+    chapter_number = models.CharField(
+        max_length=20,
+        unique=True,
+        help_text="Chapter number, e.g. '23.47A'"
+    )
+    title_number = models.CharField(
+        max_length=10,
+        db_index=True,
+        help_text="Parent title number, e.g. '23'"
+    )
+    name = models.CharField(
+        max_length=300,
+        help_text="Chapter name as printed in the TOC"
+    )
+    last_updated = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['chapter_number']
+        verbose_name = "Code Chapter"
+        verbose_name_plural = "Code Chapters"
+
+    def __str__(self):
+        return f"Chapter {self.chapter_number} - {self.name}"
 
 
 class LegislationSummary(models.Model):

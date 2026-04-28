@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { label: 'How It Works',       href: '#how-it-works' },
   { label: 'Events',             to:   '/events' },
   { label: 'Legislation',        to:   '/legislation' },
+  { label: 'Municode',           to:   '/municode' },
   { label: 'My Council Members', href: '#my-council-members' },
   { label: 'Glossary',           href: '#glossary' },
 ];

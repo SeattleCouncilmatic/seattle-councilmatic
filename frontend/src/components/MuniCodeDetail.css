@@ -1,0 +1,155 @@
+.smc-detail-page {
+  background: #f9fafb;
+  min-height: calc(100vh - 4rem);
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+.smc-detail-container {
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+/* ── Header ───────────────────────────────────────────────────── */
+
+.smc-detail-header { margin: 0.5rem 0 2rem; }
+
+.smc-section-num,
+.smc-detail-eyebrow {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #2E3D5B;
+  margin-bottom: 0.375rem;
+}
+
+.smc-detail-h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: #1f2937;
+  margin: 0 0 0.5rem;
+  line-height: 1.2;
+}
+
+.smc-detail-sub {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.9375rem;
+}
+
+.smc-detail-h2 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 2rem 0 0.75rem;
+}
+
+/* ── Listings (chapters in title page, sections in chapter page) ── */
+
+.smc-listing {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.smc-listing-link {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  color: inherit;
+  background: #ffffff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.smc-listing-link:hover {
+  border-color: #2E3D5B;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.smc-listing-num {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: #2E3D5B;
+  flex-shrink: 0;
+  min-width: 7rem;
+}
+.smc-listing-title {
+  flex: 1;
+  color: #1f2937;
+  font-weight: 500;
+}
+.smc-listing-meta {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.smc-summary-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  background: #e0e7ff;
+  color: #3730a3;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.smc-empty {
+  color: #9ca3af;
+  font-style: italic;
+  margin: 0.5rem 0;
+}
+
+.smc-chapter-group { margin-bottom: 1.5rem; }
+
+/* ── Plain-language summary panel ─────────────────────────────── */
+
+.smc-summary-panel {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 2rem;
+}
+.smc-summary-heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #3730a3;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.smc-summary-body {
+  margin: 0 0 0.5rem;
+  color: #1e1b4b;
+  line-height: 1.6;
+  font-size: 1rem;
+}
+.smc-summary-meta {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #4338ca;
+}
+
+/* ── Section body ─────────────────────────────────────────────── */
+
+.smc-section-body {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  margin-top: 1rem;
+}
+
+.smc-source-note {
+  margin-top: 2rem;
+  font-size: 0.8125rem;
+  color: #9ca3af;
+  font-style: italic;
+}
