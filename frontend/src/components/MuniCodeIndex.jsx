@@ -154,6 +154,11 @@ export default function MuniCodeIndex() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               aria-label="Search the Seattle Municipal Code"
+              // When this page mounts with q already set, the user just
+              // navigated here from a scoped search input on a title or
+              // chapter page — keep the typing flow uninterrupted by
+              // restoring focus to the index input.
+              autoFocus={Boolean(q)}
             />
             {searchInput && (
               <button
