@@ -29,6 +29,15 @@
   line-height: 1.4;
 }
 
+/* <mark> tags appear inside title_highlighted when the user searched
+   with a q= filter. Same yellow as the SMC snippet treatment. */
+.leg-card-title mark {
+  background: #fef3c7;
+  color: inherit;
+  padding: 0 0.125rem;
+  border-radius: 0.125rem;
+}
+
 .leg-card-link {
   color: inherit;
   text-decoration: none;

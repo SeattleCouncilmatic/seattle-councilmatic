@@ -176,13 +176,14 @@ def legislation_index(request):
         status_label, status_variant = _normalise_status(raw_status)
 
         results.append({
-            'identifier':      bill.identifier,
-            'title':           bill.title,
-            'sponsor':         sponsor_name,
-            'status':          status_label,
-            'status_variant':  status_variant,
-            'date_introduced': intro_date,
-            'slug':            bill.slug,
+            'identifier':        bill.identifier,
+            'title':             bill.title,
+            'title_highlighted': _highlight_substring(bill.title, q) if q else None,
+            'sponsor':           sponsor_name,
+            'status':            status_label,
+            'status_variant':    status_variant,
+            'date_introduced':   intro_date,
+            'slug':              bill.slug,
         })
 
     return JsonResponse({
@@ -633,6 +634,23 @@ def _title_neighbor(direction: str, title_number: str) -> dict | None:
         'secondary': name,
         'path':      f'/municode/{n}',
     }
+
+
+def _highlight_substring(text: str | None, q: str) -> str | None:
+    """Case-insensitively wrap occurrences of `q` within `text` in <mark>
+    tags. HTML-escapes the text first so any tag-shaped content renders
+    as text on the frontend; only the <mark> tags we insert are live.
+    Used for legislation title highlighting since Bill search is plain
+    icontains over identifier+title — no FTS to apply ts_headline to,
+    but titles are often long enough that an inline highlight helps."""
+    if not text:
+        return None
+    if not q:
+        return html.escape(text)
+    escaped_text = html.escape(text)
+    escaped_q = html.escape(q)
+    pattern = re.compile(re.escape(escaped_q), re.IGNORECASE)
+    return pattern.sub(lambda m: f'<mark>{m.group(0)}</mark>', escaped_text)
 
 
 def _safe_snippet(raw: str | None) -> str | None:
