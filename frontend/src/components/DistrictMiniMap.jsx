@@ -47,7 +47,15 @@ export default function DistrictMiniMap({ geometry, districtNumber }) {
       },
     }).addTo(mapInstanceRef.current)
 
-    mapInstanceRef.current.fitBounds(layer.getBounds(), { padding: [20, 20] })
+    // Defer fitBounds + invalidateSize to the next paint so Leaflet
+    // measures the container after the browser has finished layout.
+    // Without this, the map can render at 0×0 if the parent's height
+    // hasn't been computed yet on first mount.
+    requestAnimationFrame(() => {
+      if (!mapInstanceRef.current) return
+      mapInstanceRef.current.invalidateSize()
+      mapInstanceRef.current.fitBounds(layer.getBounds(), { padding: [20, 20] })
+    })
   }, [geometry, districtNumber])
 
   useEffect(() => {
