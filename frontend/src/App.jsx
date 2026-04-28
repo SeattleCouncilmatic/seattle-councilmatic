@@ -16,6 +16,7 @@ import RepsIndex from './components/RepsIndex'
 import RepDetail from './components/RepDetail'
 import RepDistrict from './components/RepDistrict'
 import Search from './components/Search'
+import About from './components/About'
 import NotFound from './components/NotFound'
 import './App.css'
 
@@ -52,6 +53,8 @@ function App() {
         <Route path="/reps/:slug" element={<RepDetail />} />
         <Route path="/search" element={<Search />} />
         <Route path="/search/" element={<Search />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/about/" element={<About />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <Footer />
