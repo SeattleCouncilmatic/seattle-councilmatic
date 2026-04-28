@@ -22,7 +22,6 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 - **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
 **Frontend polish & site chrome**
-- **About page** at `/about`. NavBar's `#about` is currently a hash stub — turn into a real route. Content TBD (project description, source code link, contact).
 - **NavBar mobile hamburger** (deferred from PR #33). NavBar currently wraps via `flex-wrap` on narrow screens; if usability becomes a problem, replace with a proper hamburger menu.
 
 **LLM summaries — wire up the existing infrastructure**
@@ -60,6 +59,18 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Frontend — `/about` page — committed 2026-04-28
+Drafted with the user across one round; content land:
+- Lead paragraph + "why this exists" paragraph framing the site as a re-presentation of the City's public records.
+- "What's on the site" feature list with internal links into every surface (`/legislation`, `/events`, `/reps`, `/municode`, `/search`, `/`).
+- Data sources broken out: bills/events from Legistar, council members from seattle.gov + Open Data Portal, SMC from the official PDF.
+- Credits to DataMade (django-councilmatic upstream, MIT-licensed), the City of Seattle (data), and CARTO (basemap tiles).
+- Source-code link to the GitHub repo + contact email (`jimmie@jimmiewifi.com` for now; user plans to set up a councilmatic.org address once registered).
+
+NavBar's `About` flipped from a `#about` hash anchor stub (which had nowhere to go since the homepage doesn't have an `#about` section) to a real `Link to="/about"`. Routes added: `/about` and `/about/`.
+
+Tone deliberately balanced civic-formal with community-project warmth per the user's preference. Forward-looking content (LLM summaries, pgvector retrieval, etc.) intentionally omitted — the page describes what works today; expand when new features ship.
 
 ### Reps — fix at-large contact-detail lookup hitting former holders — committed 2026-04-28
 Closes the data quirk filed during PR #39. `_rep_row_to_dict` was fetching contact rows via `OCDPerson.objects.filter(memberships__label=label).first()`, which matches anyone who has *ever* held that membership label. For Position 9 both Sara Nelson (former) and Dionne Foster (current) match, and `.first()` returned Sara — so Dionne's email rendered as `sara.nelson@seattle.gov` everywhere her card appeared (the rep grid on `/reps/`, her own detail page, and the at-large block on the district pages).

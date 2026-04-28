@@ -7,7 +7,7 @@ import './NavBar.css';
 // ship, or convert to `to` paths if they grow into their own pages.
 const NAV_ITEMS = [
   { label: 'This Week',          href: '#this-week' },
-  { label: 'About',              href: '#about' },
+  { label: 'About',              to:   '/about' },
   { label: 'How It Works',       href: '#how-it-works' },
   { label: 'Events',             to:   '/events' },
   { label: 'Legislation',        to:   '/legislation' },
