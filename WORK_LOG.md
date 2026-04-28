@@ -17,7 +17,6 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **SPA index/search pages** (each likely its own PR; specifics TBD when we pick them up)
 - **Municode follow-ups** (deferred from the PR-3 build):
-  - **Search snippets.** FTS results currently show only section number + title. A `ts_headline('english', full_text, query, 'StartSel=<mark>,StopSel=</mark>,MaxWords=30')` annotation would give a highlighted excerpt. Cost is bounded — only runs for the top N visible results — and the frontend already has a `snippet` field reserved on the result shape. Citation-mode results don't need this.
   - **In-chapter search box.** The `/api/smc/?chapter=23.47A` filter is wired and works today but not exposed in the UI. Add a search input on the chapter page that posts to `/municode?q=...&chapter=23.47A`. Useful for "find 'parking' inside this chapter" without leaving the chapter context.
 - **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
@@ -59,6 +58,19 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Municode — FTS search snippets via `ts_headline` — committed 2026-04-28
+Closes the "search snippets" Municode follow-up filed during PR #36. SMC FTS results now ship with a highlighted excerpt drawn from `full_text` so users can see the term-in-context without clicking through. Citation-mode results (e.g. `q=23.47A`) continue without a snippet — there's no body context to surface and the citation is already self-explanatory.
+
+**Backend** — `smc_search`'s FTS path annotates the queryset with `SearchHeadline('full_text', query, start_sel='<mark>', stop_sel='</mark>', max_words=30, min_words=15, short_word=3)`. Cost is bounded: the annotation runs after `LIMIT`, so `ts_headline` only executes on the post-pagination slice (≤ 100 rows). Browse-mode and citation-mode skip the annotation entirely.
+
+XSS defense via `_safe_snippet`: HTML-escape the entire raw snippet, then restore the `&lt;mark&gt;` / `&lt;/mark&gt;` sentinels we asked Postgres to insert. Anything tag-shaped in the source SMC text renders as text on the frontend; only `<mark>` survives. Frontend uses `dangerouslySetInnerHTML` knowing the input is sanitized.
+
+`_safe_snippet` also collapses the parser's hard line breaks (`' '.join(snippet.split())`) so the excerpt reads as flowing prose rather than mid-sentence wraps from the PDF column layout.
+
+**Frontend** — both consumers (`MuniCodeIndex` `/municode/?q=` and `Search` `/search?q=`) render `r.snippet` below the section title when present. CSS grid rows extended in `MuniCodeIndex.css` (`.smc-result-num` now spans `1 / -1` so the citation stays vertically centered alongside title/sub/snippet) and `Search.css` (new `grid-template-areas` for the row → snippet layout). `<mark>` styled with `#fef3c7` background, slight padding, semibold — not hidden but not loud.
+
+Verified: `q=parking` returns "Conditional uses" with snippet `Park-and-pool lots in IG1 and IG2 zones in the Duwamish Manufacturing/Industrial Center, and park…` (English-stemmed match on `park`). `q=23.47A` (citation mode) returns `snippet: null` for every row — the bypass works.
 
 ### Frontend — `/about` page — committed 2026-04-28
 Drafted with the user across one round; content land:

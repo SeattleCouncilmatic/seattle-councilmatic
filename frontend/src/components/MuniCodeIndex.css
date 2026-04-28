@@ -108,7 +108,9 @@
 
 .smc-result-num {
   grid-column: 1;
-  grid-row: 1 / 3;
+  /* Span every row so the number stays vertically centered alongside
+     however many of (title, sub, snippet) are populated. */
+  grid-row: 1 / -1;
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
   font-weight: 600;
   font-size: 0.9375rem;
@@ -126,6 +128,21 @@
   grid-row: 2;
   font-size: 0.8125rem;
   color: #6b7280;
+}
+.smc-result-snippet {
+  grid-column: 2;
+  grid-row: 3;
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #4b5563;
+}
+.smc-result-snippet mark {
+  background: #fef3c7;
+  color: inherit;
+  padding: 0 0.125rem;
+  border-radius: 0.125rem;
+  font-weight: 600;
 }
 
 /* ── Pagination ───────────────────────────────────────────────── */

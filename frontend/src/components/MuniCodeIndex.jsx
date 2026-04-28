@@ -160,6 +160,16 @@ function SearchResults({ loading, error, results, totalCount, mode, currentPage,
                   {!r.subchapter_roman && (
                     <span className="smc-result-sub">Ch. {r.chapter_number}</span>
                   )}
+                  {r.snippet && (
+                    <span
+                      className="smc-result-snippet"
+                      // Backend HTML-escapes the snippet and only restores
+                      // <mark> sentinels, so anything tag-shaped in the
+                      // source renders as text. Safe to feed to
+                      // dangerouslySetInnerHTML.
+                      dangerouslySetInnerHTML={{ __html: r.snippet }}
+                    />
+                  )}
                 </Link>
               </li>
             )

@@ -141,7 +141,10 @@
 .search-smc-row {
   display: grid;
   grid-template-columns: 7rem 1fr auto;
-  gap: 1rem;
+  grid-template-areas:
+    "num title meta"
+    "num snippet snippet";
+  gap: 0.25rem 1rem;
   align-items: baseline;
   padding: 0.75rem 1rem;
   border: 1px solid #e5e7eb;
@@ -157,28 +160,48 @@
 }
 
 .search-smc-num {
+  grid-area: num;
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
   font-weight: 600;
   color: #2E3D5B;
+  align-self: center;
 }
 
 .search-smc-title {
+  grid-area: title;
   color: #1f2937;
   font-weight: 500;
 }
 
 .search-smc-meta {
+  grid-area: meta;
   color: #6b7280;
   font-size: 0.8125rem;
   white-space: nowrap;
 }
 
+.search-smc-snippet {
+  grid-area: snippet;
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #4b5563;
+}
+.search-smc-snippet mark {
+  background: #fef3c7;
+  color: inherit;
+  padding: 0 0.125rem;
+  border-radius: 0.125rem;
+  font-weight: 600;
+}
+
 @media (max-width: 600px) {
   .search-smc-row {
     grid-template-columns: auto 1fr;
-    grid-template-areas: "num title" "meta meta";
+    grid-template-areas:
+      "num title"
+      "meta meta"
+      "snippet snippet";
   }
-  .search-smc-num { grid-area: num; }
-  .search-smc-title { grid-area: title; }
-  .search-smc-meta { grid-area: meta; text-align: left; }
+  .search-smc-meta { text-align: left; }
 }
