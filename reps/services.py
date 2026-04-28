@@ -438,9 +438,11 @@ def get_rep_by_slug(slug: str) -> Optional[Dict[str, Any]]:
 
 def get_district_with_reps(number: str) -> Optional[Dict[str, Any]]:
     """Combined payload for /reps/district/<number>: the district rep
-    plus both at-large reps (who represent every district). Returns None
-    if the district doesn't exist. Numeric districts only — the catch-all
-    'At Large' District row isn't a valid argument here."""
+    plus both at-large reps (who represent every district), plus the
+    district's simplified GeoJSON geometry for the close-up map on the
+    detail page. Returns None if the district doesn't exist. Numeric
+    districts only — the catch-all 'At Large' District row isn't a valid
+    argument here."""
     if number == 'At Large':
         return None
     try:
@@ -456,11 +458,18 @@ def get_district_with_reps(number: str) -> Optional[Dict[str, Any]]:
     if rows:
         district_rep = _rep_row_to_dict(*rows[0])
 
+    # Same simplification as the overview map — fine enough at the
+    # zoomed-in single-district view that artifacts aren't visible.
+    simple_geom = district.geometry.simplify(
+        tolerance=_OVERVIEW_SIMPLIFY_TOLERANCE, preserve_topology=True
+    )
+
     return {
         'district': {
             'number':      district.number,
             'name':        district.name,
             'description': district.description,
+            'geometry':    json.loads(simple_geom.geojson) if simple_geom else None,
         },
         'rep':      district_rep,
         'at_large': list_at_large_reps(),

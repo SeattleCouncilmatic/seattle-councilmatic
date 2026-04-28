@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import NotFound from './NotFound'
+import DistrictMiniMap from './DistrictMiniMap'
 import { DISTRICT_COLORS } from './districtColors'
 import './RepDistrict.css'
 
@@ -51,6 +52,15 @@ export default function RepDistrict() {
             <p className="rep-district-sub">{data.district.description}</p>
           )}
         </header>
+
+        {data.district.geometry && (
+          <section className="rep-district-section" aria-label="District map">
+            <DistrictMiniMap
+              geometry={data.district.geometry}
+              districtNumber={data.district.number}
+            />
+          </section>
+        )}
 
         <section className="rep-district-section" aria-label="Your district representative">
           <h2 className="rep-district-h2">Your District Representative</h2>

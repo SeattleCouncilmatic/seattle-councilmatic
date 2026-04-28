@@ -64,13 +64,15 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ## Done
 
 ### Frontend — `/reps/` reorder, district pages, map↔card hover sync — committed 2026-04-27
-Started as a section reorder and grew. Three things land together because they share the same scope (the `/reps/` page and how users get from map/lookup to rep info):
+Started as a section reorder and grew. Four things land together because they share the same scope (the `/reps/` page and how users get from map/lookup to rep info):
 
 1. **Address lookup moved above the map.** It's the most goal-directed action on the page; leading with it matches user intent better than asking them to scroll past a map first. New `.reps-section--lead` modifier zeroes `margin-top` so the lookup sits flush under the header. Subtitle copy updated from "Click a district on the map…" to "Find your district representative by address, or browse the full council below."
 
 2. **New `/reps/district/<number>/` page** showing the district + its rep + both at-large reps as click-through links to individual rep details. Replaces the inline lookup-result callout that used to render on `/reps/`. Backend: new `GET /api/reps/districts/<number>/` endpoint returning `{district, rep, at_large}`. Frontend: new `RepDistrict.jsx` component, route `/reps/district/:number`. Header bar uses the district's accent color as a left border for visual continuity with the map.
 
 3. **Map polygon click → district page** instead of straight to a rep, and **hover on a polygon highlights the matching rep card** in the same color (`box-shadow: 0 0 0 2px <color>33` plus `border-color`). Address lookup also navigates to the district page on success. `DISTRICT_COLORS` lifted into `frontend/src/components/districtColors.js` so `CouncilMap` and `RepsIndex` stay in sync.
+
+4. **District mini-map on the detail page.** New `DistrictMiniMap.jsx` renders a single-district close-up — Carto tiles, the district outline filled with its accent color, fitBounds-zoomed, no scroll-zoom or click handlers. Sister to `CouncilMap` (full council with click-through behavior). District detail endpoint now includes the same simplified geometry as the overview map (~10 KB per district), so visual continuity carries from the council overview through the district page. Mirrors the original `DistrictMap` behavior on the old homepage RepLookup result.
 
 Pre-existing data quirk surfaced while testing the district endpoint: `_rep_row_to_dict`'s contact-detail lookup uses `OCDPerson.objects.filter(memberships__label=label).first()`, which can return any historical holder of e.g. "Position 9" — Dionne Foster's email currently shows as Sara Nelson's. Filed under Up next; not a regression and out of scope here.
 
