@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Header from './components/Header'
 import Footer from './components/Footer'
-import RepLookup from './components/RepLookup'
 import ThisWeek from './components/ThisWeek'
 import LegislationIndex from './components/LegislationIndex'
 import LegislationDetail from './components/LegislationDetail'
@@ -12,16 +11,13 @@ import MuniCodeTitle from './components/MuniCodeTitle'
 import MuniCodeChapter from './components/MuniCodeChapter'
 import MuniCodeSection from './components/MuniCodeSection'
 import MuniCodeAppendix from './components/MuniCodeAppendix'
+import RepsIndex from './components/RepsIndex'
+import RepDetail from './components/RepDetail'
 import NotFound from './components/NotFound'
 import './App.css'
 
 function HomePage() {
-  return (
-    <>
-      <RepLookup />
-      <ThisWeek />
-    </>
-  )
+  return <ThisWeek />
 }
 
 function App() {
@@ -42,6 +38,9 @@ function App() {
         <Route path="/municode/:title/:chapter/:section" element={<MuniCodeSection />} />
         <Route path="/municode/:title/:chapter" element={<MuniCodeChapter />} />
         <Route path="/municode/:slug" element={<MuniCodeTitle />} />
+        <Route path="/reps" element={<RepsIndex />} />
+        <Route path="/reps/" element={<RepsIndex />} />
+        <Route path="/reps/:slug" element={<RepDetail />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <Footer />

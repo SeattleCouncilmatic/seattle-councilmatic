@@ -5,15 +5,25 @@ This module handles:
 - Geocoding addresses to coordinates
 - Finding which district contains an address
 - Looking up representatives for a district
+- Listing districts and at-large reps for the council overview map
 """
 
+import json
 from typing import Optional, Dict, Any, List
+
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 from django.contrib.gis.geos import Point
-from django.db import models
+from django.db import connection, models
+
 from councilmatic_core.models import Person, Membership
 from .models import District
+
+
+# Default simplification tolerance for the council overview map. ~5m at
+# Seattle's latitude — invisible at the rendered zoom level. The
+# unsimplified geometry stays in the DB for ST_Contains lookups.
+_OVERVIEW_SIMPLIFY_TOLERANCE = 0.00005
 
 
 class GeocodingService:
@@ -300,3 +310,127 @@ class RepLookupService:
                 representatives.append(rep_data)
 
         return representatives
+
+
+# ---------------------------------------------------------------------------
+# Council overview map endpoints
+# ---------------------------------------------------------------------------
+
+
+def _rep_row_to_dict(name: str, slug: str, label: str) -> Dict[str, Any]:
+    """Build the canonical rep dict from a (name, slug, membership_label) row.
+    Pulls contact details and links from opencivicdata via the Person model.
+    Used by both /api/reps/ list endpoints and /api/reps/<slug>/ detail."""
+    from opencivicdata.core.models import Person as OCDPerson
+
+    rep_data = {
+        'name': name,
+        'slug': slug,
+        'role': 'Councilmember',
+        'district': label,
+    }
+
+    # Add the District.description (if a District row matches the membership label)
+    try:
+        if label.startswith('District '):
+            d = District.objects.filter(number=label.split(' ')[1]).first()
+        elif label.startswith('Position '):
+            d = District.objects.filter(number='At Large').first()
+        else:
+            d = None
+        if d:
+            rep_data['district_description'] = d.description
+    except Exception:
+        pass
+
+    # Person contact details + links
+    person = OCDPerson.objects.filter(memberships__label=label).first()
+    if person:
+        for contact in person.contact_details.all():
+            if contact.type == 'email':
+                rep_data['email'] = contact.value
+            elif contact.type == 'voice':
+                rep_data['phone'] = contact.value
+        for link in person.links.all():
+            if link.note == 'City Council profile':
+                rep_data['profile_url'] = link.url
+            elif link.note == 'Office Hours':
+                rep_data['office_hours_url'] = link.url
+
+    return rep_data
+
+
+def _query_current_council_members(extra_filter: str = "", params: Optional[List] = None
+                                   ) -> List[tuple]:
+    """Returns [(name, slug, membership_label), ...] for currently serving
+    council members. Centralized so both list and detail endpoints share
+    the same filter (cp.is_current = TRUE plus the org join). is_current
+    lives on councilmatic_core_person via a raw-SQL ALTER (see
+    seattle_app/migrations/0001_add_is_current_to_person.py), which is
+    why we drop to raw SQL instead of using the ORM."""
+    base = """
+        SELECT DISTINCT p.name, cp.slug, m.label
+        FROM opencivicdata_membership m
+        INNER JOIN opencivicdata_person p ON m.person_id = p.id
+        INNER JOIN opencivicdata_organization o ON m.organization_id = o.id
+        INNER JOIN councilmatic_core_person cp ON cp.person_id = p.id
+        WHERE o.name = 'Seattle City Council'
+          AND cp.is_current = TRUE
+    """
+    sql = base + extra_filter + " ORDER BY m.label"
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params or [])
+        return cursor.fetchall()
+
+
+def list_districts_with_reps(simplify_tolerance: float = _OVERVIEW_SIMPLIFY_TOLERANCE
+                             ) -> List[Dict[str, Any]]:
+    """All 7 numbered districts with simplified GeoJSON geometry and the
+    current rep for each. Geometry simplification is purely a payload
+    optimization — address lookup uses the unsimplified DB geometry, so
+    visual simplification can never route an address to the wrong rep."""
+    rep_lookup = {label: (name, slug) for name, slug, label in
+                  _query_current_council_members(
+                      extra_filter=" AND m.label LIKE 'District %%'"
+                  )}
+
+    out = []
+    for d in District.objects.exclude(number='At Large').order_by('number'):
+        membership_label = f'District {d.number}'
+        rep = None
+        if membership_label in rep_lookup:
+            name, slug = rep_lookup[membership_label]
+            rep = _rep_row_to_dict(name, slug, membership_label)
+        # Python-side simplify via GEOS — preserve_topology=True keeps the
+        # polygon valid (no self-intersections) at our tolerance, which
+        # could otherwise corrupt rendering of complex coastline shapes.
+        simple = d.geometry.simplify(tolerance=simplify_tolerance, preserve_topology=True)
+        out.append({
+            'number':      d.number,
+            'name':        d.name,
+            'description': d.description,
+            'geometry':    json.loads(simple.geojson) if simple else None,
+            'rep':         rep,
+        })
+    return out
+
+
+def list_at_large_reps() -> List[Dict[str, Any]]:
+    """The 2 at-large reps (Position 8 + Position 9). No geometry — they
+    represent the whole city, so they're rendered as cards beside the map
+    rather than as polygons on it."""
+    rows = _query_current_council_members(extra_filter=" AND m.label LIKE 'Position %%'")
+    return [_rep_row_to_dict(name, slug, label) for name, slug, label in rows]
+
+
+def get_rep_by_slug(slug: str) -> Optional[Dict[str, Any]]:
+    """Single rep detail by councilmatic_core_person.slug. Returns None
+    for unknown slugs or for reps who aren't currently serving."""
+    rows = _query_current_council_members(
+        extra_filter=" AND cp.slug = %s",
+        params=[slug],
+    )
+    if not rows:
+        return None
+    name, slug_back, label = rows[0]
+    return _rep_row_to_dict(name, slug_back, label)

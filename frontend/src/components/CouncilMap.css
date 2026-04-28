@@ -1,0 +1,44 @@
+.council-map-wrapper {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.council-map {
+  width: 100%;
+  height: 480px;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.council-map-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: #4b5563;
+}
+
+.council-map-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.council-map-legend-swatch {
+  display: inline-block;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 0.2rem;
+  opacity: 0.7;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 600px) {
+  .council-map { height: 360px; }
+}

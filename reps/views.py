@@ -4,9 +4,14 @@ API views for representative lookup.
 
 import json
 from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_GET
 from django.views.decorators.csrf import csrf_exempt
-from .services import RepLookupService
+from .services import (
+    RepLookupService,
+    get_rep_by_slug,
+    list_at_large_reps,
+    list_districts_with_reps,
+)
 
 
 @csrf_exempt  # For development - in production, use proper CSRF handling
@@ -82,3 +87,31 @@ def lookup_reps(request):
             'success': False,
             'error': 'Internal server error'
         }, status=500)
+
+
+@require_GET
+def reps_index(request):
+    """
+    GET /api/reps/
+
+    Returns the council overview: 7 districts (with simplified GeoJSON
+    geometry + their current rep) plus the at-large reps. Used by the
+    /reps/ SPA page to render the council map.
+    """
+    return JsonResponse({
+        'districts': list_districts_with_reps(),
+        'at_large':  list_at_large_reps(),
+    })
+
+
+@require_GET
+def rep_detail(request, slug):
+    """
+    GET /api/reps/<slug>/
+
+    Single rep detail by councilmatic_core_person.slug.
+    """
+    rep = get_rep_by_slug(slug)
+    if not rep:
+        return JsonResponse({'error': 'Representative not found'}, status=404)
+    return JsonResponse(rep)
