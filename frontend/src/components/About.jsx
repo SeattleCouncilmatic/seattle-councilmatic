@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import './About.css'
 
 const REPO_URL = 'https://github.com/SeattleCouncilmatic/seattle-councilmatic'
-const CONTACT_EMAIL = 'jimmie@jimmiewifi.com'
+const CONTACT_EMAIL = 'contact@seattlecouncilmatic.org'
 
 export default function About() {
   return (
@@ -26,11 +26,11 @@ export default function About() {
         <section className="about-section" aria-label="Why this exists">
           <h2 className="about-h2">Why this exists</h2>
           <p>
-            Council business shapes everything from rent rules to noise
-            ordinances to where you can park. Seattle Councilmatic is built
-            so any resident — without specialized tools or training — can
+            Council business shapes everything from rent rules and building
+            codes to business regulations and labor laws. Seattle
+            Councilmatic offers tools that allow the people of Seattle to
             follow legislation, find their representatives, and read the
-            Municipal Code that governs their neighborhood.
+            Municipal Code that governs life in the Emerald City.
           </p>
         </section>
 
