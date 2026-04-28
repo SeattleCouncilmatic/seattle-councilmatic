@@ -62,10 +62,16 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
-### Frontend — homepage legislation search hero — committed 2026-04-27
-Fills the hero gap left by the Rep Lookup move (PR #38). Skyline-image background (the same `/static/images/SeattleSkyline.jpeg` served from `frontend/public/`) with a `rgba(4,44,81,0.78)` overlay; centered title + subtitle + a pill-shaped white search input. Submitting navigates to `/legislation?q=<encoded>`, which `LegislationIndex` already understands — no plumbing changes on the index side. Empty submit drops the user on `/legislation` with no filter.
+### Frontend — homepage hero + unified `/search` (legislation + municode) — committed 2026-04-27
+Fills the hero gap left by the Rep Lookup move (PR #38) and adds a parallel-search results page that ties legislation and the Municipal Code together. The two are interlinked enough — bills cite SMC sections, SMC chapters reference legislative history — that one search box covering both matches users' actual mental model better than two separate ones.
 
-New `LegislationHero.jsx`, mounted above `<ThisWeek />` on the homepage. Styles cribbed from the deleted `HeroSection.css` so the visual treatment matches what was there before the Rep Lookup move, scoped under `home-hero-*` to avoid collision if we ever reintroduce a separate hero elsewhere. Background-image URL bumped from the old `/images/...` path (which would now hit the SPA catch-all because Vite's `base` is `/static/`) to `/static/images/SeattleSkyline.jpeg`.
+**Hero (`LegislationHero.jsx`)** — mounted above `<ThisWeek />` on the homepage. Skyline background (`/static/images/SeattleSkyline.jpeg`, served from `frontend/public/`) with a `rgba(4,44,81,0.78)` overlay; centered title + subtitle + a pill-shaped white search input. Title: "Search Seattle Government." Empty submit → `/legislation` browse mode; non-empty → `/search?q=<encoded>`. Styles cribbed from the deleted `HeroSection.css` from the original Rep Lookup hero, scoped under `home-hero-*` for namespace hygiene. Background-image URL bumped from the old `/images/...` path (which would now hit the SPA catch-all because Vite's `base` is `/static/`) to `/static/images/SeattleSkyline.jpeg`.
+
+**`/search` page (`Search.jsx`)** — fans out two parallel `Promise.all` requests against `/api/legislation/?q=` and `/api/smc/?q=` with `limit=5` each, renders two stacked sections — `Legislation (N)` and `Municipal Code (N)` — with a "View all N results →" link to the type-specific index when there are more than 5 hits. Debounced URL-synced search input on the page lets users refine without leaving. We don't try to merge ranking across types — there's no honest way to compare a bill's relevance to an SMC section's, so we stack instead. Empty `q` shows a "Type a keyword or citation above to begin searching" prompt.
+
+Citation queries route naturally: `q=23.47A` returns 30 SMC sections (citation mode) + 5 legislation matches that mention the citation. Topical queries surface both: `q=tree` returns 21 bills + 186 SMC sections.
+
+Reuses `LegislationCard` directly for the legislation section. SMC results use a 3-column row similar to `MuniCodeIndex`'s search list (number, title, chapter), styled under `search-smc-*`.
 
 ### Frontend — `/reps/` reorder, district pages, map↔card hover sync — committed 2026-04-27
 Started as a section reorder and grew. Four things land together because they share the same scope (the `/reps/` page and how users get from map/lookup to rep info):

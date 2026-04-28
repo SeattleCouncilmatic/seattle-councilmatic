@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import './LegislationHero.css'
 
-// Homepage hero. The Seattle skyline background sets the place; the
-// search input over it points users straight at the legislation index.
-// Submitting navigates to /legislation?q=<query>, which LegislationIndex
-// already understands — no extra plumbing on the index side.
+// Homepage hero. The Seattle skyline sets the place; the search box
+// over it points users at the unified /search results page (which
+// fans out to legislation + municipal code in parallel). Submitting
+// navigates there with q=<query>; empty submit drops users on the
+// browse-mode legislation index.
 export default function LegislationHero() {
   const navigate = useNavigate()
   const [q, setQ] = useState('')
@@ -15,9 +16,8 @@ export default function LegislationHero() {
     e.preventDefault()
     const term = q.trim()
     if (term) {
-      navigate(`/legislation?q=${encodeURIComponent(term)}`)
+      navigate(`/search?q=${encodeURIComponent(term)}`)
     } else {
-      // Empty submit drops the user on the index without a filter.
       navigate('/legislation')
     }
   }
@@ -26,14 +26,14 @@ export default function LegislationHero() {
     <div className="home-hero">
       <div className="home-hero-overlay" />
       <div className="home-hero-content">
-        <h2 className="home-hero-title">Search Seattle Legislation</h2>
+        <h2 className="home-hero-title">Search Seattle Government</h2>
         <p className="home-hero-subtitle">
-          Find bills, resolutions, and council actions by identifier or keyword.
+          Find bills, resolutions, and the Municipal Code in one search.
         </p>
 
         <form onSubmit={submit} className="home-hero-form" role="search">
           <label className="sr-only" htmlFor="home-hero-search">
-            Search Seattle legislation
+            Search Seattle legislation and Municipal Code
           </label>
           <div className="home-hero-input-wrapper">
             <Search className="home-hero-search-icon" size={22} aria-hidden="true" />
@@ -42,7 +42,7 @@ export default function LegislationHero() {
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by identifier or title (e.g. parking, CB 119901)…"
+              placeholder="Search a topic (e.g. parking) or citation (e.g. CB 119901, 23.47A)…"
               className="home-hero-search-input"
               autoComplete="off"
             />
