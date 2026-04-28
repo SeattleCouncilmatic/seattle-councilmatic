@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { X as XIcon } from 'lucide-react'
 import './MuniCodeIndex.css'
 
 const PAGE_SIZE = 20
@@ -91,6 +92,20 @@ export default function MuniCodeIndex() {
     setSearchParams(next)
   }
 
+  // Immediate clear — bypasses the 300ms debounce so the X feels
+  // responsive. Without this, clicking the X would clear the input
+  // but the URL/results would lag for a third of a second.
+  const clearSearchImmediately = () => {
+    setSearchInput('')
+    if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    const next = new URLSearchParams(searchParams)
+    next.delete('q')
+    next.delete('title')
+    next.delete('chapter')
+    next.delete('offset')
+    setSearchParams(next, { replace: true })
+  }
+
   const goToOffset = (newOffset) => {
     const next = new URLSearchParams(searchParams)
     if (newOffset > 0) next.set('offset', newOffset)
@@ -120,14 +135,26 @@ export default function MuniCodeIndex() {
         </header>
 
         <div className="smc-index-controls">
-          <input
-            type="search"
-            className="smc-index-search"
-            placeholder="Search the code (e.g. 'short-term rental') or jump to a citation ('23.47A.004')…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            aria-label="Search the Seattle Municipal Code"
-          />
+          <div className="smc-index-search-wrapper">
+            <input
+              type="search"
+              className="smc-index-search"
+              placeholder="Search the code (e.g. 'short-term rental') or jump to a citation ('23.47A.004')…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              aria-label="Search the Seattle Municipal Code"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                className="smc-index-search-clear"
+                onClick={clearSearchImmediately}
+                aria-label="Clear search"
+              >
+                <XIcon size={16} aria-hidden="true" />
+              </button>
+            )}
+          </div>
         </div>
 
         {q && (chapter || title) && (

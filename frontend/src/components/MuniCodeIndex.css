@@ -52,9 +52,15 @@
   margin-bottom: 1rem;
 }
 
+.smc-index-search-wrapper {
+  position: relative;
+}
+
 .smc-index-search {
   width: 100%;
-  padding: 0.625rem 0.875rem;
+  /* Right padding leaves room for the absolutely-positioned clear X
+     so the input layout doesn't shift when the X appears/disappears. */
+  padding: 0.625rem 2.5rem 0.625rem 0.875rem;
   font-size: 1rem;
   border: 2px solid #e5e7eb;
   border-radius: 0.5rem;
@@ -67,6 +73,29 @@
   outline: none;
   border-color: #2E3D5B;
   box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.15);
+}
+
+.smc-index-search-clear {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  background: transparent;
+  color: #6b7280;
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.smc-index-search-clear:hover {
+  background: #f3f4f6;
+  color: #1f2937;
 }
 
 .smc-index-summary {
