@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { MapPin, AlertCircle } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { AlertCircle } from 'lucide-react'
 import CouncilMap from './CouncilMap'
+import { DISTRICT_COLORS } from './districtColors'
 import './RepsIndex.css'
 
 export default function RepsIndex() {
   const [data, setData] = useState(null)
   const [loadError, setLoadError] = useState(null)
+  // Hover sync between CouncilMap and the district cards: hovering a
+  // polygon highlights the matching card (and vice versa would be nice
+  // someday, but one direction is enough for the visual correlation).
+  const [hoveredDistrict, setHoveredDistrict] = useState(null)
 
   useEffect(() => {
     fetch('/api/reps/')
@@ -27,9 +32,13 @@ export default function RepsIndex() {
         <header className="reps-header">
           <h1 className="reps-h1">Seattle City Council</h1>
           <p className="reps-subtitle">
-            Click a district on the map to see its representative, or look up your reps by address.
+            Find your district representative by address, or browse the full council below.
           </p>
         </header>
+
+        <section aria-label="Address lookup" className="reps-section reps-section--lead">
+          <AddressLookup />
+        </section>
 
         {loadError && (
           <div className="reps-alert" role="alert">
@@ -40,8 +49,8 @@ export default function RepsIndex() {
 
         {data && (
           <>
-            <section aria-label="Council map">
-              <CouncilMap districts={data.districts} />
+            <section aria-label="Council map" className="reps-section">
+              <CouncilMap districts={data.districts} onDistrictHover={setHoveredDistrict} />
             </section>
 
             <section aria-label="District representatives" className="reps-section">
@@ -49,7 +58,13 @@ export default function RepsIndex() {
               <ul className="reps-card-grid">
                 {data.districts.map(d => (
                   <li key={d.number}>
-                    <RepMiniCard rep={d.rep} districtName={d.name} description={d.description} />
+                    <RepMiniCard
+                      rep={d.rep}
+                      districtName={d.name}
+                      description={d.description}
+                      districtNumber={d.number}
+                      highlighted={hoveredDistrict === d.number}
+                    />
                   </li>
                 ))}
               </ul>
@@ -68,11 +83,6 @@ export default function RepsIndex() {
                 ))}
               </ul>
             </section>
-
-            <section aria-label="Address lookup" className="reps-section">
-              <h2 className="reps-section-h2">Find Your Representatives by Address</h2>
-              <AddressLookup />
-            </section>
           </>
         )}
       </div>
@@ -80,17 +90,41 @@ export default function RepsIndex() {
   )
 }
 
-function RepMiniCard({ rep, districtName, description }) {
+function RepMiniCard({ rep, districtName, description, districtNumber, highlighted }) {
+  const accent = districtNumber ? DISTRICT_COLORS[districtNumber] : null
+  // Inline style applied only when the matching polygon is hovered, so
+  // the card visibly correlates with the map without a permanent paint.
+  const highlightStyle = highlighted && accent
+    ? { borderColor: accent, boxShadow: `0 0 0 2px ${accent}33` }
+    : undefined
+  const accentBar = accent ? { borderLeftColor: accent } : undefined
+
+  // District cards mirror map polygon click — navigate to the district
+  // page (rep + at-large). At-large cards have no districtNumber, so they
+  // navigate straight to the rep's detail page.
+  const target = districtNumber ? `/reps/district/${districtNumber}` : `/reps/${rep?.slug}`
+
   if (!rep) {
+    // Vacant seat still wants to surface the district context, so keep
+    // the link active even without a rep — the district page handles
+    // the "currently vacant" copy.
     return (
-      <div className="rep-mini-card rep-mini-card--empty">
+      <Link
+        to={target}
+        className={`rep-mini-card rep-mini-card--empty${accent ? ' rep-mini-card--accented' : ''}`}
+        style={{ ...accentBar, ...highlightStyle }}
+      >
         <div className="rep-mini-card-district">{districtName}</div>
         <div className="rep-mini-card-name">Vacant</div>
-      </div>
+      </Link>
     )
   }
   return (
-    <Link to={`/reps/${rep.slug}`} className="rep-mini-card">
+    <Link
+      to={target}
+      className={`rep-mini-card${accent ? ' rep-mini-card--accented' : ''}`}
+      style={{ ...accentBar, ...highlightStyle }}
+    >
       <div className="rep-mini-card-district">{districtName}</div>
       <div className="rep-mini-card-name">{rep.name}</div>
       {description && <div className="rep-mini-card-desc">{description}</div>}
@@ -99,9 +133,9 @@ function RepMiniCard({ rep, districtName, description }) {
 }
 
 function AddressLookup() {
+  const navigate = useNavigate()
   const [address, setAddress] = useState('')
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
 
   const submit = async (e) => {
@@ -110,7 +144,7 @@ function AddressLookup() {
       setError('Please enter an address')
       return
     }
-    setLoading(true); setError(null); setResult(null)
+    setLoading(true); setError(null)
     try {
       const r = await fetch('/api/reps/lookup/', {
         method: 'POST',
@@ -118,8 +152,11 @@ function AddressLookup() {
         body: JSON.stringify({ address: address.trim() }),
       })
       const data = await r.json()
-      if (data.success) setResult(data.data)
-      else setError(data.error || 'Address not found')
+      if (data.success && data.data?.district?.number) {
+        navigate(`/reps/district/${data.data.district.number}`)
+      } else {
+        setError(data.error || 'Address not found')
+      }
     } catch (err) {
       setError('Failed to connect to the server. Please try again.')
     } finally {
@@ -147,22 +184,6 @@ function AddressLookup() {
         <div className="reps-alert" role="alert">
           <AlertCircle size={18} aria-hidden="true" />
           <span>{error}</span>
-        </div>
-      )}
-
-      {result && (
-        <div className="reps-lookup-result" role="status">
-          <MapPin size={18} aria-hidden="true" />
-          <span>
-            Your address is in <strong>{result.district.name}</strong>.
-          </span>
-          <ul className="reps-lookup-rep-list">
-            {result.representatives.map(r => (
-              <li key={r.district + r.name}>
-                <strong>{r.name}</strong> · {r.district}
-              </li>
-            ))}
-          </ul>
         </div>
       )}
     </div>

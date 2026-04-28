@@ -38,6 +38,13 @@
   margin-top: 2.5rem;
 }
 
+/* Lead section follows the header directly with tighter spacing — used
+   for the address lookup that now sits at the top of the page. */
+.reps-section--lead {
+  margin-top: 0;
+  margin-bottom: 2rem;
+}
+
 .reps-section-h2 {
   font-size: 1.125rem;
   font-weight: 700;
@@ -70,7 +77,12 @@
   background: #ffffff;
   text-decoration: none;
   color: inherit;
+  /* Border + shadow are also driven by inline style when the matching
+     polygon is hovered on the map — keep the transition smooth. */
   transition: border-color 0.15s, box-shadow 0.15s;
+}
+.rep-mini-card--accented {
+  border-left: 4px solid #2E3D5B;
 }
 .rep-mini-card:hover {
   border-color: #2E3D5B;
@@ -155,24 +167,3 @@
   font-size: 0.875rem;
 }
 
-.reps-lookup-result {
-  background: #eef2ff;
-  border: 1px solid #c7d2fe;
-  border-radius: 0.5rem;
-  padding: 0.875rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  color: #1e1b4b;
-  font-size: 0.9375rem;
-}
-
-.reps-lookup-rep-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.reps-lookup-rep-list li {
-  padding: 0.25rem 0;
-  font-size: 0.875rem;
-}

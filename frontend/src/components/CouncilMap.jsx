@@ -2,21 +2,10 @@ import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { DISTRICT_COLORS } from './districtColors'
 import './CouncilMap.css'
 
-// One distinguishable colour per district. Tab10 palette for D1-D6, the
-// site brand navy for D7 so it sits next to the rest visually.
-const DISTRICT_COLORS = {
-  '1': '#1f77b4', // blue
-  '2': '#ff7f0e', // orange
-  '3': '#2ca02c', // green
-  '4': '#d62728', // red
-  '5': '#9467bd', // purple
-  '6': '#8c564b', // brown
-  '7': '#2E3D5B', // site navy
-}
-
-export default function CouncilMap({ districts }) {
+export default function CouncilMap({ districts, onDistrictHover }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const navigate = useNavigate()
@@ -61,20 +50,22 @@ export default function CouncilMap({ districts }) {
         },
         onEachFeature: (_feature, lyr) => {
           const repName = d.rep?.name ?? 'Vacant'
-          const repSlug = d.rep?.slug
           lyr.bindTooltip(
             `<strong>${d.name}</strong><br/>${repName}`,
             { sticky: true, direction: 'top' }
           )
           lyr.on('mouseover', () => {
             lyr.setStyle({ weight: 3, fillOpacity: 0.5 })
+            onDistrictHover?.(d.number)
           })
           lyr.on('mouseout', () => {
             lyr.setStyle({ weight: 2, fillOpacity: 0.3 })
+            onDistrictHover?.(null)
           })
-          if (repSlug) {
-            lyr.on('click', () => navigate(`/reps/${repSlug}`))
-          }
+          // Click goes to the district page (rep + at-large), not straight
+          // to the district rep — gives users the full picture of who
+          // represents them before drilling into a single profile.
+          lyr.on('click', () => navigate(`/reps/district/${d.number}`))
         },
       }).addTo(mapInstanceRef.current)
       allBounds.extend(layer.getBounds())
