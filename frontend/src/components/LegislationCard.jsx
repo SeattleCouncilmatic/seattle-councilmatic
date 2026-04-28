@@ -17,7 +17,7 @@ function StatusTag({ label, variant }) {
 function formatDate(isoString) {
   if (!isoString) return null;
   const d = new Date(isoString);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export default function LegislationCard({ bill, backToSearch }) {

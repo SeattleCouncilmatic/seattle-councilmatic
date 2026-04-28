@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Header from './components/Header'
 import Footer from './components/Footer'
+import LegislationHero from './components/LegislationHero'
 import ThisWeek from './components/ThisWeek'
 import LegislationIndex from './components/LegislationIndex'
 import LegislationDetail from './components/LegislationDetail'
@@ -14,11 +15,17 @@ import MuniCodeAppendix from './components/MuniCodeAppendix'
 import RepsIndex from './components/RepsIndex'
 import RepDetail from './components/RepDetail'
 import RepDistrict from './components/RepDistrict'
+import Search from './components/Search'
 import NotFound from './components/NotFound'
 import './App.css'
 
 function HomePage() {
-  return <ThisWeek />
+  return (
+    <>
+      <LegislationHero />
+      <ThisWeek />
+    </>
+  )
 }
 
 function App() {
@@ -43,6 +50,8 @@ function App() {
         <Route path="/reps/" element={<RepsIndex />} />
         <Route path="/reps/district/:number" element={<RepDistrict />} />
         <Route path="/reps/:slug" element={<RepDetail />} />
+        <Route path="/search" element={<Search />} />
+        <Route path="/search/" element={<Search />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <Footer />
