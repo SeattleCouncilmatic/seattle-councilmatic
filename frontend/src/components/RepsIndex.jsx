@@ -99,20 +99,29 @@ function RepMiniCard({ rep, districtName, description, districtNumber, highlight
     : undefined
   const accentBar = accent ? { borderLeftColor: accent } : undefined
 
+  // District cards mirror map polygon click — navigate to the district
+  // page (rep + at-large). At-large cards have no districtNumber, so they
+  // navigate straight to the rep's detail page.
+  const target = districtNumber ? `/reps/district/${districtNumber}` : `/reps/${rep?.slug}`
+
   if (!rep) {
+    // Vacant seat still wants to surface the district context, so keep
+    // the link active even without a rep — the district page handles
+    // the "currently vacant" copy.
     return (
-      <div
+      <Link
+        to={target}
         className={`rep-mini-card rep-mini-card--empty${accent ? ' rep-mini-card--accented' : ''}`}
         style={{ ...accentBar, ...highlightStyle }}
       >
         <div className="rep-mini-card-district">{districtName}</div>
         <div className="rep-mini-card-name">Vacant</div>
-      </div>
+      </Link>
     )
   }
   return (
     <Link
-      to={`/reps/${rep.slug}`}
+      to={target}
       className={`rep-mini-card${accent ? ' rep-mini-card--accented' : ''}`}
       style={{ ...accentBar, ...highlightStyle }}
     >
