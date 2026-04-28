@@ -13,6 +13,7 @@ import MuniCodeSection from './components/MuniCodeSection'
 import MuniCodeAppendix from './components/MuniCodeAppendix'
 import RepsIndex from './components/RepsIndex'
 import RepDetail from './components/RepDetail'
+import RepDistrict from './components/RepDistrict'
 import NotFound from './components/NotFound'
 import './App.css'
 
@@ -40,6 +41,7 @@ function App() {
         <Route path="/municode/:slug" element={<MuniCodeTitle />} />
         <Route path="/reps" element={<RepsIndex />} />
         <Route path="/reps/" element={<RepsIndex />} />
+        <Route path="/reps/district/:number" element={<RepDistrict />} />
         <Route path="/reps/:slug" element={<RepDetail />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

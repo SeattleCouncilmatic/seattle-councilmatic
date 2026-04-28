@@ -22,12 +22,8 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 - **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
 **Frontend polish & site chrome**
-<<<<<<< HEAD
-- **Move Rep Lookup to its own index page** (`/reps/` or `/my-council-members/`). Currently lives in the homepage hero; pattern matches `/legislation/` and `/events/`. Frees the hero space for the next item.
-- **Legislation search bar in the homepage hero** where Rep Lookup currently lives. Big prominent search box that submits to `/legislation?q=...` — reuses the search infra from PR #30. Most direct way to point users into the data.
-=======
 - **Legislation search bar in the homepage hero** where Rep Lookup used to live. Big prominent search box that submits to `/legislation?q=...` — reuses the search infra from PR #30. Most direct way to point users into the data. (Homepage hero is currently empty after the Rep Lookup move.)
->>>>>>> 7193c8c (frontend: /reps/ council overview map + rep detail pages)
+- **Rep contact-detail lookup picks the wrong Person for at-large reps.** `reps/services.py::_rep_row_to_dict` does `OCDPerson.objects.filter(memberships__label=label).first()` to fetch contact rows. For "Position 9", multiple people have held that membership over time, so `.first()` can return a former holder — visible today as Dionne Foster's email rendering as `sara.nelson@seattle.gov`. Fix: pass the slug or `person_id` from `_query_current_council_members` straight through and filter by that instead. Affects the rep grid on `/reps/`, the rep detail page, and the new district page.
 - **About page** at `/about`. NavBar's `#about` is currently a hash stub — turn into a real route. Content TBD (project description, source code link, contact).
 - **NavBar mobile hamburger** (deferred from PR #33). NavBar currently wraps via `flex-wrap` on narrow screens; if usability becomes a problem, replace with a proper hamburger menu.
 
@@ -67,10 +63,16 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
-### Frontend — `/reps/` reorder: address lookup above the map — committed 2026-04-27
-Reordered `/reps/` so the address lookup form sits directly under the page header, ahead of the council map. Reasoning: the lookup is the most goal-directed action on the page ("which district am I in"), so leading with it matches user intent better than asking them to scroll past a map first. The map and rep cards still follow below for browse-style navigation. Subtitle copy updated from "Click a district on the map…" to "Find your district representative by address, or browse the full council below."
+### Frontend — `/reps/` reorder, district pages, map↔card hover sync — committed 2026-04-27
+Started as a section reorder and grew. Three things land together because they share the same scope (the `/reps/` page and how users get from map/lookup to rep info):
 
-New `.reps-section--lead` modifier zeroes the `margin-top` so the lookup section doesn't carry the same 2.5rem gap that's appropriate for stacked browse sections.
+1. **Address lookup moved above the map.** It's the most goal-directed action on the page; leading with it matches user intent better than asking them to scroll past a map first. New `.reps-section--lead` modifier zeroes `margin-top` so the lookup sits flush under the header. Subtitle copy updated from "Click a district on the map…" to "Find your district representative by address, or browse the full council below."
+
+2. **New `/reps/district/<number>/` page** showing the district + its rep + both at-large reps as click-through links to individual rep details. Replaces the inline lookup-result callout that used to render on `/reps/`. Backend: new `GET /api/reps/districts/<number>/` endpoint returning `{district, rep, at_large}`. Frontend: new `RepDistrict.jsx` component, route `/reps/district/:number`. Header bar uses the district's accent color as a left border for visual continuity with the map.
+
+3. **Map polygon click → district page** instead of straight to a rep, and **hover on a polygon highlights the matching rep card** in the same color (`box-shadow: 0 0 0 2px <color>33` plus `border-color`). Address lookup also navigates to the district page on success. `DISTRICT_COLORS` lifted into `frontend/src/components/districtColors.js` so `CouncilMap` and `RepsIndex` stay in sync.
+
+Pre-existing data quirk surfaced while testing the district endpoint: `_rep_row_to_dict`'s contact-detail lookup uses `OCDPerson.objects.filter(memberships__label=label).first()`, which can return any historical holder of e.g. "Position 9" — Dionne Foster's email currently shows as Sara Nelson's. Filed under Up next; not a regression and out of scope here.
 
 ### Frontend — `/reps/` council overview map + rep detail pages — committed 2026-04-27
 Rep Lookup graduated off the homepage into a dedicated `/reps/` index, plus a chicago.councilmatic.org-style council map showing all 7 districts at once and per-rep detail pages. Closes both "Move Rep Lookup to its own index page" and the new "interactive map highlighting reps" idea in one PR.

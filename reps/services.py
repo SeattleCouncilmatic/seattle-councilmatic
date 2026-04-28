@@ -434,3 +434,34 @@ def get_rep_by_slug(slug: str) -> Optional[Dict[str, Any]]:
         return None
     name, slug_back, label = rows[0]
     return _rep_row_to_dict(name, slug_back, label)
+
+
+def get_district_with_reps(number: str) -> Optional[Dict[str, Any]]:
+    """Combined payload for /reps/district/<number>: the district rep
+    plus both at-large reps (who represent every district). Returns None
+    if the district doesn't exist. Numeric districts only — the catch-all
+    'At Large' District row isn't a valid argument here."""
+    if number == 'At Large':
+        return None
+    try:
+        district = District.objects.get(number=number)
+    except District.DoesNotExist:
+        return None
+
+    district_rep = None
+    rows = _query_current_council_members(
+        extra_filter=" AND m.label = %s",
+        params=[f'District {number}'],
+    )
+    if rows:
+        district_rep = _rep_row_to_dict(*rows[0])
+
+    return {
+        'district': {
+            'number':      district.number,
+            'name':        district.name,
+            'description': district.description,
+        },
+        'rep':      district_rep,
+        'at_large': list_at_large_reps(),
+    }

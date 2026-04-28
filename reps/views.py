@@ -8,6 +8,7 @@ from django.views.decorators.http import require_http_methods, require_GET
 from django.views.decorators.csrf import csrf_exempt
 from .services import (
     RepLookupService,
+    get_district_with_reps,
     get_rep_by_slug,
     list_at_large_reps,
     list_districts_with_reps,
@@ -115,3 +116,18 @@ def rep_detail(request, slug):
     if not rep:
         return JsonResponse({'error': 'Representative not found'}, status=404)
     return JsonResponse(rep)
+
+
+@require_GET
+def district_detail(request, number):
+    """
+    GET /api/reps/districts/<number>/
+
+    District info + the district's rep + both at-large reps. Powers the
+    /reps/district/<number>/ SPA page that map clicks and address
+    lookups land on.
+    """
+    data = get_district_with_reps(number)
+    if not data:
+        return JsonResponse({'error': 'District not found'}, status=404)
+    return JsonResponse(data)
