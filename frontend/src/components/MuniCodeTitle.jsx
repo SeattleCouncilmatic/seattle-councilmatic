@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { Search as SearchIcon } from 'lucide-react'
 import NotFound from './NotFound'
 import NeighborNav from './NeighborNav'
 import './MuniCodeDetail.css'
+
+const SCOPED_SEARCH_DEBOUNCE_MS = 300
 
 // Routed at /municode/:slug. The slug is either a title number (e.g. "23"
 // or "12A") or a full citation shortcut ("23.47A.004") that we 302 to its
@@ -29,13 +31,35 @@ function TitlePage({ titleNumber }) {
   const [error, setError] = useState(null)
   const [status, setStatus] = useState(null)
   const [titleSearch, setTitleSearch] = useState('')
+  const debounceTimer = useRef(null)
+
+  const navigateToScopedResults = (term) => {
+    const trimmed = term.trim()
+    if (!trimmed) return
+    const params = new URLSearchParams({ q: trimmed, title: titleNumber })
+    // Plain push — leaves /municode/<title> in browser history so
+    // back-button returns the user here. Once on the index page, its
+    // own debounce uses replace:true so further typing won't pollute.
+    navigate(`/municode?${params.toString()}`)
+  }
+
+  // Auto-navigate after the user pauses typing — matches the live-search
+  // behavior of the main index input.
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    if (!titleSearch.trim()) return
+    debounceTimer.current = setTimeout(
+      () => navigateToScopedResults(titleSearch),
+      SCOPED_SEARCH_DEBOUNCE_MS,
+    )
+    return () => clearTimeout(debounceTimer.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [titleSearch, titleNumber])
 
   const handleTitleSearch = (e) => {
     e.preventDefault()
-    const term = titleSearch.trim()
-    if (!term) return
-    const params = new URLSearchParams({ q: term, title: titleNumber })
-    navigate(`/municode?${params.toString()}`)
+    if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    navigateToScopedResults(titleSearch)
   }
 
   useEffect(() => {

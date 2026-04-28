@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Search as SearchIcon } from 'lucide-react'
 import NotFound from './NotFound'
 import NeighborNav from './NeighborNav'
 import { Breadcrumb, LoadingView, ErrorView } from './MuniCodeTitle'
 import './MuniCodeDetail.css'
+
+const SCOPED_SEARCH_DEBOUNCE_MS = 300
 
 export default function MuniCodeChapter() {
   const { title, chapter } = useParams()
@@ -17,13 +19,35 @@ export default function MuniCodeChapter() {
   const [error, setError] = useState(null)
   const [status, setStatus] = useState(null)
   const [chapterSearch, setChapterSearch] = useState('')
+  const debounceTimer = useRef(null)
+
+  const navigateToScopedResults = (term) => {
+    const trimmed = term.trim()
+    if (!trimmed) return
+    const params = new URLSearchParams({ q: trimmed, chapter: fullChapter })
+    // Plain push — leaves /municode/<chapter> in browser history so
+    // back-button returns the user here. Once on the index page, its
+    // own debounce uses replace:true so further typing won't pollute.
+    navigate(`/municode?${params.toString()}`)
+  }
+
+  // Auto-navigate after the user pauses typing. Mirrors the live-search
+  // behavior on the main index page so both feel the same.
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    if (!chapterSearch.trim()) return
+    debounceTimer.current = setTimeout(
+      () => navigateToScopedResults(chapterSearch),
+      SCOPED_SEARCH_DEBOUNCE_MS,
+    )
+    return () => clearTimeout(debounceTimer.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapterSearch, fullChapter])
 
   const handleChapterSearch = (e) => {
     e.preventDefault()
-    const term = chapterSearch.trim()
-    if (!term) return
-    const params = new URLSearchParams({ q: term, chapter: fullChapter })
-    navigate(`/municode?${params.toString()}`)
+    if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    navigateToScopedResults(chapterSearch)
   }
 
   useEffect(() => {
