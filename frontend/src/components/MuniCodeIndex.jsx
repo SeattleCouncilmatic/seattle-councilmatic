@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { X as XIcon } from 'lucide-react'
 import './MuniCodeIndex.css'
 
@@ -8,6 +8,7 @@ const SEARCH_DEBOUNCE_MS = 300
 
 export default function MuniCodeIndex() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
 
   const q = searchParams.get('q') ?? ''
   const title = searchParams.get('title') ?? ''
@@ -26,23 +27,38 @@ export default function MuniCodeIndex() {
 
   useEffect(() => { setSearchInput(q) }, [q])
 
+  // Where to land when the user empties the search input. If they're
+  // scoped to a chapter or title, returning to /municode browse mode
+  // would force them to navigate back into the scope to search again —
+  // instead drop them on the scope page itself, ready for another
+  // query. Replace (not push) so the history doesn't accumulate
+  // round-trips between the scope page and the search.
+  const exitSearchToScope = () => {
+    if (chapter) {
+      const parts = chapter.split('.')
+      navigate(`/municode/${parts[0]}/${parts.slice(1).join('.')}`, { replace: true })
+    } else if (title) {
+      navigate(`/municode/${title}`, { replace: true })
+    } else {
+      const next = new URLSearchParams(searchParams)
+      next.delete('q')
+      next.delete('offset')
+      setSearchParams(next, { replace: true })
+    }
+  }
+
   useEffect(() => {
     if (searchInput === q) return
     if (debounceTimer.current) clearTimeout(debounceTimer.current)
     debounceTimer.current = setTimeout(() => {
-      const next = new URLSearchParams(searchParams)
       if (searchInput) {
+        const next = new URLSearchParams(searchParams)
         next.set('q', searchInput)
+        next.delete('offset')
+        setSearchParams(next, { replace: true })
       } else {
-        // When the user clears the search input, also drop any active
-        // scope filters — they're leaving search mode entirely, not
-        // just broadening their query within the current scope.
-        next.delete('q')
-        next.delete('title')
-        next.delete('chapter')
+        exitSearchToScope()
       }
-      next.delete('offset')
-      setSearchParams(next, { replace: true })
     }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(debounceTimer.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -93,17 +109,12 @@ export default function MuniCodeIndex() {
   }
 
   // Immediate clear — bypasses the 300ms debounce so the X feels
-  // responsive. Without this, clicking the X would clear the input
-  // but the URL/results would lag for a third of a second.
+  // responsive. Both paths (X click and backspace-to-empty) land in
+  // the same place via exitSearchToScope.
   const clearSearchImmediately = () => {
     setSearchInput('')
     if (debounceTimer.current) clearTimeout(debounceTimer.current)
-    const next = new URLSearchParams(searchParams)
-    next.delete('q')
-    next.delete('title')
-    next.delete('chapter')
-    next.delete('offset')
-    setSearchParams(next, { replace: true })
+    exitSearchToScope()
   }
 
   const goToOffset = (newOffset) => {
