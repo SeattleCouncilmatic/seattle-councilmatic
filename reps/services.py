@@ -317,10 +317,11 @@ class RepLookupService:
 # ---------------------------------------------------------------------------
 
 
-def _rep_row_to_dict(name: str, slug: str, label: str) -> Dict[str, Any]:
-    """Build the canonical rep dict from a (name, slug, membership_label) row.
-    Pulls contact details and links from opencivicdata via the Person model.
-    Used by both /api/reps/ list endpoints and /api/reps/<slug>/ detail."""
+def _rep_row_to_dict(name: str, slug: str, label: str, person_id: str) -> Dict[str, Any]:
+    """Build the canonical rep dict from a (name, slug, membership_label,
+    person_id) row. Pulls contact details and links from opencivicdata
+    via the Person primary key. Used by both /api/reps/ list endpoints
+    and /api/reps/<slug>/ detail."""
     from opencivicdata.core.models import Person as OCDPerson
 
     rep_data = {
@@ -343,8 +344,12 @@ def _rep_row_to_dict(name: str, slug: str, label: str) -> Dict[str, Any]:
     except Exception:
         pass
 
-    # Person contact details + links
-    person = OCDPerson.objects.filter(memberships__label=label).first()
+    # Filter by Person primary key (unique) instead of membership label
+    # — the latter has collisions across former and current holders of
+    # the same seat (e.g. both Sara Nelson and Dionne Foster have held
+    # Position 9, so a label-based .first() can return the wrong one
+    # and pull her predecessor's contact info).
+    person = OCDPerson.objects.filter(id=person_id).first()
     if person:
         for contact in person.contact_details.all():
             if contact.type == 'email':
@@ -362,14 +367,14 @@ def _rep_row_to_dict(name: str, slug: str, label: str) -> Dict[str, Any]:
 
 def _query_current_council_members(extra_filter: str = "", params: Optional[List] = None
                                    ) -> List[tuple]:
-    """Returns [(name, slug, membership_label), ...] for currently serving
-    council members. Centralized so both list and detail endpoints share
-    the same filter (cp.is_current = TRUE plus the org join). is_current
-    lives on councilmatic_core_person via a raw-SQL ALTER (see
-    seattle_app/migrations/0001_add_is_current_to_person.py), which is
-    why we drop to raw SQL instead of using the ORM."""
+    """Returns [(name, slug, membership_label, person_id), ...] for
+    currently serving council members. Centralized so both list and
+    detail endpoints share the same filter (cp.is_current = TRUE plus
+    the org join). is_current lives on councilmatic_core_person via a
+    raw-SQL ALTER (see seattle_app/migrations/0001_add_is_current_to_person.py),
+    which is why we drop to raw SQL instead of using the ORM."""
     base = """
-        SELECT DISTINCT p.name, cp.slug, m.label
+        SELECT DISTINCT p.name, cp.slug, m.label, p.id
         FROM opencivicdata_membership m
         INNER JOIN opencivicdata_person p ON m.person_id = p.id
         INNER JOIN opencivicdata_organization o ON m.organization_id = o.id
@@ -389,7 +394,7 @@ def list_districts_with_reps(simplify_tolerance: float = _OVERVIEW_SIMPLIFY_TOLE
     current rep for each. Geometry simplification is purely a payload
     optimization — address lookup uses the unsimplified DB geometry, so
     visual simplification can never route an address to the wrong rep."""
-    rep_lookup = {label: (name, slug) for name, slug, label in
+    rep_lookup = {label: (name, slug, person_id) for name, slug, label, person_id in
                   _query_current_council_members(
                       extra_filter=" AND m.label LIKE 'District %%'"
                   )}
@@ -399,8 +404,8 @@ def list_districts_with_reps(simplify_tolerance: float = _OVERVIEW_SIMPLIFY_TOLE
         membership_label = f'District {d.number}'
         rep = None
         if membership_label in rep_lookup:
-            name, slug = rep_lookup[membership_label]
-            rep = _rep_row_to_dict(name, slug, membership_label)
+            name, slug, person_id = rep_lookup[membership_label]
+            rep = _rep_row_to_dict(name, slug, membership_label, person_id)
         # Python-side simplify via GEOS — preserve_topology=True keeps the
         # polygon valid (no self-intersections) at our tolerance, which
         # could otherwise corrupt rendering of complex coastline shapes.
@@ -420,7 +425,8 @@ def list_at_large_reps() -> List[Dict[str, Any]]:
     represent the whole city, so they're rendered as cards beside the map
     rather than as polygons on it."""
     rows = _query_current_council_members(extra_filter=" AND m.label LIKE 'Position %%'")
-    return [_rep_row_to_dict(name, slug, label) for name, slug, label in rows]
+    return [_rep_row_to_dict(name, slug, label, pid)
+            for name, slug, label, pid in rows]
 
 
 def get_rep_by_slug(slug: str) -> Optional[Dict[str, Any]]:
@@ -432,8 +438,8 @@ def get_rep_by_slug(slug: str) -> Optional[Dict[str, Any]]:
     )
     if not rows:
         return None
-    name, slug_back, label = rows[0]
-    return _rep_row_to_dict(name, slug_back, label)
+    name, slug_back, label, person_id = rows[0]
+    return _rep_row_to_dict(name, slug_back, label, person_id)
 
 
 def get_district_with_reps(number: str) -> Optional[Dict[str, Any]]:

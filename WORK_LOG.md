@@ -22,7 +22,6 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 - **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
 **Frontend polish & site chrome**
-- **Rep contact-detail lookup picks the wrong Person for at-large reps.** `reps/services.py::_rep_row_to_dict` does `OCDPerson.objects.filter(memberships__label=label).first()` to fetch contact rows. For "Position 9", multiple people have held that membership over time, so `.first()` can return a former holder — visible today as Dionne Foster's email rendering as `sara.nelson@seattle.gov`. Fix: pass the slug or `person_id` from `_query_current_council_members` straight through and filter by that instead. Affects the rep grid on `/reps/`, the rep detail page, and the new district page.
 - **About page** at `/about`. NavBar's `#about` is currently a hash stub — turn into a real route. Content TBD (project description, source code link, contact).
 - **NavBar mobile hamburger** (deferred from PR #33). NavBar currently wraps via `flex-wrap` on narrow screens; if usability becomes a problem, replace with a proper hamburger menu.
 
@@ -61,6 +60,13 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Reps — fix at-large contact-detail lookup hitting former holders — committed 2026-04-28
+Closes the data quirk filed during PR #39. `_rep_row_to_dict` was fetching contact rows via `OCDPerson.objects.filter(memberships__label=label).first()`, which matches anyone who has *ever* held that membership label. For Position 9 both Sara Nelson (former) and Dionne Foster (current) match, and `.first()` returned Sara — so Dionne's email rendered as `sara.nelson@seattle.gov` everywhere her card appeared (the rep grid on `/reps/`, her own detail page, and the at-large block on the district pages).
+
+Fix: thread `p.id` through `_query_current_council_members` and `_rep_row_to_dict` so the contact-detail lookup filters by Person primary key (always unique) instead of membership label. The query already JOINed on `opencivicdata_person`, so adding `p.id` to the SELECT is free; updated the four call sites (`list_districts_with_reps`, `list_at_large_reps`, `get_rep_by_slug`, `get_district_with_reps`) to pass it through. `get_district_with_reps`'s splat call (`_rep_row_to_dict(*rows[0])`) absorbs the new tuple shape with no change.
+
+Verified end-to-end: `/api/reps/`, `/api/reps/dionne-foster/`, and `/api/reps/districts/7/` all now return Dionne's `dionne.foster@seattle.gov`. District reps unchanged (they don't have collisions because each District N label has had only one current holder in our scrape window, but the new lookup is identically correct for them).
 
 ### Frontend — homepage hero + unified `/search` (legislation + municode) — committed 2026-04-27
 Fills the hero gap left by the Rep Lookup move (PR #38) and adds a parallel-search results page that ties legislation and the Municipal Code together. The two are interlinked enough — bills cite SMC sections, SMC chapters reference legislative history — that one search box covering both matches users' actual mental model better than two separate ones.
