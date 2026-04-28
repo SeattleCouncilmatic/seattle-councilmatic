@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { X as XIcon } from 'lucide-react'
 import './MuniCodeIndex.css'
 
 const PAGE_SIZE = 20
@@ -7,8 +8,11 @@ const SEARCH_DEBOUNCE_MS = 300
 
 export default function MuniCodeIndex() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
 
   const q = searchParams.get('q') ?? ''
+  const title = searchParams.get('title') ?? ''
+  const chapter = searchParams.get('chapter') ?? ''
   const offset = Number(searchParams.get('offset') ?? 0)
 
   const [results, setResults] = useState([])
@@ -23,15 +27,38 @@ export default function MuniCodeIndex() {
 
   useEffect(() => { setSearchInput(q) }, [q])
 
+  // Where to land when the user empties the search input. If they're
+  // scoped to a chapter or title, returning to /municode browse mode
+  // would force them to navigate back into the scope to search again —
+  // instead drop them on the scope page itself, ready for another
+  // query. Replace (not push) so the history doesn't accumulate
+  // round-trips between the scope page and the search.
+  const exitSearchToScope = () => {
+    if (chapter) {
+      const parts = chapter.split('.')
+      navigate(`/municode/${parts[0]}/${parts.slice(1).join('.')}`, { replace: true })
+    } else if (title) {
+      navigate(`/municode/${title}`, { replace: true })
+    } else {
+      const next = new URLSearchParams(searchParams)
+      next.delete('q')
+      next.delete('offset')
+      setSearchParams(next, { replace: true })
+    }
+  }
+
   useEffect(() => {
     if (searchInput === q) return
     if (debounceTimer.current) clearTimeout(debounceTimer.current)
     debounceTimer.current = setTimeout(() => {
-      const next = new URLSearchParams(searchParams)
-      if (searchInput) next.set('q', searchInput)
-      else next.delete('q')
-      next.delete('offset')
-      setSearchParams(next, { replace: true })
+      if (searchInput) {
+        const next = new URLSearchParams(searchParams)
+        next.set('q', searchInput)
+        next.delete('offset')
+        setSearchParams(next, { replace: true })
+      } else {
+        exitSearchToScope()
+      }
     }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(debounceTimer.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -45,13 +72,15 @@ export default function MuniCodeIndex() {
       .catch(e => setError(e.message))
   }, [])
 
-  // Run the search whenever q/offset change.
+  // Run the search whenever q/title/chapter/offset change.
   useEffect(() => {
     if (!q) { setResults([]); setTotalCount(0); setMode('browse'); return }
     setLoading(true)
     setError(null)
     const params = new URLSearchParams()
     params.set('q', q)
+    if (title) params.set('title', title)
+    if (chapter) params.set('chapter', chapter)
     params.set('limit', PAGE_SIZE)
     params.set('offset', offset)
     fetch(`/api/smc/?${params.toString()}`)
@@ -63,7 +92,30 @@ export default function MuniCodeIndex() {
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [q, offset])
+  }, [q, title, chapter, offset])
+
+  const clearTitleFilter = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('title')
+    next.delete('offset')
+    setSearchParams(next)
+  }
+
+  const clearChapterFilter = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('chapter')
+    next.delete('offset')
+    setSearchParams(next)
+  }
+
+  // Immediate clear — bypasses the 300ms debounce so the X feels
+  // responsive. Both paths (X click and backspace-to-empty) land in
+  // the same place via exitSearchToScope.
+  const clearSearchImmediately = () => {
+    setSearchInput('')
+    if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    exitSearchToScope()
+  }
 
   const goToOffset = (newOffset) => {
     const next = new URLSearchParams(searchParams)
@@ -94,15 +146,66 @@ export default function MuniCodeIndex() {
         </header>
 
         <div className="smc-index-controls">
-          <input
-            type="search"
-            className="smc-index-search"
-            placeholder="Search the code (e.g. 'short-term rental') or jump to a citation ('23.47A.004')…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            aria-label="Search the Seattle Municipal Code"
-          />
+          <div className="smc-index-search-wrapper">
+            <input
+              type="search"
+              className="smc-index-search"
+              placeholder="Search the code (e.g. 'short-term rental') or jump to a citation ('23.47A.004')…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              aria-label="Search the Seattle Municipal Code"
+              // Search is the primary interaction on this page — autofocus
+              // on mount so the user can type immediately. Also covers
+              // arriving here from a scoped search submission on a title
+              // or chapter page (focus would otherwise be lost when the
+              // scope page unmounted).
+              autoFocus
+            />
+            {searchInput && (
+              <button
+                type="button"
+                className="smc-index-search-clear"
+                onClick={clearSearchImmediately}
+                aria-label="Clear search"
+              >
+                <XIcon size={16} aria-hidden="true" />
+              </button>
+            )}
+          </div>
         </div>
+
+        {q && (chapter || title) && (
+          <div className="smc-filter-pills" aria-label="Active filters">
+            {/* Chapter is more specific than title, so when both are
+                somehow set we show the chapter pill only — clearing it
+                would still leave the title pill if title were also set. */}
+            {chapter ? (
+              <span className="smc-filter-pill">
+                Filtered to Chapter {chapter}
+                <button
+                  type="button"
+                  className="smc-filter-pill-clear"
+                  onClick={clearChapterFilter}
+                  aria-label={`Clear chapter ${chapter} filter`}
+                >
+                  ×
+                </button>
+              </span>
+            ) : (
+              <span className="smc-filter-pill">
+                Filtered to Title {title}
+                <button
+                  type="button"
+                  className="smc-filter-pill-clear"
+                  onClick={clearTitleFilter}
+                  aria-label={`Clear title ${title} filter`}
+                >
+                  ×
+                </button>
+              </span>
+            )}
+          </div>
+        )}
 
         {q ? (
           <SearchResults

@@ -108,6 +108,65 @@
 
 .smc-chapter-group { margin-bottom: 1.5rem; }
 
+/* In-title or in-chapter search box (title page + chapter page).
+   Submitting navigates to /municode?q=…&title=… or &chapter=… so
+   MuniCodeIndex runs the search scoped to that title/chapter. */
+.smc-scoped-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.25rem 0.25rem 0.875rem;
+  margin-bottom: 1.5rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.smc-scoped-search:focus-within {
+  border-color: #2E3D5B;
+  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.15);
+}
+.smc-scoped-search-icon {
+  color: #6b7280;
+  flex-shrink: 0;
+}
+.smc-scoped-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 0.9375rem;
+  color: #1f2937;
+  background: transparent;
+  padding: 0.4rem 0;
+  min-width: 0;
+}
+.smc-scoped-search-input::placeholder {
+  color: #9ca3af;
+}
+/* Clear-search X button — only rendered when the input has text.
+   Submit/Enter still triggers immediate navigation via the form
+   onSubmit; debounce handles passive typing. */
+.smc-scoped-search-clear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-right: 0.25rem;
+  padding: 0;
+  background: transparent;
+  color: #6b7280;
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.smc-scoped-search-clear:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
 /* ── Plain-language summary panel ─────────────────────────────── */
 
 .smc-summary-panel {
