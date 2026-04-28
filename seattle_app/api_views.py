@@ -2,6 +2,7 @@
 JSON API views for the React frontend homepage.
 """
 
+import html
 import re
 from functools import reduce
 from operator import or_
@@ -10,7 +11,7 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.utils import timezone
-from django.contrib.postgres.search import SearchQuery, SearchRank
+from django.contrib.postgres.search import SearchHeadline, SearchQuery, SearchRank
 from django.db.models import Count, Max, Q
 from councilmatic_core.models import Bill, Event
 from django.shortcuts import get_object_or_404
@@ -175,13 +176,14 @@ def legislation_index(request):
         status_label, status_variant = _normalise_status(raw_status)
 
         results.append({
-            'identifier':      bill.identifier,
-            'title':           bill.title,
-            'sponsor':         sponsor_name,
-            'status':          status_label,
-            'status_variant':  status_variant,
-            'date_introduced': intro_date,
-            'slug':            bill.slug,
+            'identifier':        bill.identifier,
+            'title':             bill.title,
+            'title_highlighted': _highlight_substring(bill.title, q) if q else None,
+            'sponsor':           sponsor_name,
+            'status':            status_label,
+            'status_variant':    status_variant,
+            'date_introduced':   intro_date,
+            'slug':              bill.slug,
         })
 
     return JsonResponse({
@@ -634,6 +636,40 @@ def _title_neighbor(direction: str, title_number: str) -> dict | None:
     }
 
 
+def _highlight_substring(text: str | None, q: str) -> str | None:
+    """Case-insensitively wrap occurrences of `q` within `text` in <mark>
+    tags. HTML-escapes the text first so any tag-shaped content renders
+    as text on the frontend; only the <mark> tags we insert are live.
+    Used for legislation title highlighting since Bill search is plain
+    icontains over identifier+title — no FTS to apply ts_headline to,
+    but titles are often long enough that an inline highlight helps."""
+    if not text:
+        return None
+    if not q:
+        return html.escape(text)
+    escaped_text = html.escape(text)
+    escaped_q = html.escape(q)
+    pattern = re.compile(re.escape(escaped_q), re.IGNORECASE)
+    return pattern.sub(lambda m: f'<mark>{m.group(0)}</mark>', escaped_text)
+
+
+def _safe_snippet(raw: str | None) -> str | None:
+    """Sanitize a ts_headline result for safe rendering on the frontend.
+    The full_text comes out of the PDF parser as plain text (no HTML),
+    but we belt-and-suspender it: HTML-escape the whole snippet, then
+    restore the <mark>/</mark> sentinels we asked Postgres to insert.
+    Any other tag-shaped content in the source gets rendered as text.
+    Also collapses the parser's hard line breaks so the snippet reads
+    as flowing prose."""
+    if not raw:
+        return None
+    escaped = html.escape(raw)
+    snippet = (escaped
+               .replace('&lt;mark&gt;', '<mark>')
+               .replace('&lt;/mark&gt;', '</mark>'))
+    return ' '.join(snippet.split())
+
+
 def _serialize_section_card(s: MunicipalCodeSection, snippet: str | None = None) -> dict:
     """Compact shape for search results and chapter listings."""
     sub = s.subchapter
@@ -688,16 +724,32 @@ def smc_search(request):
     else:
         # FTS path. websearch_to_tsquery handles quoted phrases and OR/-
         # operators the way users expect from search engines.
+        # SearchHeadline runs ts_headline on full_text — bounded cost
+        # because we only annotate the post-LIMIT slice (see below).
         query = SearchQuery(q, search_type='websearch')
         sections = (sections
                     .filter(search_vector=query)
-                    .annotate(rank=SearchRank('search_vector', query))
+                    .annotate(
+                        rank=SearchRank('search_vector', query),
+                        snippet_raw=SearchHeadline(
+                            'full_text', query,
+                            start_sel='<mark>',
+                            stop_sel='</mark>',
+                            max_words=30,
+                            min_words=15,
+                            short_word=3,
+                            highlight_all=False,
+                        ),
+                    )
                     .order_by('-rank', 'section_number'))
 
     total_count = sections.count()
     sections = sections[offset:offset + limit]
 
-    results = [_serialize_section_card(s) for s in sections]
+    results = [
+        _serialize_section_card(s, snippet=_safe_snippet(getattr(s, 'snippet_raw', None)))
+        for s in sections
+    ]
 
     return JsonResponse({
         'results':     results,

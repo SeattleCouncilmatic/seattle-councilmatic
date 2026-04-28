@@ -24,6 +24,7 @@ export default function LegislationCard({ bill, backToSearch }) {
   const {
     identifier,
     title,
+    title_highlighted,
     sponsor,
     status,
     status_variant,
@@ -38,6 +39,13 @@ export default function LegislationCard({ bill, backToSearch }) {
   // a fresh /legislation view.
   const linkState = backToSearch ? { backToSearch } : undefined;
 
+  // When the API returns title_highlighted (search results with q), the
+  // string is HTML-escaped server-side and only the <mark> tags we
+  // injected are live — safe for dangerouslySetInnerHTML.
+  const titleNode = title_highlighted
+    ? <span dangerouslySetInnerHTML={{ __html: title_highlighted }} />
+    : title;
+
   return (
     <article className="leg-card">
       <p className="leg-card-identifier">{identifier}</p>
@@ -45,10 +53,10 @@ export default function LegislationCard({ bill, backToSearch }) {
       <h4 className="leg-card-title">
         {slug ? (
           <Link to={`/legislation/${slug}`} state={linkState} className="leg-card-link">
-            {title}
+            {titleNode}
           </Link>
         ) : (
-          title
+          titleNode
         )}
       </h4>
 

@@ -132,6 +132,15 @@ export default function Search() {
                           <span className="search-smc-num">{r.section_number}</span>
                           <span className="search-smc-title">{r.title}</span>
                           <span className="search-smc-meta">Ch. {r.chapter_number}</span>
+                          {r.snippet && (
+                            <span
+                              className="search-smc-snippet"
+                              // Snippet is HTML-escaped server-side with
+                              // only <mark> sentinels restored — see
+                              // _safe_snippet in api_views.py.
+                              dangerouslySetInnerHTML={{ __html: r.snippet }}
+                            />
+                          )}
                         </Link>
                       </li>
                     )
