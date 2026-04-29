@@ -169,46 +169,36 @@ def _list_legislation_sponsors() -> list[str]:
 @require_GET
 def legislation_index(request):
     """
-    GET /api/legislation/?q=<text>&status=<label>&sponsor=<name>&limit=20&offset=0
-    GET /api/legislation/?q=<text>&status=<label>&introduced_after=<YYYY-MM-DD>&introduced_before=<YYYY-MM-DD>&limit=20&offset=0
-    GET /api/legislation/?q=<text>&status=<label>&sort=<key>&limit=20&offset=0
+    GET /api/legislation/?q=<text>&status=<label>&classification=<label>&sort=<key>&sponsor=<name>&introduced_after=<YYYY-MM-DD>&introduced_before=<YYYY-MM-DD>&limit=20&offset=0
 
-    Search and filter all legislation; paginated. `sort` is one of
-    _SORT_VALUES (defaults to `recent` — the previous behavior). `status`
-    is one of the normalized labels from _STATUS_VARIANTS (case-
-    sensitive); the filter expands to all raw `MatterStatusName` values
-    that map to that label.
-    """
-    q = request.GET.get('q', '').strip()
-    status_filter = request.GET.get('status', '').strip()
-    sort = request.GET.get('sort', '').strip() or _DEFAULT_SORT
-    if sort not in _SORT_VALUES:
-        sort = _DEFAULT_SORT
-    GET /api/legislation/?q=<text>&status=<label>&classification=<label>&limit=20&offset=0
+    Search and filter all legislation; paginated.
 
-    Search and filter all legislation; paginated. Sorted by latest action
-    descending (same as recent_legislation). `status` is one of the
-    normalized labels from _STATUS_VARIANTS (case-sensitive); the filter
-    expands to all raw `MatterStatusName` values that map to that label.
-    `sponsor` is one of the names in `sponsor_values`.
-    """
-    q = request.GET.get('q', '').strip()
-    status_filter = request.GET.get('status', '').strip()
-    sponsor_filter = request.GET.get('sponsor', '').strip()
-    `introduced_after` / `introduced_before` filter on the earliest
-    action date (the introduction date), inclusive on both ends.
-    Malformed dates are silently ignored.
-    """
-    q = request.GET.get('q', '').strip()
-    status_filter = request.GET.get('status', '').strip()
-    introduced_after = request.GET.get('introduced_after', '').strip()
-    introduced_before = request.GET.get('introduced_before', '').strip()
-    `classification` is one of _CLASSIFICATION_VALUES (Council Bill,
-    Ordinance, Resolution) and matches MatterTypeName.
+    Filters:
+    - `q`: substring match against identifier OR title.
+    - `status`: one of _STATUS_FILTER_VALUES; expands to the raw
+      `MatterStatusName` values that map to that label.
+    - `classification`: one of _CLASSIFICATION_VALUES (Council Bill,
+      Ordinance, Resolution); matches `MatterTypeName`.
+    - `sponsor`: one of `sponsor_values`; joins through
+      `sponsorships__name` (`entity_name` is a property and not a
+      DB column — see `_list_legislation_sponsors`).
+    - `introduced_after` / `introduced_before` (YYYY-MM-DD, inclusive):
+      bound the earliest-action date. Malformed dates are silently
+      ignored. The upper bound is padded with `T99:99:99` because
+      action.date is a full ISO 8601 string with time + timezone, so a
+      bare-date `<=` would otherwise exclude same-day rows.
+
+    Sort: `sort` is one of _SORT_VALUES (default `recent`).
     """
     q = request.GET.get('q', '').strip()
     status_filter = request.GET.get('status', '').strip()
     classification_filter = request.GET.get('classification', '').strip()
+    sponsor_filter = request.GET.get('sponsor', '').strip()
+    introduced_after = request.GET.get('introduced_after', '').strip()
+    introduced_before = request.GET.get('introduced_before', '').strip()
+    sort = request.GET.get('sort', '').strip() or _DEFAULT_SORT
+    if sort not in _SORT_VALUES:
+        sort = _DEFAULT_SORT
     limit = _safe_int(request.GET.get('limit'), default=20, max_value=100)
     offset = _safe_int(request.GET.get('offset'), default=0)
 
@@ -235,33 +225,6 @@ def legislation_index(request):
             else:
                 bills = bills.none()
 
-    sponsor_values = _list_legislation_sponsors()
-    if sponsor_filter:
-        if sponsor_filter not in sponsor_values:
-            bills = bills.none()
-        else:
-            # distinct() guards against duplicate Bill rows when a bill
-            # has multiple matching sponsorship rows (rare but possible).
-            # Filter on `name` not `entity_name` — see _list_legislation_sponsors.
-            bills = bills.filter(
-                sponsorships__name__iexact=sponsor_filter
-            ).distinct()
-    # Annotate earliest_action_date *before* the date-range filter so we
-    # can filter by it; doesn't affect ordering, which still uses the
-    # latest_action_date annotated below.
-    #
-    # OCD stores action.date as a full ISO 8601 string with time +
-    # timezone (e.g. '2026-04-07T14:00:00+00:00'), so plain lexicographic
-    # comparison works for >= 'YYYY-MM-DD' (any same-day timestamp is
-    # larger than the bare date) but breaks for <= because the date-only
-    # bound is shorter than a timestamp. Pad the upper bound with a
-    # value larger than any real time-of-day so same-day rows match.
-    if introduced_after or introduced_before:
-        bills = bills.annotate(earliest_action_date=Min('actions__date'))
-        if introduced_after:
-            bills = bills.filter(earliest_action_date__gte=introduced_after)
-        if introduced_before:
-            bills = bills.filter(earliest_action_date__lte=introduced_before + 'T99:99:99')
     if classification_filter:
         if classification_filter not in _CLASSIFICATION_VALUES:
             bills = bills.none()
@@ -269,16 +232,38 @@ def legislation_index(request):
             raw = _CLASSIFICATION_LABELS[classification_filter]
             bills = bills.filter(extras__MatterTypeName=raw)
 
+    sponsor_values = _list_legislation_sponsors()
+    if sponsor_filter:
+        if sponsor_filter not in sponsor_values:
+            bills = bills.none()
+        else:
+            # distinct() guards against duplicate Bill rows when a bill
+            # has multiple matching sponsorship rows (rare but possible).
+            bills = bills.filter(
+                sponsorships__name__iexact=sponsor_filter
+            ).distinct()
+
+    # Annotate Max + Min up front — used for both the introduced-date
+    # filter (Min) and the sort options (`recent` uses Max,
+    # `introduced` uses Min). Annotating once here lets the date filter
+    # reference earliest_action_date without colliding with a second
+    # annotation later in the chain.
+    bills = bills.annotate(
+        latest_action_date=Max('actions__date'),
+        earliest_action_date=Min('actions__date'),
+    )
+
+    if introduced_after:
+        bills = bills.filter(earliest_action_date__gte=introduced_after)
+    if introduced_before:
+        bills = bills.filter(earliest_action_date__lte=introduced_before + 'T99:99:99')
+
     total_count = bills.count()
 
     sort_field, _sort_label = _SORT_VALUES[sort]
     bills = (
         bills
         .prefetch_related('actions', 'sponsorships')
-        .annotate(
-            latest_action_date=Max('actions__date'),
-            earliest_action_date=Min('actions__date'),
-        )
         .order_by(sort_field)[offset:offset + limit]
     )
 
@@ -305,25 +290,15 @@ def legislation_index(request):
         })
 
     return JsonResponse({
-        'results':        results,
-        'total_count':    total_count,
-        'limit':          limit,
-        'offset':         offset,
-        'status_values':  _STATUS_FILTER_VALUES,
-        'sponsor_values': sponsor_values,
-        'results':       results,
-        'total_count':   total_count,
-        'limit':         limit,
-        'offset':        offset,
-        'sort':          sort,
-        'status_values': _STATUS_FILTER_VALUES,
-        'sort_values':   [{'value': k, 'label': v[1]} for k, v in _SORT_VALUES.items()],
-        'results':              results,
-        'total_count':          total_count,
-        'limit':                limit,
-        'offset':               offset,
-        'status_values':        _STATUS_FILTER_VALUES,
+        'results':               results,
+        'total_count':           total_count,
+        'limit':                 limit,
+        'offset':                offset,
+        'sort':                  sort,
+        'status_values':         _STATUS_FILTER_VALUES,
         'classification_values': _CLASSIFICATION_VALUES,
+        'sponsor_values':        sponsor_values,
+        'sort_values':           [{'value': k, 'label': v[1]} for k, v in _SORT_VALUES.items()],
     })
 
 
