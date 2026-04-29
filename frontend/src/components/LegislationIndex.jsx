@@ -73,22 +73,13 @@ export default function LegislationIndex() {
         setResults(data.results || [])
         setTotalCount(data.total_count ?? 0)
         if (data.status_values) setStatusValues(data.status_values)
+        if (data.classification_values) setClassificationValues(data.classification_values)
         if (data.sponsor_values) setSponsorValues(data.sponsor_values)
-      })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [q, status, sponsor, offset])
         if (data.sort_values) setSortValues(data.sort_values)
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [q, status, introducedAfter, introducedBefore, offset])
-  }, [q, status, sort, offset])
-        if (data.classification_values) setClassificationValues(data.classification_values)
-      })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [q, status, classification, offset])
+  }, [q, status, classification, sponsor, sort, introducedAfter, introducedBefore, offset])
 
   const handleStatusChange = (e) => {
     const next = new URLSearchParams(searchParams)
@@ -98,24 +89,35 @@ export default function LegislationIndex() {
     setSearchParams(next)
   }
 
-  const handleSponsorChange = (e) => {
-    const next = new URLSearchParams(searchParams)
-    if (e.target.value) next.set('sponsor', e.target.value)
-    else next.delete('sponsor')
-  const handleDateChange = (paramName) => (e) => {
-    const next = new URLSearchParams(searchParams)
-    if (e.target.value) next.set(paramName, e.target.value)
-    else next.delete(paramName)
-  const handleSortChange = (e) => {
-    const next = new URLSearchParams(searchParams)
-    // Don't bother carrying the default sort in the URL — it's the
-    // implicit value when the param is absent.
-    if (e.target.value && e.target.value !== 'recent') next.set('sort', e.target.value)
-    else next.delete('sort')
   const handleClassificationChange = (e) => {
     const next = new URLSearchParams(searchParams)
     if (e.target.value) next.set('classification', e.target.value)
     else next.delete('classification')
+    next.delete('offset')
+    setSearchParams(next)
+  }
+
+  const handleSponsorChange = (e) => {
+    const next = new URLSearchParams(searchParams)
+    if (e.target.value) next.set('sponsor', e.target.value)
+    else next.delete('sponsor')
+    next.delete('offset')
+    setSearchParams(next)
+  }
+
+  const handleSortChange = (e) => {
+    const next = new URLSearchParams(searchParams)
+    // Don't carry the default sort in the URL — absent param implies it.
+    if (e.target.value && e.target.value !== 'recent') next.set('sort', e.target.value)
+    else next.delete('sort')
+    next.delete('offset')
+    setSearchParams(next)
+  }
+
+  const handleDateChange = (paramName) => (e) => {
+    const next = new URLSearchParams(searchParams)
+    if (e.target.value) next.set(paramName, e.target.value)
+    else next.delete(paramName)
     next.delete('offset')
     setSearchParams(next)
   }
@@ -191,6 +193,8 @@ export default function LegislationIndex() {
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
+          <select
+            className="leg-index-status"
             value={sort || 'recent'}
             onChange={handleSortChange}
             aria-label="Sort order"
