@@ -46,14 +46,16 @@ logger = logging.getLogger(__name__)
 DEFAULT_FEW_SHOTS_PATH = "data/few_shot_section_summaries.json"
 DEFAULT_STATE_PATH = "data/summarize_smc_state.json"
 
-# Per-request token ceiling. With `thinking: adaptive` the budget is
-# shared between the model's thinking blocks and the final output, so
-# we need ample headroom — 1500 was too tight (88 of 7,430 sections in
-# the first bulk run came back with thinking blocks but no text block,
-# i.e. thinking ate all the budget). The prompt still caps the actual
-# summary at ~400 words; this is just so adaptive thinking can't starve
-# the output.
-MAX_TOKENS_PER_REQUEST = 4096
+# Per-request token ceiling and explicit thinking budget. Together
+# these guarantee output room: the model gets at most THINKING_BUDGET
+# tokens of thinking, leaving (MAX_TOKENS - THINKING_BUDGET) for the
+# actual response. We previously used `thinking: adaptive`, but adaptive
+# mode is unbounded — it ate the entire budget on 14 of 88 retried
+# sections in the second run (stop_reason=max_tokens, blocks=['thinking']).
+# Explicit `enabled` mode with a fixed budget makes output starvation
+# impossible by math.
+MAX_TOKENS_PER_REQUEST = 8192
+THINKING_BUDGET_TOKENS = 4096
 
 
 def _encode_custom_id(section_number: str) -> str:
@@ -341,7 +343,10 @@ class Command(BaseCommand):
                 "messages": [{"role": "user", "content": user_content}],
             }
             if _supports_adaptive_thinking(model):
-                params["thinking"] = {"type": "adaptive"}
+                params["thinking"] = {
+                    "type": "enabled",
+                    "budget_tokens": THINKING_BUDGET_TOKENS,
+                }
             requests.append({
                 "custom_id": _encode_custom_id(section.section_number),
                 "params": params,
