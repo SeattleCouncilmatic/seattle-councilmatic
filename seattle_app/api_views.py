@@ -8,6 +8,7 @@ from functools import reduce
 from operator import or_
 
 from django.conf import settings
+from django.db import connection
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.utils import timezone
@@ -149,21 +150,45 @@ def _safe_int(raw, default, max_value=None):
     return v
 
 
-def _list_legislation_sponsors() -> list[str]:
+def _current_council_member_names() -> set[str]:
+    """Set of person names where councilmatic_core_person.is_current is
+    TRUE. Used to bucket the sponsor-filter dropdown into "current
+    council" / "former members" groups. Drops to raw SQL because
+    is_current was added by raw ALTER (see
+    seattle_app/migrations/0001_add_is_current_to_person.py) and isn't
+    on the Person model."""
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT p.name
+            FROM opencivicdata_person p
+            INNER JOIN councilmatic_core_person cp ON cp.person_id = p.id
+            WHERE cp.is_current = TRUE
+        """)
+        return {row[0] for row in cursor.fetchall() if row[0]}
+
+
+def _list_legislation_sponsors() -> dict[str, list[str]]:
     """All distinct sponsorship names that appear on bills, minus
-    Legistar's '(No Sponsor Required)'-style placeholders, sorted
-    alphabetically. Used for the sponsor-filter dropdown values; the
-    filter itself matches against this same canonical set.
+    Legistar's '(No Sponsor Required)'-style placeholders, bucketed
+    into `current` (still serving) and `former` (no longer on the
+    council) — each group sorted alphabetically. Used for the
+    sponsor-filter dropdown values; the filter validates against the
+    union of both groups.
 
     Note: BillSponsorship.entity_name is a Python property, not a DB
     field — Django can't traverse it in a queryset. The actual column
     is `name`, which equals entity_name for person-typed sponsors
     (which is everyone in our data)."""
     raw = Bill.objects.values_list('sponsorships__name', flat=True).distinct()
-    return sorted({
+    all_sponsors = sorted({
         name.strip() for name in raw
         if name and 'No Sponsor' not in name
     })
+    current_set = _current_council_member_names()
+    return {
+        'current': [n for n in all_sponsors if n in current_set],
+        'former':  [n for n in all_sponsors if n not in current_set],
+    }
 
 
 @require_GET
@@ -233,8 +258,9 @@ def legislation_index(request):
             bills = bills.filter(extras__MatterTypeName=raw)
 
     sponsor_values = _list_legislation_sponsors()
+    valid_sponsors = set(sponsor_values['current']) | set(sponsor_values['former'])
     if sponsor_filter:
-        if sponsor_filter not in sponsor_values:
+        if sponsor_filter not in valid_sponsors:
             bills = bills.none()
         else:
             # distinct() guards against duplicate Bill rows when a bill
