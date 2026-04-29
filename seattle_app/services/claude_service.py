@@ -21,9 +21,17 @@ SECTION_SYSTEM_PROMPT = (
     "  - Accurate. Do not add rules that are not in the text.\n"
     "  - Concrete. Use everyday language and concrete examples where useful.\n"
     "  - Neutral. Describe what the law does, not whether it is good or bad.\n"
-    "  - Brief. One to three short paragraphs.\n"
-    "Write in second person where natural ('you must...'). If the section is "
-    "purely administrative (definitions, severability, etc.), say so in one sentence."
+    "  - Brief. 150 to 300 words for short or procedural sections; up to "
+    "400 words for long substantive policy. Hard cap 400 words.\n"
+    "  - Plain prose only. No markdown headers, bullet lists, or bold / "
+    "italic formatting. The section number and title are displayed "
+    "alongside your summary — do not repeat them.\n"
+    "Write in second person ('you must', 'you can') for any rule that "
+    "applies to a person; use third person only for procedural mechanics "
+    "that don't require action from the reader. "
+    "If the section is purely administrative (definitions, severability, "
+    "scope of chapter), write a single sentence noting that and stop — "
+    "do not enumerate individual terms or sub-rules."
 )
 
 

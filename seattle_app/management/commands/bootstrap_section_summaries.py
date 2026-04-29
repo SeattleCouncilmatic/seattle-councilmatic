@@ -112,6 +112,10 @@ class Command(BaseCommand):
                 title=section.title,
                 full_text=section.full_text,
                 model=model,
+                # Cap above the prompt's 400-word target so adaptive thinking
+                # has headroom and we don't truncate mid-sentence on the long
+                # substantive-policy archetype (25.05.675 hit the 1024 default).
+                max_tokens=1500,
             )
 
             self.stdout.write(summary)
