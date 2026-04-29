@@ -28,7 +28,9 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 
 ## Open threads
 
-Lower-priority backlog — fix when you're already in the area, not worth scheduling. (Empty for now; promote items here from Up next when they're deferred.)
+Lower-priority backlog — fix when you're already in the area, not worth scheduling.
+
+- **Master "Table A for 23.47A.004" not extracted.** pdfplumber's default `lines` strategy doesn't detect this table — likely renders without strong drawn borders or spans multiple PDF pages (or both). 84 other tables across the SMC ARE captured by lines strategy (see PR #59), so the table-aware path works for the common case; this is the master use-permissions table that's referenced by many LUC sections. Tried `text` strategy as a fallback once — it fired on prose pages and broke section detection (4,296 emitted vs 8,834 expected, plus a Subchapter `name > 200` crash from polluted body lines). The strict guards (≥3 rows, ≥3 cols, mean cell length < 30) weren't tight enough against SMC's deeply-indented enumeration body pages, which text-strategy reads as wide tables of short cells. Future approaches worth considering: (a) gate text-strategy on a "Table" keyword on the page, (b) require ≥5 rows AND ≥4 cols AND mean cell length < 15 in strict mode, (c) only run text-strategy on pages whose lines-strategy `find_tables` returns *near*-tables (some lines/curves but no closed rect), (d) add a defensive name-length truncate on Subchapter / `_resolve_subchapter` so a polluted line never crashes the whole parse.
 
 ---
 
