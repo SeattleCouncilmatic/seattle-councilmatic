@@ -23,8 +23,8 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
   2. ~~**Curate** Opus output → final 5 few-shot examples in `data/few_shot_section_summaries.json` (no timestamp; checked in).~~ *(shipped this PR. Three Opus iterations: v1 had unwanted markdown + 2-3x length, v2 fixed both but admin rule produced a 1-sentence dead-end, v3 relaxed admin rule but prompt didn't match the categorize-and-map output we wanted, v4 aligned the prompt to the categorized shape. Final 5: 8.37.020, 22.170.170, 23.50.012, 23.76.012, 25.05.675.)*
   3. ~~**Bulk command** `summarize_smc_sections` — reads `data/few_shot_section_summaries.json` to build cached few-shot system prompt; submits Batch API jobs over sections without `plain_summary`; resumable via persisted batch IDs; idempotent on re-run.~~ *(shipped this PR.)*
   4. **Bills command** `summarize_legislation` — Opus on each bill, structured JSON via existing `output_config`. Smaller volume; streaming or batched is fine.
-  5. **API**: extend `/api/legislation/<slug>/` to include `llm_summary` (summary, impact_analysis, key_changes); add `/api/smc/<section>/` (or extend the existing endpoint) for section summaries.
-  6. **Frontend**: render summary in `LegislationDetail` (probably above the action history) and `MuniCodeSection` (above the full text). Note: summaries are plain prose with `\n\n` paragraph breaks — the renderer should split on `\n\n` and emit `<p>` per chunk, not assume markdown.
+  5. **API**: ~~add section summary to `/api/smc/sections/<n>/` — already exposed `plain_summary` / `summary_model` / `summary_generated_at` (this PR uses them).~~ Still pending: extend `/api/legislation/<slug>/` to include `llm_summary` once the bills command runs.
+  6. ~~**Frontend (SMC)**: render summary in `MuniCodeSection` alongside the full text in a 2-column layout at desktop widths.~~ *(shipped this PR.)* Still pending: render summary in `LegislationDetail` once bills are summarized.
 
 **Parser quality** (post-fix re-parse 2026-04-26 after `93cb885`: 7,435 sections + 1 `TitleAppendix` / 28 `ParseValidationIssue` rows / 234 official + 1 synthesized subchapter / 8 declared-but-empty)
 - **Last 1 missing section** (`23.48.235`). The PDF lacks a clean section heading: section number lives in the running header (`'SEATTLEMIXED 23.48.235'`) and the title `'Upper-Level Setbacks'` appears on its own line after a figure caption (`'Map A for 23.48.235'`). Probably PDF source data issue — defer unless we find a generalizable fix. (`23.50A.160`, `23.76.067`, `25.24.030` all recovered this session — see Done. `12A.14.160` confirmed nonexistent: not in PDF, TOC jumps from `.150` to `.175`, no `ParseValidationIssue` row for it, dropped from the missing list. `5.48.050` recovered via PR #28's `Ord. + §` boundary rule.)
@@ -52,6 +52,13 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Frontend — render SMC section summaries in a wide 2-column layout — committed 2026-04-29
+First user-visible piece of the LLM-summaries feature. `MuniCodeSection.jsx` now displays the `plain_summary` (already exposed by the API) alongside the full text. At ≥1024px viewports the page splits into a 2-column grid (`minmax(20rem, 1fr)` summary / `minmax(0, 1.4fr)` body); below that, the summary stacks above the body. Sections that don't yet have a summary fall back to the body filling the row — no phantom empty column.
+
+Layout: container `max-width` bumped from 56rem → 80rem so the page actually uses the screen on desktop. Other municode detail pages (Title, Chapter, Appendix) get the wider container too — listings still look right because they're flex rows that adapt to width.
+
+Summary rendering: split on `\n\n` and emit one `<p class="smc-summary-body">` per chunk so multi-paragraph summaries don't render as a wall of text. The model-version footer gets a top border to visually separate from the body.
 
 ### LLM — bulk `summarize_smc_sections` command (Batch API + cached few-shots) — committed 2026-04-29
 Single management command with two phases sharing one state file (`data/summarize_smc_state.json`, gitignored — batch IDs are per-environment).

@@ -5,7 +5,7 @@
 }
 
 .smc-detail-container {
-  max-width: 56rem;
+  max-width: 80rem;
   margin: 0 auto;
 }
 
@@ -167,17 +167,36 @@
   color: #1f2937;
 }
 
+/* ── Two-column content layout ────────────────────────────────── */
+/* Single column by default (mobile, narrow viewports). Splits into
+   summary-on-left / full-text-on-right at >=1024px when a summary
+   exists. Without a summary the body fills the row, so older sections
+   that haven't been summarized yet don't get a phantom empty column. */
+
+.smc-detail-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .smc-detail-content--with-summary {
+    grid-template-columns: minmax(20rem, 1fr) minmax(0, 1.4fr);
+    align-items: start;
+  }
+}
+
 /* ── Plain-language summary panel ─────────────────────────────── */
 
 .smc-summary-panel {
   background: #eef2ff;
   border: 1px solid #c7d2fe;
   border-radius: 0.5rem;
-  padding: 1rem 1.25rem;
-  margin-bottom: 2rem;
+  padding: 1.25rem 1.5rem;
 }
 .smc-summary-heading {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.75rem;
   font-size: 0.9375rem;
   font-weight: 700;
   color: #3730a3;
@@ -185,13 +204,18 @@
   letter-spacing: 0.04em;
 }
 .smc-summary-body {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.875rem;
   color: #1e1b4b;
-  line-height: 1.6;
+  line-height: 1.65;
   font-size: 1rem;
 }
+.smc-summary-body:last-of-type {
+  margin-bottom: 0.75rem;
+}
 .smc-summary-meta {
-  margin: 0;
+  margin: 0.75rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid #c7d2fe;
   font-size: 0.75rem;
   color: #4338ca;
 }
@@ -203,7 +227,9 @@
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
   padding: 1.5rem;
-  margin-top: 1rem;
+  /* Allow grid items to shrink so long un-broken tokens (e.g. URLs)
+     don't blow out the column at desktop widths. */
+  min-width: 0;
 }
 
 .smc-source-note {
