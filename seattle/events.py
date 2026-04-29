@@ -147,9 +147,24 @@ class SeattleEventScraper(Scraper):
             event_id   = api_event["EventId"]
             event_name = api_event.get("EventBodyName", "Meeting")
             event_date_str = api_event["EventDate"]
+            event_time_str = (api_event.get("EventTime") or "").strip()
             location   = api_event.get("EventLocation", "Location TBD")
 
+            # Legistar splits the meeting timestamp across two fields:
+            # EventDate always carries midnight; the wall-clock time lives
+            # in EventTime as a 12-hour string like "9:30 AM". Fall back to
+            # midnight if EventTime is missing or unparseable so a malformed
+            # row doesn't drop the whole event.
             event_date = datetime.datetime.strptime(event_date_str, "%Y-%m-%dT%H:%M:%S")
+            if event_time_str:
+                try:
+                    event_time = datetime.datetime.strptime(event_time_str, "%I:%M %p").time()
+                    event_date = event_date.replace(hour=event_time.hour, minute=event_time.minute)
+                except ValueError:
+                    logger.warning(
+                        f"Could not parse EventTime {event_time_str!r} for event {event_id}; "
+                        f"falling back to midnight"
+                    )
             event_date = TIMEZONE.localize(event_date)
 
             event = Event(

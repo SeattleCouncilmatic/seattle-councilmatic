@@ -12,15 +12,12 @@ const TYPE_CHIP_CLASSES = {
 function formatEventDate(isoString) {
   if (!isoString) return null;
   const d = new Date(isoString);
-  // Time portion deliberately omitted: Legistar's EventTime isn't in
-  // our scrape, so start_date always carries midnight-Pacific. Showing
-  // it would be misleading. Restore hour/minute once the scraper picks
-  // up EventTime — see the "Events: capture EventTime in pupa scraper"
-  // follow-up in WORK_LOG.
-  return d.toLocaleDateString('en-US', {
+  return d.toLocaleString('en-US', {
     weekday: 'short',
     month:   'short',
     day:     'numeric',
+    hour:    'numeric',
+    minute:  '2-digit',
   });
 }
 

@@ -16,7 +16,6 @@ locked decisions, known follow-up threads, and a chronological merge log.
 Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **Frontend polish & site chrome**
-- **Events: capture EventTime in pupa scraper** (deferred from the events-filter PR). Every event in the DB has `start_date` set to either `07:00:00+00:00` or `08:00:00+00:00` — exactly midnight Pacific (offset depending on DST). Legistar's API exposes `EventDate` and `EventTime` as separate fields, but the scraper only captures the date and stores it as midnight-local. Real meeting times (9:30 AM, 2:00 PM, etc.) aren't in our DB at all. Frontend currently hides the time portion to avoid showing "midnight" everywhere; restore the `hour` / `minute` / `timeZoneName` keys in `EventCard.formatEventDate` and `EventDetail.formatDateTime` once the scraper picks up `EventTime`. Re-scrape required after the fix.
 - **NavBar mobile hamburger** (deferred from PR #33). NavBar currently wraps via `flex-wrap` on narrow screens; if usability becomes a problem, replace with a proper hamburger menu.
 
 **LLM summaries — wire up the existing infrastructure**
@@ -54,6 +53,13 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Events — capture `EventTime` in pupa scraper + restore frontend time display — committed 2026-04-28
+Closes the long-standing midnight-everywhere bug filed during the events-filter PR. Legistar splits a meeting timestamp across two fields: `EventDate` always carries midnight, with the wall-clock time in `EventTime` as a 12-hour string like `"9:30 AM"`. The scraper was reading only `EventDate`, so every row in the DB had `start_date` set to midnight-Pacific (`07:00:00+00:00` or `08:00:00+00:00` depending on DST).
+
+**Backend:** `SeattleEventScraper._parse_event` now strips and parses `EventTime` with `%I:%M %p`, then composes the result onto the date via `event_date.replace(hour=…, minute=…)` before localizing to Pacific. Defensive: missing or unparseable `EventTime` falls back to midnight (current behavior) and logs a warning rather than dropping the event — verified `12:00 AM`, `12:00 PM`, mixed-case, and trailing-whitespace inputs all parse; `"9:30"` (missing `AM/PM`) raises and is caught.
+
+**Frontend:** `EventCard.formatEventDate` and `EventDetail.formatDateTime` swapped from `toLocaleDateString` to `toLocaleString` with `hour: 'numeric'` + `minute: '2-digit'` (and `timeZoneName: 'short'` on the detail page only — too noisy on the card list). Re-scrape will run on the next scheduled scrape (every few hours); existing rows still display midnight until then.
 
 ### Frontend — relabel "This Week" → "Home", "My Council Members" → "City Council"; rename `meeting-*`/`mtg-*` CSS classes — committed 2026-04-28
 Two threads bundled into one PR.
