@@ -21,7 +21,7 @@ export default function LegislationIndex() {
   const [results, setResults] = useState([])
   const [totalCount, setTotalCount] = useState(0)
   const [statusValues, setStatusValues] = useState([])
-  const [sponsorValues, setSponsorValues] = useState([])
+  const [sponsorValues, setSponsorValues] = useState({ current: [], former: [] })
   const [sortValues, setSortValues] = useState([])
   const [classificationValues, setClassificationValues] = useState([])
   const [loading, setLoading] = useState(true)
@@ -189,9 +189,20 @@ export default function LegislationIndex() {
             aria-label="Filter by sponsor"
           >
             <option value="">All sponsors</option>
-            {sponsorValues.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
+            {sponsorValues.current.length > 0 && (
+              <optgroup label="Current council">
+                {sponsorValues.current.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </optgroup>
+            )}
+            {sponsorValues.former.length > 0 && (
+              <optgroup label="Former members">
+                {sponsorValues.former.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
           <select
             className="leg-index-status"
