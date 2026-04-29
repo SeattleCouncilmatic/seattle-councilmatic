@@ -91,6 +91,19 @@ SUBCHAPTER_LINE_RE = re.compile(r"^Subchapter\s+([IVXLCDM]+)\.?(?:\s+(.+?))?\s*$
 # Optional `.` after the roman handles chapters like 25.10 / 25.12 /
 # 25.28 / 5.56 that use the `Subchapter I.` style.
 
+EMBEDDED_SUBCHAPTER_IN_TITLE_RE = re.compile(
+    r"\.\s+(Subchapter\s+[IVXLCDM]+\.?(?:\s+.+)?)\s*$"
+)
+# Catches dense TOC entries like
+#     25.10.110 Applicability. Subchapter II. Definitions
+# where the chapter author put a section number AND the next subchapter
+# divider on a single line. SECTION_RE matches the whole line first, so
+# the trailing "Subchapter II. Definitions" gets glued onto the section
+# title and the divider is missed by the TOC scan. The leading `\.\s+`
+# anchors against false positives from in-prose mentions like
+# "Reference to Subchapter X for further info" — the divider must be
+# preceded by a sentence-ending period.
+
 SECTIONS_MARKER_RE = re.compile(r"^Sections\s*:\s*$", re.IGNORECASE)
 # The "Sections:" header that introduces the TOC list inside a chapter.
 
@@ -432,12 +445,35 @@ class _TocScanner:
             self._STATE_IN_SUBCHAPTER_NAME,
             self._STATE_IN_SUBCHAPTER_SECTIONS,
         ):
-            title_num, chap_tail, sec_tail, _ = m_section.groups()
+            title_num, chap_tail, sec_tail, title_text = m_section.groups()
             sec_num = f"{title_num}.{chap_tail}.{sec_tail}"
             # setdefault-style: duplicates from TOC wrap quirks become no-ops
             if sec_num not in self.current_draft.declared_section_numbers:
                 self.current_draft.declared_section_numbers.append(sec_num)
             self.state = self._STATE_IN_SUBCHAPTER_SECTIONS
+
+            # Dense TOC entries can pack the next subchapter divider onto the
+            # same line as a section ("25.10.110 Applicability. Subchapter II.
+            # Definitions"). Pull the divider out and start a new draft, so
+            # subsequent declared sections accumulate under it.
+            m_embedded = EMBEDDED_SUBCHAPTER_IN_TITLE_RE.search(title_text)
+            if m_embedded:
+                m_sub = SUBCHAPTER_LINE_RE.match(m_embedded.group(1).strip())
+                if m_sub:
+                    roman = m_sub.group(1)
+                    name = (m_sub.group(2) or "").strip()
+                    self._finalize_current_draft()
+                    self.current_draft = _SubchapterDraft(
+                        chapter_number=self.current_chapter,
+                        roman=roman,
+                        name=name,
+                        toc_source="official",
+                        toc_source_pdf_page=page_num,
+                    )
+                    self.state = (
+                        self._STATE_IN_SUBCHAPTER_SECTIONS if name
+                        else self._STATE_IN_SUBCHAPTER_NAME
+                    )
             return None
 
         # Any other line:
