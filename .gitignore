@@ -22,6 +22,12 @@ db.sqlite3
 _data/seattle/*.json
 _data/*.pdf
 
+# Bootstrap iteration outputs — timestamped runs of
+# bootstrap_section_summaries pile up during prompt calibration. The
+# curated final at data/few_shot_section_summaries.json (no timestamp)
+# is checked in.
+data/few_shot_section_summaries_*.json
+
 # JavaScript
 frontend/node_modules/
 frontend/dist/

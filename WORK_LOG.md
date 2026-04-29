@@ -17,11 +17,14 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **LLM summaries — wire up the existing infrastructure**
 - Models, service module, and prompts already exist (`seattle_app/models.py:47,84` for `MunicipalCodeSection.plain_summary` + `LegislationSummary`; `seattle_app/services/claude_service.py` for `summarize_section`/`summarize_legislation` with full prompts). Nothing runs them and nothing surfaces them to users yet.
-- Three pieces to ship the feature end-to-end:
-  1. **Management command** to batch-summarize sections and bills (e.g., `summarize_smc_sections`, `summarize_legislation`) — handle prompt caching, rate limits, resumability, and skip already-summarized rows.
-  2. **API**: extend `/api/legislation/<slug>/` to include `llm_summary` (summary, impact_analysis, key_changes); add `/api/smc/<section>/` (or similar) for section summaries.
-  3. **Frontend**: render summary in `LegislationDetail` (probably above the action history). Decide whether to surface SMC section summaries — depends on whether there's a user-facing SMC browser yet.
-- Open design questions: which Claude model? per-section caching strategy? batch via Anthropic Batch API to halve cost?
+- Locked decisions: bulk SMC section summaries via **Sonnet 4.6** (Haiku 4.5 is too inconsistent for legal-summary work, Opus is overkill on 8,800+ sections); legislation summaries stay on **Opus 4.7** (structured JSON output, much smaller volume); few-shot bootstrap via **Opus 4.7** (5 curated examples for in-prompt calibration of Sonnet); cost contained via prompt caching on the system prompt + Anthropic **Batch API** (~50% discount, 24h SLA) for the bulk run.
+- Pieces to ship the feature end-to-end:
+  1. **Bootstrap command** to generate gold-standard summaries for the curated 5 archetypes via Opus, output to JSON for human review and curation. *(committed, this PR.)*
+  2. **Curate** Opus output → final 5–8 few-shot examples in `data/few_shot_section_summaries.json` (no timestamp; checked in).
+  3. **Bulk command** `summarize_smc_sections` — reads the curated JSON to build cached few-shot system prompt; submits Batch API jobs over sections without `plain_summary`; resumable via persisted batch IDs; idempotent on re-run.
+  4. **Bills command** `summarize_legislation` — Opus on each bill, structured JSON via existing `output_config`. Smaller volume; streaming or batched is fine.
+  5. **API**: extend `/api/legislation/<slug>/` to include `llm_summary` (summary, impact_analysis, key_changes); add `/api/smc/<section>/` (or extend the existing endpoint) for section summaries.
+  6. **Frontend**: render summary in `LegislationDetail` (probably above the action history) and `MuniCodeSection` (above the full text).
 
 **Parser quality** (post-fix re-parse 2026-04-26 after `93cb885`: 7,435 sections + 1 `TitleAppendix` / 28 `ParseValidationIssue` rows / 234 official + 1 synthesized subchapter / 8 declared-but-empty)
 - **Last 1 missing section** (`23.48.235`). The PDF lacks a clean section heading: section number lives in the running header (`'SEATTLEMIXED 23.48.235'`) and the title `'Upper-Level Setbacks'` appears on its own line after a figure caption (`'Map A for 23.48.235'`). Probably PDF source data issue — defer unless we find a generalizable fix. (`23.50A.160`, `23.76.067`, `25.24.030` all recovered this session — see Done. `12A.14.160` confirmed nonexistent: not in PDF, TOC jumps from `.150` to `.175`, no `ParseValidationIssue` row for it, dropped from the missing list. `5.48.050` recovered via PR #28's `Ord. + §` boundary rule.)
@@ -49,6 +52,13 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### LLM — bootstrap command for few-shot section summary calibration — committed 2026-04-28
+First piece of the LLM-summaries pipeline. `bootstrap_section_summaries` calls Opus on 5 curated SMC sections (one per archetype: definitions, long substantive policy, penalty/enforcement, permit-procedural, LUC use restrictions) and writes the results to a timestamped JSON in `data/`. Outputs are not written to the DB — they're calibration artifacts that exist to teach Sonnet via few-shot prompting on the bulk run.
+
+The 5 curated picks: `8.37.020` (Definitions), `25.05.675` (Specific environmental policies — longest in corpus at 52k chars), `22.170.170` (Violations and Penalties), `23.76.012` (Notice of application), `23.50.012` (Permitted and prohibited uses). Excludes `23.47A.004` (master Table A is the known-gap from the open thread; full text incomplete) and several near-duplicate samples.
+
+Settings: new `CLAUDE_BOOTSTRAP_MODEL` (defaults to `claude-opus-4-7`), and `CLAUDE_CODE_SECTION_MODEL` default flipped from `claude-haiku-4-5` to `claude-sonnet-4-6` after planning concluded Haiku was too inconsistent for the legal-summary task. Timestamped iteration outputs in `data/few_shot_section_summaries_*.json` are gitignored; the curated final at `data/few_shot_section_summaries.json` (no timestamp) gets checked in once locked.
 
 ### Parser — table-aware extraction for permission tables in LUC sections — committed 2026-04-28
 Closes the long-standing "permission tables come out as bare-code soup" bug for sections like `23.47A.004` and `23.54.015`. pdfplumber's word-level reader splits each page at `mid_x = page.width / 2`; a permission table that spans both columns gets its cell values randomly assigned to left/right based on column-relative position, producing strings like `X X X CCU CCU` / `P P P P P` with no row labels attached.
