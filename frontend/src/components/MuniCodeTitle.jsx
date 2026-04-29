@@ -83,7 +83,7 @@ function TitlePage({ titleNumber }) {
     <main className="smc-detail-page">
       <div className="smc-detail-container">
         <Breadcrumb crumbs={[
-          { to: '/', label: 'This Week' },
+          { to: '/', label: 'Home' },
           { to: '/municode', label: 'Municipal Code' },
           { current: `Title ${data.title_number}` },
         ]} />

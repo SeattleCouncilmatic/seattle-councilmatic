@@ -77,7 +77,7 @@ export default function LegislationDetail() {
 
         {/* Breadcrumb */}
         <nav className="leg-detail-breadcrumb" aria-label="Breadcrumb">
-          <Link to="/">This Week</Link>
+          <Link to="/">Home</Link>
           <span className="leg-detail-breadcrumb-sep" aria-hidden="true">/</span>
           <Link to={legislationHref}>Legislation</Link>
           <span className="leg-detail-breadcrumb-sep" aria-hidden="true">/</span>

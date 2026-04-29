@@ -33,7 +33,7 @@ export default function MuniCodeAppendix() {
     <main className="smc-detail-page">
       <div className="smc-detail-container">
         <Breadcrumb crumbs={[
-          { to: '/', label: 'This Week' },
+          { to: '/', label: 'Home' },
           { to: '/municode', label: 'Municipal Code' },
           { to: `/municode/${data.title_number}`, label: `Title ${data.title_number}` },
           { current: `Appendix ${data.label}` },

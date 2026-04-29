@@ -19,7 +19,7 @@ const VARIANTS = {
 const DEFAULT_VARIANT = {
   title: 'Page not found',
   message: "We couldn't find the page you were looking for. The link may be broken, or the page may have moved.",
-  linkLabel: '← Back to This Week',
+  linkLabel: '← Back to Home',
   linkTo: '/',
 }
 

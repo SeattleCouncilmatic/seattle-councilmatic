@@ -35,7 +35,7 @@ export default function MuniCodeSection() {
     <main className="smc-detail-page">
       <div className="smc-detail-container">
         <Breadcrumb crumbs={[
-          { to: '/', label: 'This Week' },
+          { to: '/', label: 'Home' },
           { to: '/municode', label: 'Municipal Code' },
           { to: `/municode/${data.title_number}`, label: `Title ${data.title_number}` },
           { to: `/municode/${data.title_number}/${data.chapter_number.split('.').slice(1).join('.')}`,

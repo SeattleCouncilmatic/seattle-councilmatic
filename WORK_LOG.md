@@ -15,9 +15,6 @@ locked decisions, known follow-up threads, and a chronological merge log.
 
 Prioritized to-do. Quick wins flagged with *(quick)*.
 
-**SPA index/search pages** (each likely its own PR; specifics TBD when we pick them up)
-- **CSS class rename — `.meeting-*` → `.evt-*` / `.mtg-*`.** Class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
-
 **Frontend polish & site chrome**
 - **Events: capture EventTime in pupa scraper** (deferred from the events-filter PR). Every event in the DB has `start_date` set to either `07:00:00+00:00` or `08:00:00+00:00` — exactly midnight Pacific (offset depending on DST). Legistar's API exposes `EventDate` and `EventTime` as separate fields, but the scraper only captures the date and stores it as midnight-local. Real meeting times (9:30 AM, 2:00 PM, etc.) aren't in our DB at all. Frontend currently hides the time portion to avoid showing "midnight" everywhere; restore the `hour` / `minute` / `timeZoneName` keys in `EventCard.formatEventDate` and `EventDetail.formatDateTime` once the scraper picks up `EventTime`. Re-scrape required after the fix.
 - **NavBar mobile hamburger** (deferred from PR #33). NavBar currently wraps via `flex-wrap` on narrow screens; if usability becomes a problem, replace with a proper hamburger menu.
@@ -57,6 +54,13 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Frontend — relabel "This Week" → "Home", "My Council Members" → "City Council"; rename `meeting-*`/`mtg-*` CSS classes — committed 2026-04-28
+Two threads bundled into one PR.
+
+**Label rename.** `This Week` was the homepage's section heading; using it as a NavBar/breadcrumb label conflated "this week's content" with "the homepage" and got stale once the homepage grew beyond a single weekly view. Renamed to `Home` everywhere it appeared as a navigational label (NavBar landed in PR #53, this PR sweeps the breadcrumbs across every index/detail page, the About copy, and `NotFound`'s default-variant link). The actual homepage section heading still reads "This Week" inside `ThisWeek.jsx` — that's content, not nav. Also renamed `My Council Members` → `City Council` in NavBar + breadcrumbs (RepsIndex, RepDetail, RepDistrict) + About feature list — tighter, less first-person, fits in narrow NavBar widths better.
+
+**CSS class rename.** Closes the last of the index-polish leftovers: vestige `.meeting-*` / `.mtg-*` class names from the pre-PR-31 MeetingCard/MeetingDetail era now align with the rest of the events surface under a single `.evt-*` prefix. EventCard.css's mixed `.meeting-card-*` + `.event-card-*` + `.event-type-*` collapsed to `.evt-card-*` + `.evt-type-chip*`; EventDetail.css's `.mtg-detail-*` / `.mtg-doc-*` / `.mtg-att-*` / `.mtg-agenda-*` / `.meeting-badge*` all → `.evt-*`. `.matter-chip*` left as-is (not a vestige). Verified the built CSS surfaces 40+ `.evt-*` classes and zero `.meeting-*` or `.mtg-*` survivors.
 
 ### Frontend — NavBar trim (drop dead hash stubs) — committed 2026-04-28
 Closes the NavBar piece of the index-polish leftovers. NavBar previously carried three hash-anchor stubs (`#this-week`, `#how-it-works`, `#glossary`) pointing at homepage sections that didn't exist (or, in the case of `#this-week`, only worked on the homepage and silently no-op'd from any other route since `Header` renders NavBar everywhere).

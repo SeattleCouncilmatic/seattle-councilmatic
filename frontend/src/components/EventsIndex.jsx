@@ -128,7 +128,7 @@ export default function EventsIndex() {
     <main className="evt-index-page">
       <div className="evt-index-container">
         <nav className="evt-index-breadcrumb" aria-label="Breadcrumb">
-          <Link to="/">This Week</Link>
+          <Link to="/">Home</Link>
           <span className="evt-index-breadcrumb-sep" aria-hidden="true">/</span>
           <span className="evt-index-breadcrumb-current">Events</span>
         </nav>

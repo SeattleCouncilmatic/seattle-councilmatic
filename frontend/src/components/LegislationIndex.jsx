@@ -139,7 +139,7 @@ export default function LegislationIndex() {
     <main className="leg-index-page">
       <div className="leg-index-container">
         <nav className="leg-index-breadcrumb" aria-label="Breadcrumb">
-          <Link to="/">This Week</Link>
+          <Link to="/">Home</Link>
           <span className="leg-index-breadcrumb-sep" aria-hidden="true">/</span>
           <span className="leg-index-breadcrumb-current">Legislation</span>
         </nav>

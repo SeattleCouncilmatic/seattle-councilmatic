@@ -2,11 +2,11 @@ import { Link } from 'react-router-dom'
 import './EventCard.css';
 
 const TYPE_CHIP_CLASSES = {
-  Council:   'event-type-chip--council',
-  Briefing:  'event-type-chip--briefing',
-  Committee: 'event-type-chip--committee',
-  Hearing:   'event-type-chip--hearing',
-  Other:     'event-type-chip--other',
+  Council:   'evt-type-chip--council',
+  Briefing:  'evt-type-chip--briefing',
+  Committee: 'evt-type-chip--committee',
+  Hearing:   'evt-type-chip--hearing',
+  Other:     'evt-type-chip--other',
 };
 
 function formatEventDate(isoString) {
@@ -27,7 +27,7 @@ function formatEventDate(isoString) {
 function TypeChip({ type }) {
   if (!type) return null;
   const cls = TYPE_CHIP_CLASSES[type] || TYPE_CHIP_CLASSES.Other;
-  return <span className={`event-type-chip ${cls}`}>{type}</span>;
+  return <span className={`evt-type-chip ${cls}`}>{type}</span>;
 }
 
 function DocLinks({ agendaUrl, packetUrl, minutesUrl, legistarUrl }) {
@@ -39,14 +39,14 @@ function DocLinks({ agendaUrl, packetUrl, minutesUrl, legistarUrl }) {
   ].filter(Boolean);
   if (links.length === 0) return null;
   return (
-    <div className="event-card-links">
+    <div className="evt-card-links">
       {links.map((l, i) => (
         <a
           key={i}
           href={l.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="event-card-link-pill"
+          className="evt-card-link-pill"
           onClick={(e) => e.stopPropagation()}
         >
           {l.label}
@@ -79,14 +79,14 @@ export default function EventCard({ event, backToSearch }) {
   const linkState = backToSearch ? { backToSearch } : undefined;
 
   return (
-    <article className={`meeting-card${cancelled ? ' meeting-card--cancelled' : ''}`}>
+    <article className={`evt-card${cancelled ? ' evt-card--cancelled' : ''}`}>
       <div>
-        <div className="event-card-title-row">
+        <div className="evt-card-title-row">
           <TypeChip type={type} />
-          {cancelled && <span className="event-card-cancelled-badge">Cancelled</span>}
-          <h4 className="meeting-card-title">
+          {cancelled && <span className="evt-card-cancelled-badge">Cancelled</span>}
+          <h4 className="evt-card-title">
             {slug ? (
-              <Link to={`/events/${slug}`} state={linkState} className="meeting-card-link">
+              <Link to={`/events/${slug}`} state={linkState} className="evt-card-link">
                 {name}
               </Link>
             ) : (
@@ -94,10 +94,10 @@ export default function EventCard({ event, backToSearch }) {
             )}
           </h4>
         </div>
-        <p className="meeting-card-date">{formatEventDate(start_date)}</p>
+        <p className="evt-card-date">{formatEventDate(start_date)}</p>
       </div>
       {description && (
-        <p className="meeting-card-description">{description}</p>
+        <p className="evt-card-description">{description}</p>
       )}
       <DocLinks
         agendaUrl={agenda_file_url}
