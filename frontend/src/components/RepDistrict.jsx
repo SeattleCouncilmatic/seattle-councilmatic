@@ -38,9 +38,9 @@ export default function RepDistrict() {
     <main className="rep-district-page">
       <div className="rep-district-container">
         <nav className="rep-district-breadcrumb" aria-label="Breadcrumb">
-          <Link to="/">This Week</Link>
+          <Link to="/">Home</Link>
           <span className="rep-district-breadcrumb-sep" aria-hidden="true">/</span>
-          <Link to="/reps">My Council Members</Link>
+          <Link to="/reps">City Council</Link>
           <span className="rep-district-breadcrumb-sep" aria-hidden="true">/</span>
           <span className="rep-district-breadcrumb-current">{data.district.name}</span>
         </nav>

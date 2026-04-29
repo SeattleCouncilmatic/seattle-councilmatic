@@ -9,7 +9,7 @@ export default function About() {
     <main className="about-page">
       <div className="about-container">
         <nav className="about-breadcrumb" aria-label="Breadcrumb">
-          <Link to="/">This Week</Link>
+          <Link to="/">Home</Link>
           <span className="about-breadcrumb-sep" aria-hidden="true">/</span>
           <span className="about-breadcrumb-current">About</span>
         </nav>
@@ -38,7 +38,7 @@ export default function About() {
           <h2 className="about-h2">What's on the site</h2>
           <ul className="about-feature-list">
             <li>
-              <Link to="/">This Week</Link> — recent legislation and upcoming
+              <Link to="/">Home</Link> — recent legislation and upcoming
               meetings at a glance.
             </li>
             <li>
@@ -50,7 +50,7 @@ export default function About() {
               briefings with their agendas and packets.
             </li>
             <li>
-              <Link to="/reps">My Council Members</Link> — district map, address
+              <Link to="/reps">City Council</Link> — district map, address
               lookup, and rep profiles.
             </li>
             <li>

@@ -1,4 +1,4 @@
-.meeting-card {
+.evt-card {
   background: #ffffff;
   border: 2px solid #e5e7eb;
   border-radius: 0.5rem;
@@ -6,12 +6,12 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.meeting-card:hover {
+.evt-card:hover {
   border-color: #2E3D5B;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
 }
 
-.meeting-card-title {
+.evt-card-title {
   font-size: 1rem;
   font-weight: 700;
   color: #1f2937;
@@ -19,23 +19,23 @@
   line-height: 1.4;
 }
 
-.meeting-card-link {
+.evt-card-link {
   color: inherit;
   text-decoration: none;
 }
 
-.meeting-card-link:hover {
+.evt-card-link:hover {
   text-decoration: underline;
 }
 
-.meeting-card-date {
+.evt-card-date {
   font-size: 0.875rem;
   font-weight: 600;
   color: #6b7280;
   margin: 0;
 }
 
-.meeting-card-description {
+.evt-card-description {
   margin: 0.75rem 0 0;
   font-size: 0.9375rem;
   color: #374151;
@@ -44,7 +44,7 @@
 
 /* ── Event type chip ──────────────────────────────────────────── */
 
-.event-card-title-row {
+.evt-card-title-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -52,7 +52,7 @@
   margin-bottom: 0.25rem;
 }
 
-.event-type-chip {
+.evt-type-chip {
   display: inline-flex;
   align-items: center;
   padding: 0.125rem 0.5rem;
@@ -64,15 +64,15 @@
   flex-shrink: 0;
 }
 
-.event-type-chip--council   { background: #dbeafe; color: #1e40af; }
-.event-type-chip--briefing  { background: #fef9c3; color: #854d0e; }
-.event-type-chip--committee { background: #e0e7ff; color: #3730a3; }
-.event-type-chip--hearing   { background: #fee2e2; color: #991b1b; }
-.event-type-chip--other     { background: #f3f4f6; color: #374151; }
+.evt-type-chip--council   { background: #dbeafe; color: #1e40af; }
+.evt-type-chip--briefing  { background: #fef9c3; color: #854d0e; }
+.evt-type-chip--committee { background: #e0e7ff; color: #3730a3; }
+.evt-type-chip--hearing   { background: #fee2e2; color: #991b1b; }
+.evt-type-chip--other     { background: #f3f4f6; color: #374151; }
 
 /* ── Cancelled badge ─────────────────────────────────────────── */
 
-.event-card-cancelled-badge {
+.evt-card-cancelled-badge {
   display: inline-flex;
   align-items: center;
   padding: 0.125rem 0.5rem;
@@ -85,19 +85,19 @@
   color: #991b1b;
 }
 
-.meeting-card--cancelled .meeting-card-title,
-.meeting-card--cancelled .meeting-card-date {
+.evt-card--cancelled .evt-card-title,
+.evt-card--cancelled .evt-card-date {
   color: #9ca3af;
 }
 
-.meeting-card--cancelled .meeting-card-title {
+.evt-card--cancelled .evt-card-title {
   text-decoration: line-through;
   text-decoration-thickness: 1px;
 }
 
 /* ── Document link pills ─────────────────────────────────────── */
 
-.event-card-links {
+.evt-card-links {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -106,7 +106,7 @@
   border-top: 1px solid #f3f4f6;
 }
 
-.event-card-link-pill {
+.evt-card-link-pill {
   display: inline-flex;
   align-items: center;
   padding: 0.25rem 0.625rem;
@@ -120,7 +120,7 @@
   transition: background 0.15s, border-color 0.15s;
 }
 
-.event-card-link-pill:hover {
+.evt-card-link-pill:hover {
   background: #e0e7ff;
   border-color: #2E3D5B;
 }

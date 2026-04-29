@@ -61,7 +61,7 @@ export default function Search() {
     <main className="search-page">
       <div className="search-container">
         <nav className="search-breadcrumb" aria-label="Breadcrumb">
-          <Link to="/">This Week</Link>
+          <Link to="/">Home</Link>
           <span className="search-breadcrumb-sep" aria-hidden="true">/</span>
           <span className="search-breadcrumb-current">Search</span>
         </nav>

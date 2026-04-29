@@ -7,7 +7,7 @@ const NAV_ITEMS = [
   { label: 'Events',             to: '/events' },
   { label: 'Legislation',        to: '/legislation' },
   { label: 'Municode',           to: '/municode' },
-  { label: 'My Council Members', to: '/reps' },
+  { label: 'City Council',       to: '/reps' },
 ];
 
 function isActive(pathname, item) {

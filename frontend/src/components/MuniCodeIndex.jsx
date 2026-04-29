@@ -134,7 +134,7 @@ export default function MuniCodeIndex() {
     <main className="smc-index-page">
       <div className="smc-index-container">
         <nav className="smc-breadcrumb" aria-label="Breadcrumb">
-          <Link to="/">This Week</Link>
+          <Link to="/">Home</Link>
           <span className="smc-breadcrumb-sep" aria-hidden="true">/</span>
           <span className="smc-breadcrumb-current">Municipal Code</span>
         </nav>

@@ -24,9 +24,9 @@ export default function RepsIndex() {
     <main className="reps-page">
       <div className="reps-container">
         <nav className="reps-breadcrumb" aria-label="Breadcrumb">
-          <Link to="/">This Week</Link>
+          <Link to="/">Home</Link>
           <span className="reps-breadcrumb-sep" aria-hidden="true">/</span>
-          <span className="reps-breadcrumb-current">My Council Members</span>
+          <span className="reps-breadcrumb-current">City Council</span>
         </nav>
 
         <header className="reps-header">

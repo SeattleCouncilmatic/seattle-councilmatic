@@ -35,9 +35,9 @@ export default function RepDetail() {
     <main className="rep-detail-page">
       <div className="rep-detail-container">
         <nav className="rep-detail-breadcrumb" aria-label="Breadcrumb">
-          <Link to="/">This Week</Link>
+          <Link to="/">Home</Link>
           <span className="rep-detail-breadcrumb-sep" aria-hidden="true">/</span>
-          <Link to="/reps">My Council Members</Link>
+          <Link to="/reps">City Council</Link>
           <span className="rep-detail-breadcrumb-sep" aria-hidden="true">/</span>
           <span className="rep-detail-breadcrumb-current">{data.name}</span>
         </nav>

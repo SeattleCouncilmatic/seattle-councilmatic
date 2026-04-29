@@ -10,6 +10,9 @@
   flex-wrap: wrap;
   gap: 0.25rem;
   justify-content: flex-end;
+  /* Pull the rightmost item away from the viewport edge so the active-item
+     pill background and focus outline aren't crowded against it. */
+  padding-right: 1rem;
 }
 
 .navbar-item {
