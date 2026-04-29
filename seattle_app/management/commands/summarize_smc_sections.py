@@ -32,6 +32,7 @@ from typing import Iterable, Optional
 import anthropic
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
+from django.db.models import Q
 from django.utils import timezone
 
 from seattle_app.models import MunicipalCodeSection
@@ -286,7 +287,10 @@ class Command(BaseCommand):
     ) -> list[MunicipalCodeSection]:
         qs = MunicipalCodeSection.objects.all().order_by("section_number")
         if not force:
-            qs = qs.filter(plain_summary="")
+            # `plain_summary` is `TextField(blank=True)` without `null=True`,
+            # but some legacy rows still have NULL — `field=""` doesn't match
+            # those (NULL = '' is NULL in SQL), so OR isnull to catch both.
+            qs = qs.filter(Q(plain_summary="") | Q(plain_summary__isnull=True))
         if limit is not None:
             qs = qs[:limit]
         return list(qs)
