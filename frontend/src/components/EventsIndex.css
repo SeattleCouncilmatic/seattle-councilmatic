@@ -140,6 +140,39 @@
   font-weight: 500;
 }
 
+/* Date-range filter row, lives below the search/type/time row.
+   Mirrors the legislation-index date-controls treatment. */
+.evt-index-date-controls {
+  align-items: center;
+}
+
+.evt-index-date-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #4b5563;
+}
+
+.evt-index-date-label {
+  font-weight: 500;
+}
+
+.evt-index-date-input {
+  padding: 0.4rem 0.625rem;
+  font-size: 0.9375rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  color: #1f2937;
+  font-family: inherit;
+}
+.evt-index-date-input:focus {
+  outline: none;
+  border-color: #2E3D5B;
+  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.15);
+}
+
 /* ── Results list ─────────────────────────────────────────────── */
 
 .evt-index-list {
