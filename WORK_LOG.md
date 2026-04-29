@@ -25,10 +25,12 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **Parser quality** (post-fix re-parse 2026-04-26 after `93cb885`: 7,435 sections + 1 `TitleAppendix` / 28 `ParseValidationIssue` rows / 234 official + 1 synthesized subchapter / 8 declared-but-empty)
 - **Last 1 missing section** (`23.48.235`). The PDF lacks a clean section heading: section number lives in the running header (`'SEATTLEMIXED 23.48.235'`) and the title `'Upper-Level Setbacks'` appears on its own line after a figure caption (`'Map A for 23.48.235'`). Probably PDF source data issue — defer unless we find a generalizable fix. (`23.50A.160`, `23.76.067`, `25.24.030` all recovered this session — see Done. `12A.14.160` confirmed nonexistent: not in PDF, TOC jumps from `.150` to `.175`, no `ParseValidationIssue` row for it, dropped from the missing list. `5.48.050` recovered via PR #28's `Ord. + §` boundary rule.)
-- **Table-aware extraction for table-heavy LUC sections.** Sections like `23.47A.004` and `23.54.015` contain large permission tables (Table A "Permitted and prohibited uses by zone"). pdfplumber's column-aware word extraction loses table structure: the cell values arrive as a bag of bare codes (`X X X CCU CCU`, `P P P P P`, etc.) with no row labels (use names) attached, so it's impossible to tell "is a restaurant permitted in NC2?" from the parsed text. Use `pdfplumber.extract_tables()` to detect and serialize tables (probably as markdown rows) and substitute them in place where the column-aware reader currently emits jumbled cells. Applies to `23.47A.004`, `23.54.015`, and likely most LUC sections that reference "Table A for X.Y.Z".
+
 ## Open threads
 
-Lower-priority backlog — fix when you're already in the area, not worth scheduling. (Empty for now; promote items here from Up next when they're deferred.)
+Lower-priority backlog — fix when you're already in the area, not worth scheduling.
+
+- **Master "Table A for 23.47A.004" not extracted.** pdfplumber's default `lines` strategy doesn't detect this table — likely renders without strong drawn borders or spans multiple PDF pages (or both). 84 other tables across the SMC ARE captured by lines strategy (see PR #59), so the table-aware path works for the common case; this is the master use-permissions table that's referenced by many LUC sections. Tried `text` strategy as a fallback once — it fired on prose pages and broke section detection (4,296 emitted vs 8,834 expected, plus a Subchapter `name > 200` crash from polluted body lines). The strict guards (≥3 rows, ≥3 cols, mean cell length < 30) weren't tight enough against SMC's deeply-indented enumeration body pages, which text-strategy reads as wide tables of short cells. Future approaches worth considering: (a) gate text-strategy on a "Table" keyword on the page, (b) require ≥5 rows AND ≥4 cols AND mean cell length < 15 in strict mode, (c) only run text-strategy on pages whose lines-strategy `find_tables` returns *near*-tables (some lines/curves but no closed rect), (d) add a defensive name-length truncate on Subchapter / `_resolve_subchapter` so a polluted line never crashes the whole parse.
 
 ---
 
@@ -47,6 +49,17 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Parser — table-aware extraction for permission tables in LUC sections — committed 2026-04-28
+Closes the long-standing "permission tables come out as bare-code soup" bug for sections like `23.47A.004` and `23.54.015`. pdfplumber's word-level reader splits each page at `mid_x = page.width / 2`; a permission table that spans both columns gets its cell values randomly assigned to left/right based on column-relative position, producing strings like `X X X CCU CCU` / `P P P P P` with no row labels attached.
+
+`_extract_page_lines` now:
+
+1. Calls `page.find_tables()` and serializes each detected table to markdown rows (header + `---` divider + body rows). Single-row or single-column "tables" — usually layout-grid false positives — are rejected via `len(rows) >= 2 AND width >= 2`. Cell content is flattened to single line; `|` is escaped.
+2. Excludes any word whose center falls inside a table bbox from the column-aware reader, so the same cell content doesn't appear twice in the output.
+3. Appends each table block (preceded by a blank separator) at the end of the page's body lines after the existing prose folds.
+
+Position is page-accurate, not intra-page-accurate — a table appears at the section's tail rather than mid-section if prose surrounds it. For typical LUC sections (section heading + one big Table A) this works well; for the rare sandwich case the data is preserved but slightly out of order. Markdown chosen over HTML so plain-text body dumps stay readable; FTS still tokenizes cell values as searchable text. `ts_headline` snippets that land in a table will look pipe-heavy — refine later if it bothers users. Re-parse required.
 
 ### Parser — split embedded subchapter dividers out of dense TOC section entries — committed 2026-04-28
 Fixes the chapter-25.10 family of TOCs where a section number and the next subchapter divider share one line — e.g. `25.10.110 Applicability. Subchapter II. Definitions`. SECTION_RE consumed the entire line, so `Subchapter II. Definitions` got glued onto the section title and the divider was missed by the TOC scanner; the result was Subchapter II's name dropped and its declared sections wrongly attributed to Subchapter I.
