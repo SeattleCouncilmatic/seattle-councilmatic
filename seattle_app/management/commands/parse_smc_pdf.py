@@ -1096,10 +1096,27 @@ class Command(BaseCommand):
         # accurate — for LUC sections that are mostly section-heading + one
         # big table this works well; for the rare page where prose sandwiches
         # a table mid-section, the table lands at the section's tail.
+        #
+        # Strategy: try `lines` first (default — reliable for tables with
+        # drawn grid borders). If that finds nothing, fall back to `text`
+        # alignment-based detection, which catches borderless and multi-page
+        # tables (chiefly the master "Table A for 23.47A.004" use-permissions
+        # table). Stricter guards on the text-strategy pass keep two-column
+        # prose pages from registering as "tables".
         try:
-            tables = page.find_tables()
+            tables = list(page.find_tables())
         except Exception:
             tables = []
+        used_text_strategy = False
+        if not tables:
+            try:
+                tables = list(page.find_tables(table_settings={
+                    "vertical_strategy": "text",
+                    "horizontal_strategy": "text",
+                }))
+                used_text_strategy = True
+            except Exception:
+                tables = []
         table_bboxes: list[tuple[float, float, float, float]] = []
         table_blocks: list[list[str]] = []
         for t in tables:
@@ -1107,7 +1124,7 @@ class Command(BaseCommand):
                 rows = t.extract()
             except Exception:
                 continue
-            md = self._serialize_table_as_markdown(rows)
+            md = self._serialize_table_as_markdown(rows, strict=used_text_strategy)
             if md:
                 table_bboxes.append(t.bbox)
                 table_blocks.append(md)
@@ -1203,7 +1220,7 @@ class Command(BaseCommand):
         return False
 
     @staticmethod
-    def _serialize_table_as_markdown(rows) -> list[str]:
+    def _serialize_table_as_markdown(rows, strict: bool = False) -> list[str]:
         """Convert pdfplumber's 2D cell array into markdown table lines.
 
         First row is treated as the header. Single-row or single-column
@@ -1213,6 +1230,14 @@ class Command(BaseCommand):
         real permission tables we care about. Empty cells render as empty
         strings; cell text is flattened to a single line and `|` is
         escaped so it doesn't break markdown row boundaries.
+
+        `strict=True` raises the bar — used for text-strategy fallback
+        detection where false positives are more likely (a two-column
+        prose page can register as a 2-column "table" of long sentences).
+        Strict mode requires at least 3 rows AND 3 columns AND a mean
+        cell length under 30 chars; permission tables with short codes
+        and short labels pass easily, prose-as-table layouts fail the
+        mean-length check.
         """
         if not rows:
             return []
@@ -1221,12 +1246,19 @@ class Command(BaseCommand):
             for row in rows
         ]
         cleaned = [row for row in cleaned if any(c for c in row)]
-        if len(cleaned) < 2:
+        min_rows = 3 if strict else 2
+        if len(cleaned) < min_rows:
             return []
         width = max(len(row) for row in cleaned)
-        if width < 2:
+        min_cols = 3 if strict else 2
+        if width < min_cols:
             return []
         cleaned = [row + [""] * (width - len(row)) for row in cleaned]
+        if strict:
+            chars = sum(len(c) for row in cleaned for c in row if c)
+            non_empty = sum(1 for row in cleaned for c in row if c)
+            if non_empty == 0 or (chars / non_empty) >= 30:
+                return []
         out = ["| " + " | ".join(cleaned[0]) + " |"]
         out.append("| " + " | ".join(["---"] * width) + " |")
         for row in cleaned[1:]:
