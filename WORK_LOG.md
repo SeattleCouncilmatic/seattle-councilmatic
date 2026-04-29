@@ -16,7 +16,7 @@ locked decisions, known follow-up threads, and a chronological merge log.
 Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **SPA index/search pages** (each likely its own PR; specifics TBD when we pick them up)
-- **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
+- **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
 **Frontend polish & site chrome**
 - **NavBar mobile hamburger** (deferred from PR #33). NavBar currently wraps via `flex-wrap` on narrow screens; if usability becomes a problem, replace with a proper hamburger menu.
@@ -56,6 +56,15 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Legislation — date-range filter — committed 2026-04-28
+Third of the index-polish bundle. `/legislation/` gets two date inputs ("Introduced from … to …") that filter on the bill's earliest action date. Both bounds inclusive; either can be set independently.
+
+API: new `introduced_after` and `introduced_before` query params, validated against `^\d{4}-\d{2}-\d{2}$`. Malformed values silently ignored (matches the defensive pattern used elsewhere). The filter runs on a `Min('actions__date')` annotation applied conditionally — only when at least one bound is set, so unfiltered queries skip the extra GROUP BY.
+
+Subtle bit: OCD stores `BillAction.date` as a full ISO 8601 string with time + timezone (`'2026-04-07T14:00:00+00:00'`), not a bare date. Lexicographic `>=` comparison against a `'YYYY-MM-DD'` lower bound works as-is (any same-day timestamp string-sorts after the bare date), but `<=` against a bare-date upper bound would EXCLUDE same-day rows because the timestamp is longer than the bound. Fix: pad the upper bound with `'T99:99:99'` so any real time-of-day on that date sorts under it. Verified the boundary inclusivity: a single-day window `2026-03-04 → 2026-03-04` returns 5 bills introduced exactly on that date.
+
+Frontend: parallel state for the two URL params, a new "Introduced from / to" row beneath the search/status row, two `<input type="date">` controls. Native browser date pickers → no extra dependencies.
 
 ### Municode — scoped search at title and chapter levels — committed 2026-04-28
 Closes the last municode follow-up. The `/api/smc/?title=<n>` and `?chapter=<n>` filters have been wired since PR #36 but weren't surfaced anywhere in the UI; now both the title and chapter detail pages expose scoped search via an input below their header, and the index page renders a `Filtered to Title <n>` or `Filtered to Chapter <n>` pill when either filter is active.

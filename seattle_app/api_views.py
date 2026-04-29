@@ -12,7 +12,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.utils import timezone
 from django.contrib.postgres.search import SearchHeadline, SearchQuery, SearchRank
-from django.db.models import Count, Max, Q
+from django.db.models import Count, Max, Min, Q
 from councilmatic_core.models import Bill, Event
 from django.shortcuts import get_object_or_404
 
@@ -109,6 +109,12 @@ def recent_legislation(request):
 _STATUS_FILTER_VALUES = ['Passed', 'Adopted', 'Signed', 'Failed', 'Vetoed',
                          'Tabled', 'In Committee', 'Full Council', 'Introduced']
 
+# YYYY-MM-DD format for the date-range filter inputs. OCD BillAction
+# stores `date` as a CharField (ISO-formatted string), so lexicographic
+# string comparison gives the right semantics for >= / <= when the
+# format is rigorously YYYY-MM-DD.
+_ISO_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
 
 def _safe_int(raw, default, max_value=None):
     try:
@@ -125,17 +131,27 @@ def _safe_int(raw, default, max_value=None):
 @require_GET
 def legislation_index(request):
     """
-    GET /api/legislation/?q=<text>&status=<label>&limit=20&offset=0
+    GET /api/legislation/?q=<text>&status=<label>&introduced_after=<YYYY-MM-DD>&introduced_before=<YYYY-MM-DD>&limit=20&offset=0
 
     Search and filter all legislation; paginated. Sorted by latest action
     descending (same as recent_legislation). `status` is one of the
     normalized labels from _STATUS_VARIANTS (case-sensitive); the filter
     expands to all raw `MatterStatusName` values that map to that label.
+    `introduced_after` / `introduced_before` filter on the earliest
+    action date (the introduction date), inclusive on both ends.
+    Malformed dates are silently ignored.
     """
     q = request.GET.get('q', '').strip()
     status_filter = request.GET.get('status', '').strip()
+    introduced_after = request.GET.get('introduced_after', '').strip()
+    introduced_before = request.GET.get('introduced_before', '').strip()
     limit = _safe_int(request.GET.get('limit'), default=20, max_value=100)
     offset = _safe_int(request.GET.get('offset'), default=0)
+
+    if introduced_after and not _ISO_DATE_RE.match(introduced_after):
+        introduced_after = ''
+    if introduced_before and not _ISO_DATE_RE.match(introduced_before):
+        introduced_before = ''
 
     bills = Bill.objects.all()
 
@@ -154,6 +170,23 @@ def legislation_index(request):
                 bills = bills.filter(status_q)
             else:
                 bills = bills.none()
+
+    # Annotate earliest_action_date *before* the date-range filter so we
+    # can filter by it; doesn't affect ordering, which still uses the
+    # latest_action_date annotated below.
+    #
+    # OCD stores action.date as a full ISO 8601 string with time +
+    # timezone (e.g. '2026-04-07T14:00:00+00:00'), so plain lexicographic
+    # comparison works for >= 'YYYY-MM-DD' (any same-day timestamp is
+    # larger than the bare date) but breaks for <= because the date-only
+    # bound is shorter than a timestamp. Pad the upper bound with a
+    # value larger than any real time-of-day so same-day rows match.
+    if introduced_after or introduced_before:
+        bills = bills.annotate(earliest_action_date=Min('actions__date'))
+        if introduced_after:
+            bills = bills.filter(earliest_action_date__gte=introduced_after)
+        if introduced_before:
+            bills = bills.filter(earliest_action_date__lte=introduced_before + 'T99:99:99')
 
     total_count = bills.count()
 
