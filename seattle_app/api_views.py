@@ -12,7 +12,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.utils import timezone
 from django.contrib.postgres.search import SearchHeadline, SearchQuery, SearchRank
-from django.db.models import Count, Max, Q
+from django.db.models import Count, Max, Min, Q
 from councilmatic_core.models import Bill, Event
 from django.shortcuts import get_object_or_404
 
@@ -109,6 +109,19 @@ def recent_legislation(request):
 _STATUS_FILTER_VALUES = ['Passed', 'Adopted', 'Signed', 'Failed', 'Vetoed',
                          'Tabled', 'In Committee', 'Full Council', 'Introduced']
 
+# Sort options. `recent` is the default and matches the previous
+# (un-parametrized) behavior — bills with the most recent action surface
+# first. `introduced` orders by the earliest action date (i.e. when a
+# bill first hit the docket) so the sort surfaces newly-filed work
+# regardless of subsequent activity. `identifier` is alphabetical for
+# users who know the citation they're after.
+_SORT_VALUES = {
+    'recent':     ('-latest_action_date', 'Most recent activity'),
+    'introduced': ('-earliest_action_date', 'Most recently introduced'),
+    'identifier': ('identifier',           'Identifier (CB number)'),
+}
+_DEFAULT_SORT = 'recent'
+
 
 def _safe_int(raw, default, max_value=None):
     try:
@@ -125,15 +138,19 @@ def _safe_int(raw, default, max_value=None):
 @require_GET
 def legislation_index(request):
     """
-    GET /api/legislation/?q=<text>&status=<label>&limit=20&offset=0
+    GET /api/legislation/?q=<text>&status=<label>&sort=<key>&limit=20&offset=0
 
-    Search and filter all legislation; paginated. Sorted by latest action
-    descending (same as recent_legislation). `status` is one of the
-    normalized labels from _STATUS_VARIANTS (case-sensitive); the filter
-    expands to all raw `MatterStatusName` values that map to that label.
+    Search and filter all legislation; paginated. `sort` is one of
+    _SORT_VALUES (defaults to `recent` — the previous behavior). `status`
+    is one of the normalized labels from _STATUS_VARIANTS (case-
+    sensitive); the filter expands to all raw `MatterStatusName` values
+    that map to that label.
     """
     q = request.GET.get('q', '').strip()
     status_filter = request.GET.get('status', '').strip()
+    sort = request.GET.get('sort', '').strip() or _DEFAULT_SORT
+    if sort not in _SORT_VALUES:
+        sort = _DEFAULT_SORT
     limit = _safe_int(request.GET.get('limit'), default=20, max_value=100)
     offset = _safe_int(request.GET.get('offset'), default=0)
 
@@ -157,11 +174,15 @@ def legislation_index(request):
 
     total_count = bills.count()
 
+    sort_field, _sort_label = _SORT_VALUES[sort]
     bills = (
         bills
         .prefetch_related('actions', 'sponsorships')
-        .annotate(latest_action_date=Max('actions__date'))
-        .order_by('-latest_action_date')[offset:offset + limit]
+        .annotate(
+            latest_action_date=Max('actions__date'),
+            earliest_action_date=Min('actions__date'),
+        )
+        .order_by(sort_field)[offset:offset + limit]
     )
 
     results = []
@@ -191,7 +212,9 @@ def legislation_index(request):
         'total_count':   total_count,
         'limit':         limit,
         'offset':        offset,
+        'sort':          sort,
         'status_values': _STATUS_FILTER_VALUES,
+        'sort_values':   [{'value': k, 'label': v[1]} for k, v in _SORT_VALUES.items()],
     })
 
 

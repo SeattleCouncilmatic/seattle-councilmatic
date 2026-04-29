@@ -11,11 +11,13 @@ export default function LegislationIndex() {
 
   const q = searchParams.get('q') ?? ''
   const status = searchParams.get('status') ?? ''
+  const sort = searchParams.get('sort') ?? ''
   const offset = Number(searchParams.get('offset') ?? 0)
 
   const [results, setResults] = useState([])
   const [totalCount, setTotalCount] = useState(0)
   const [statusValues, setStatusValues] = useState([])
+  const [sortValues, setSortValues] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -48,6 +50,7 @@ export default function LegislationIndex() {
     const params = new URLSearchParams()
     if (q) params.set('q', q)
     if (status) params.set('status', status)
+    if (sort) params.set('sort', sort)
     params.set('limit', PAGE_SIZE)
     params.set('offset', offset)
 
@@ -60,15 +63,26 @@ export default function LegislationIndex() {
         setResults(data.results || [])
         setTotalCount(data.total_count ?? 0)
         if (data.status_values) setStatusValues(data.status_values)
+        if (data.sort_values) setSortValues(data.sort_values)
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [q, status, offset])
+  }, [q, status, sort, offset])
 
   const handleStatusChange = (e) => {
     const next = new URLSearchParams(searchParams)
     if (e.target.value) next.set('status', e.target.value)
     else next.delete('status')
+    next.delete('offset')
+    setSearchParams(next)
+  }
+
+  const handleSortChange = (e) => {
+    const next = new URLSearchParams(searchParams)
+    // Don't bother carrying the default sort in the URL — it's the
+    // implicit value when the param is absent.
+    if (e.target.value && e.target.value !== 'recent') next.set('sort', e.target.value)
+    else next.delete('sort')
     next.delete('offset')
     setSearchParams(next)
   }
@@ -120,6 +134,16 @@ export default function LegislationIndex() {
             <option value="">All statuses</option>
             {statusValues.map(s => (
               <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <select
+            className="leg-index-status"
+            value={sort || 'recent'}
+            onChange={handleSortChange}
+            aria-label="Sort order"
+          >
+            {sortValues.map(s => (
+              <option key={s.value} value={s.value}>{s.label}</option>
             ))}
           </select>
         </div>
