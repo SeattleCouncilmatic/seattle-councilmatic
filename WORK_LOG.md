@@ -16,7 +16,7 @@ locked decisions, known follow-up threads, and a chronological merge log.
 Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **SPA index/search pages** (each likely its own PR; specifics TBD when we pick them up)
-- **Index polish** (deferred from PRs #30 and #31). *Legislation:* sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
+- **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
 **Frontend polish & site chrome**
 - **Events: capture EventTime in pupa scraper** (deferred from the events-filter PR). Every event in the DB has `start_date` set to either `07:00:00+00:00` or `08:00:00+00:00` — exactly midnight Pacific (offset depending on DST). Legistar's API exposes `EventDate` and `EventTime` as separate fields, but the scraper only captures the date and stores it as midnight-local. Real meeting times (9:30 AM, 2:00 PM, etc.) aren't in our DB at all. Frontend currently hides the time portion to avoid showing "midnight" everywhere; restore the `hour` / `minute` / `timeZoneName` keys in `EventCard.formatEventDate` and `EventDetail.formatDateTime` once the scraper picks up `EventTime`. Re-scrape required after the fix.
@@ -58,6 +58,16 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Legislation — sort controls — committed 2026-04-28
+Second of the index-polish bundle. `/legislation/` gets a sort dropdown alongside the type and status filters. Three options:
+
+- `recent` (default, the previous behavior) — most recent activity first.
+- `introduced` — most recently introduced first. Surfaces newly-filed work even if it hasn't seen action yet.
+- `identifier` — alphabetical by identifier (CB number).
+
+API: new `sort` query param. Bogus values fall back to default rather than 400ing — easier UX, matches the defensive pattern of the other filters. Backend annotates both `Max('actions__date')` and `Min('actions__date')` since `recent` and `introduced` use different aggregates; cost is bounded because we only do this on the post-LIMIT slice. New `sort_values` exposed in the response as `[{value, label}, ...]` so the frontend renders human-readable option text.
+
+Frontend handler omits the default value from the URL (`?sort=recent` would be redundant; absent param implies default). State + dropdown follow the same pattern as the existing status/classification dropdowns.
 ### Events — committee dropdown, date-range filter, hide misleading time — committed 2026-04-28
 Closes the events half of the index-polish bundle. `/events/` gets two new filters and a small data-display fix.
 
