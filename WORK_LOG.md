@@ -19,12 +19,12 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 - Models, service module, and prompts already exist (`seattle_app/models.py:47,84` for `MunicipalCodeSection.plain_summary` + `LegislationSummary`; `seattle_app/services/claude_service.py` for `summarize_section`/`summarize_legislation` with full prompts). Nothing runs them and nothing surfaces them to users yet.
 - Locked decisions: bulk SMC section summaries via **Sonnet 4.6** (Haiku 4.5 is too inconsistent for legal-summary work, Opus is overkill on 8,800+ sections); legislation summaries stay on **Opus 4.7** (structured JSON output, much smaller volume); few-shot bootstrap via **Opus 4.7** (5 curated examples for in-prompt calibration of Sonnet); cost contained via prompt caching on the system prompt + Anthropic **Batch API** (~50% discount, 24h SLA) for the bulk run.
 - Pieces to ship the feature end-to-end:
-  1. **Bootstrap command** to generate gold-standard summaries for the curated 5 archetypes via Opus, output to JSON for human review and curation. *(committed, this PR.)*
-  2. **Curate** Opus output → final 5–8 few-shot examples in `data/few_shot_section_summaries.json` (no timestamp; checked in).
-  3. **Bulk command** `summarize_smc_sections` — reads the curated JSON to build cached few-shot system prompt; submits Batch API jobs over sections without `plain_summary`; resumable via persisted batch IDs; idempotent on re-run.
+  1. ~~**Bootstrap command** to generate gold-standard summaries for the curated 5 archetypes via Opus, output to JSON for human review and curation.~~ *(shipped PR #60.)*
+  2. ~~**Curate** Opus output → final 5 few-shot examples in `data/few_shot_section_summaries.json` (no timestamp; checked in).~~ *(shipped this PR. Three Opus iterations: v1 had unwanted markdown + 2-3x length, v2 fixed both but admin rule produced a 1-sentence dead-end, v3 relaxed admin rule but prompt didn't match the categorize-and-map output we wanted, v4 aligned the prompt to the categorized shape. Final 5: 8.37.020, 22.170.170, 23.50.012, 23.76.012, 25.05.675.)*
+  3. **Bulk command** `summarize_smc_sections` — reads `data/few_shot_section_summaries.json` to build cached few-shot system prompt; submits Batch API jobs over sections without `plain_summary`; resumable via persisted batch IDs; idempotent on re-run.
   4. **Bills command** `summarize_legislation` — Opus on each bill, structured JSON via existing `output_config`. Smaller volume; streaming or batched is fine.
   5. **API**: extend `/api/legislation/<slug>/` to include `llm_summary` (summary, impact_analysis, key_changes); add `/api/smc/<section>/` (or extend the existing endpoint) for section summaries.
-  6. **Frontend**: render summary in `LegislationDetail` (probably above the action history) and `MuniCodeSection` (above the full text).
+  6. **Frontend**: render summary in `LegislationDetail` (probably above the action history) and `MuniCodeSection` (above the full text). Note: summaries are plain prose with `\n\n` paragraph breaks — the renderer should split on `\n\n` and emit `<p>` per chunk, not assume markdown.
 
 **Parser quality** (post-fix re-parse 2026-04-26 after `93cb885`: 7,435 sections + 1 `TitleAppendix` / 28 `ParseValidationIssue` rows / 234 official + 1 synthesized subchapter / 8 declared-but-empty)
 - **Last 1 missing section** (`23.48.235`). The PDF lacks a clean section heading: section number lives in the running header (`'SEATTLEMIXED 23.48.235'`) and the title `'Upper-Level Setbacks'` appears on its own line after a figure caption (`'Map A for 23.48.235'`). Probably PDF source data issue — defer unless we find a generalizable fix. (`23.50A.160`, `23.76.067`, `25.24.030` all recovered this session — see Done. `12A.14.160` confirmed nonexistent: not in PDF, TOC jumps from `.150` to `.175`, no `ParseValidationIssue` row for it, dropped from the missing list. `5.48.050` recovered via PR #28's `Ord. + §` boundary rule.)
@@ -52,6 +52,18 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### LLM — lock canonical few-shot examples for SMC section summaries — committed 2026-04-29
+Curated 5 final few-shot examples saved to `data/few_shot_section_summaries.json` (no timestamp; the bulk Sonnet command reads this path). Each example covers a distinct archetype: definitions/admin (`8.37.020`), penalty/enforcement (`22.170.170`), LUC use restrictions (`23.50.012`), permit-procedural (`23.76.012`), long substantive policy (`25.05.675`).
+
+Curation took four Opus iterations against the section system prompt:
+
+1. **v1** (PR #60 default prompt): all 5 outputs were 1.5k–3k chars vs the "1-3 short paragraphs" target; used markdown headers + bullets + bold the frontend isn't set up to render; repeated the section title in `##` headings; `25.05.675` was truncated mid-bullet at the 1024 `max_tokens` default.
+2. **v2** (PR #61): tightened length to "150–300 words / hard cap 400 words", forbade markdown formatting + title repetition, locked second-person voice, bumped bootstrap `max_tokens` to 1500. Fixed the formatting axes; the four substantive sections were locked-in. But the strict admin rule produced a 504-char dead-end summary for `8.37.020` ("this is a definitions section, look it up"), useless for navigation.
+3. **v3** (PR #62): relaxed admin rule to "one or two short sentences". Opus took the relaxation as license to organize terms into 6 functional categories — more useful than v2 but technically violated the "1-2 sentences" wording.
+4. **v4** (PR #63): aligned the prompt to ask directly for the categorize-and-map shape ("group what the section covers into a few functional categories and name the terms or topics within each, but do not explain individual term meanings"). Result: 2,135-char categorized summary that gives readers a navigation map without explaining individual terms.
+
+Locked-in summary lengths: 2,135 / 2,152 / 2,310 / 2,375 / 2,359 chars. All within target, no markdown, plain prose with `\n\n` paragraph breaks (frontend should split on `\n\n` and emit `<p>` per chunk).
 
 ### LLM — bootstrap command for few-shot section summary calibration — committed 2026-04-28
 First piece of the LLM-summaries pipeline. `bootstrap_section_summaries` calls Opus on 5 curated SMC sections (one per archetype: definitions, long substantive policy, penalty/enforcement, permit-procedural, LUC use restrictions) and writes the results to a timestamped JSON in `data/`. Outputs are not written to the DB — they're calibration artifacts that exist to teach Sonnet via few-shot prompting on the bulk run.
