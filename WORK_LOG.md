@@ -16,7 +16,7 @@ locked decisions, known follow-up threads, and a chronological merge log.
 Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **SPA index/search pages** (each likely its own PR; specifics TBD when we pick them up)
-- **Index polish — leftovers** (filter/sort bundle landed in PRs #45–#49 + #52). NavBar's remaining hash-anchor stubs (`#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links (`#about` already converted in PR #42). NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
+- **CSS class rename — `.meeting-*` → `.evt-*` / `.mtg-*`.** Class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
 **Frontend polish & site chrome**
 - **Events: capture EventTime in pupa scraper** (deferred from the events-filter PR). Every event in the DB has `start_date` set to either `07:00:00+00:00` or `08:00:00+00:00` — exactly midnight Pacific (offset depending on DST). Legistar's API exposes `EventDate` and `EventTime` as separate fields, but the scraper only captures the date and stores it as midnight-local. Real meeting times (9:30 AM, 2:00 PM, etc.) aren't in our DB at all. Frontend currently hides the time portion to avoid showing "midnight" everywhere; restore the `hour` / `minute` / `timeZoneName` keys in `EventCard.formatEventDate` and `EventDetail.formatDateTime` once the scraper picks up `EventTime`. Re-scrape required after the fix.
@@ -57,6 +57,17 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Frontend — NavBar trim (drop dead hash stubs) — committed 2026-04-28
+Closes the NavBar piece of the index-polish leftovers. NavBar previously carried three hash-anchor stubs (`#this-week`, `#how-it-works`, `#glossary`) pointing at homepage sections that didn't exist (or, in the case of `#this-week`, only worked on the homepage and silently no-op'd from any other route since `Header` renders NavBar everywhere).
+
+Changes:
+
+- `This Week` → renamed `Home`, `to: '/'` (now works as a real cross-page link from any route).
+- `How It Works` → removed; the existing `About` item already covers that content.
+- `Glossary` → removed entirely. Re-introduce as `/glossary` if/when we decide to author the content.
+
+Final NavBar order: Home · About · Events · Legislation · Municode · My Council Members. All six are now real `Link to=…`s — no more silent-failing hash anchors. `isActive` simplified accordingly with a small special-case for `to: '/'` (otherwise the generic `pathname.startsWith(to + '/')` would mark Home active on every page).
 
 ### Legislation — group sponsor dropdown by current vs former council — committed 2026-04-28
 Small follow-up to PR #48. The flat sponsor dropdown surfaced 14 names alphabetically, mixing current and former council members with no visual cue. Now the `<select>` splits into two `<optgroup>`s — "Current council" (9) and "Former members" (5) — keyed off `councilmatic_core_person.is_current`.
