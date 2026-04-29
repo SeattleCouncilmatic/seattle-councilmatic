@@ -21,7 +21,7 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 - Pieces to ship the feature end-to-end:
   1. ~~**Bootstrap command** to generate gold-standard summaries for the curated 5 archetypes via Opus, output to JSON for human review and curation.~~ *(shipped PR #60.)*
   2. ~~**Curate** Opus output → final 5 few-shot examples in `data/few_shot_section_summaries.json` (no timestamp; checked in).~~ *(shipped this PR. Three Opus iterations: v1 had unwanted markdown + 2-3x length, v2 fixed both but admin rule produced a 1-sentence dead-end, v3 relaxed admin rule but prompt didn't match the categorize-and-map output we wanted, v4 aligned the prompt to the categorized shape. Final 5: 8.37.020, 22.170.170, 23.50.012, 23.76.012, 25.05.675.)*
-  3. **Bulk command** `summarize_smc_sections` — reads `data/few_shot_section_summaries.json` to build cached few-shot system prompt; submits Batch API jobs over sections without `plain_summary`; resumable via persisted batch IDs; idempotent on re-run.
+  3. ~~**Bulk command** `summarize_smc_sections` — reads `data/few_shot_section_summaries.json` to build cached few-shot system prompt; submits Batch API jobs over sections without `plain_summary`; resumable via persisted batch IDs; idempotent on re-run.~~ *(shipped this PR.)*
   4. **Bills command** `summarize_legislation` — Opus on each bill, structured JSON via existing `output_config`. Smaller volume; streaming or batched is fine.
   5. **API**: extend `/api/legislation/<slug>/` to include `llm_summary` (summary, impact_analysis, key_changes); add `/api/smc/<section>/` (or extend the existing endpoint) for section summaries.
   6. **Frontend**: render summary in `LegislationDetail` (probably above the action history) and `MuniCodeSection` (above the full text). Note: summaries are plain prose with `\n\n` paragraph breaks — the renderer should split on `\n\n` and emit `<p>` per chunk, not assume markdown.
@@ -52,6 +52,17 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### LLM — bulk `summarize_smc_sections` command (Batch API + cached few-shots) — committed 2026-04-29
+Single management command with two phases sharing one state file (`data/summarize_smc_state.json`, gitignored — batch IDs are per-environment).
+
+Phase 1 — submit. First invocation gathers `MunicipalCodeSection` rows where `plain_summary == ""` (all of them on a fresh DB; skipped on re-run unless `--force`), composes the system prompt as `SECTION_SYSTEM_PROMPT + 5 few-shot examples` (~17k chars / ~4-5k tokens), marks it `cache_control: ephemeral`, and submits one batch via `client.messages.batches.create(requests=[…])`. Each request carries its `section_number` as `custom_id` so results can be matched back. Persists batch ID + submitted-at + section count.
+
+Phase 2 — poll + process. Subsequent invocations call `messages.batches.retrieve(batch_id)`, print the request-counts breakdown, and exit if `processing_status != "ended"`. Once ended, `messages.batches.results` streams JSONL; succeeded results write `plain_summary`, `summary_model`, `summary_generated_at` (single `update_fields` save per row); errors are captured to state. State gets `processed: True` after, so a follow-up run picks up any sections still missing summaries and submits a fresh batch.
+
+CLI: `--limit N` for smoke runs, `--force` to re-summarize, `--dry-run` to preview without API calls, `--few-shots`/`--state-file` to override paths.
+
+Sized for the SMC's ~8,800 sections in a single batch (well under Anthropic's 100k-request limit). Cost target: ~$60 for the bulk run with Sonnet 4.6 + cached system prompt + Batch API discount; cache writes amortize across the batch's 5-minute windows.
 
 ### LLM — lock canonical few-shot examples for SMC section summaries — committed 2026-04-29
 Curated 5 final few-shot examples saved to `data/few_shot_section_summaries.json` (no timestamp; the bulk Sonnet command reads this path). Each example covers a distinct archetype: definitions/admin (`8.37.020`), penalty/enforcement (`22.170.170`), LUC use restrictions (`23.50.012`), permit-procedural (`23.76.012`), long substantive policy (`25.05.675`).
