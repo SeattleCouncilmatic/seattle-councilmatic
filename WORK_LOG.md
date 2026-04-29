@@ -53,11 +53,9 @@ Closes the long-standing "permission tables come out as bare-code soup" bug for 
 
 `_extract_page_lines` now:
 
-1. Calls `page.find_tables()` (default `lines` strategy) and serializes each detected table to markdown rows. If `lines` finds nothing, falls back to text-alignment-based detection (`vertical_strategy="text"` / `horizontal_strategy="text"`) — recovers borderless tables and the master "Table A for 23.47A.004" use-permissions table that pdfplumber's lines strategy misses.
+1. Calls `page.find_tables()` and serializes each detected table to markdown rows (header + `---` divider + body rows). Single-row or single-column "tables" — usually layout-grid false positives — are rejected via `len(rows) >= 2 AND width >= 2`. Cell content is flattened to single line; `|` is escaped.
 2. Excludes any word whose center falls inside a table bbox from the column-aware reader, so the same cell content doesn't appear twice in the output.
 3. Appends each table block (preceded by a blank separator) at the end of the page's body lines after the existing prose folds.
-
-`_serialize_table_as_markdown` has a `strict` flag, raised for the text-strategy pass: requires ≥3 rows AND ≥3 columns AND mean cell length < 30 chars. Permission tables (short codes, short labels) pass easily; two-column prose pages — which text strategy can otherwise register as 2-column "tables" of long sentences — fail the mean-length check. The lines-strategy pass keeps the looser ≥2 / ≥2 guard.
 
 Position is page-accurate, not intra-page-accurate — a table appears at the section's tail rather than mid-section if prose surrounds it. For typical LUC sections (section heading + one big Table A) this works well; for the rare sandwich case the data is preserved but slightly out of order. Markdown chosen over HTML so plain-text body dumps stay readable; FTS still tokenizes cell values as searchable text. `ts_headline` snippets that land in a table will look pipe-heavy — refine later if it bothers users. Re-parse required.
 
