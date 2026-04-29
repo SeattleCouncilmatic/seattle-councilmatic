@@ -16,7 +16,7 @@ locked decisions, known follow-up threads, and a chronological merge log.
 Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **SPA index/search pages** (each likely its own PR; specifics TBD when we pick them up)
-- **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
+- **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
 **Frontend polish & site chrome**
 - **NavBar mobile hamburger** (deferred from PR #33). NavBar currently wraps via `flex-wrap` on narrow screens; if usability becomes a problem, replace with a proper hamburger menu.
@@ -56,6 +56,15 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Legislation — sponsor filter — committed 2026-04-28
+Fourth of the index-polish bundle. `/legislation/` gets a sponsor dropdown alongside the existing status filter — 14 distinct council member names sourced from `BillSponsorship.name`, sorted alphabetically. Legistar's `' No Sponsor Required'` placeholder is filtered out; everyone else surfaces.
+
+API: new `sponsor` query param, exposed `sponsor_values` in the response. New `_list_legislation_sponsors` helper computes the canonical list once per request (small — 15 distinct rows in the table). The filter joins through `sponsorships__name__iexact` with a `.distinct()` guard against the join-duplicate case (a bill can have multiple sponsorship rows pointing at the same person).
+
+Notable footgun caught: `BillSponsorship.entity_name` is a Python property, not a DB column — Django's `values_list('sponsorships__entity_name')` errors with "Unsupported lookup 'entity_name' for UUIDField." The actual DB column is `name`, which equals `entity_name` for person-typed sponsors (which is everyone in our data). Documented in the helper's docstring.
+
+Frontend: parallel state, dropdown, change handler. URL-synced like the other filters.
 
 ### Municode — scoped search at title and chapter levels — committed 2026-04-28
 Closes the last municode follow-up. The `/api/smc/?title=<n>` and `?chapter=<n>` filters have been wired since PR #36 but weren't surfaced anywhere in the UI; now both the title and chapter detail pages expose scoped search via an input below their header, and the index page renders a `Filtered to Title <n>` or `Filtered to Chapter <n>` pill when either filter is active.

@@ -11,11 +11,13 @@ export default function LegislationIndex() {
 
   const q = searchParams.get('q') ?? ''
   const status = searchParams.get('status') ?? ''
+  const sponsor = searchParams.get('sponsor') ?? ''
   const offset = Number(searchParams.get('offset') ?? 0)
 
   const [results, setResults] = useState([])
   const [totalCount, setTotalCount] = useState(0)
   const [statusValues, setStatusValues] = useState([])
+  const [sponsorValues, setSponsorValues] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -48,6 +50,7 @@ export default function LegislationIndex() {
     const params = new URLSearchParams()
     if (q) params.set('q', q)
     if (status) params.set('status', status)
+    if (sponsor) params.set('sponsor', sponsor)
     params.set('limit', PAGE_SIZE)
     params.set('offset', offset)
 
@@ -60,15 +63,24 @@ export default function LegislationIndex() {
         setResults(data.results || [])
         setTotalCount(data.total_count ?? 0)
         if (data.status_values) setStatusValues(data.status_values)
+        if (data.sponsor_values) setSponsorValues(data.sponsor_values)
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [q, status, offset])
+  }, [q, status, sponsor, offset])
 
   const handleStatusChange = (e) => {
     const next = new URLSearchParams(searchParams)
     if (e.target.value) next.set('status', e.target.value)
     else next.delete('status')
+    next.delete('offset')
+    setSearchParams(next)
+  }
+
+  const handleSponsorChange = (e) => {
+    const next = new URLSearchParams(searchParams)
+    if (e.target.value) next.set('sponsor', e.target.value)
+    else next.delete('sponsor')
     next.delete('offset')
     setSearchParams(next)
   }
@@ -119,6 +131,17 @@ export default function LegislationIndex() {
           >
             <option value="">All statuses</option>
             {statusValues.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <select
+            className="leg-index-status"
+            value={sponsor}
+            onChange={handleSponsorChange}
+            aria-label="Filter by sponsor"
+          >
+            <option value="">All sponsors</option>
+            {sponsorValues.map(s => (
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
