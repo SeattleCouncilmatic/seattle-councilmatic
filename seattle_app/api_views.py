@@ -109,6 +109,16 @@ def recent_legislation(request):
 _STATUS_FILTER_VALUES = ['Passed', 'Adopted', 'Signed', 'Failed', 'Vetoed',
                          'Tabled', 'In Committee', 'Full Council', 'Introduced']
 
+# Classification filter — Legistar's MatterTypeName values include the
+# parenthesized abbreviation, but we display the clean label and translate
+# back when filtering. Order is display order on the dropdown.
+_CLASSIFICATION_LABELS = {
+    'Council Bill': 'Council Bill (CB)',
+    'Ordinance':    'Ordinance (Ord)',
+    'Resolution':   'Resolution (Res)',
+}
+_CLASSIFICATION_VALUES = list(_CLASSIFICATION_LABELS.keys())
+
 
 def _safe_int(raw, default, max_value=None):
     try:
@@ -125,15 +135,18 @@ def _safe_int(raw, default, max_value=None):
 @require_GET
 def legislation_index(request):
     """
-    GET /api/legislation/?q=<text>&status=<label>&limit=20&offset=0
+    GET /api/legislation/?q=<text>&status=<label>&classification=<label>&limit=20&offset=0
 
     Search and filter all legislation; paginated. Sorted by latest action
     descending (same as recent_legislation). `status` is one of the
     normalized labels from _STATUS_VARIANTS (case-sensitive); the filter
     expands to all raw `MatterStatusName` values that map to that label.
+    `classification` is one of _CLASSIFICATION_VALUES (Council Bill,
+    Ordinance, Resolution) and matches MatterTypeName.
     """
     q = request.GET.get('q', '').strip()
     status_filter = request.GET.get('status', '').strip()
+    classification_filter = request.GET.get('classification', '').strip()
     limit = _safe_int(request.GET.get('limit'), default=20, max_value=100)
     offset = _safe_int(request.GET.get('offset'), default=0)
 
@@ -154,6 +167,13 @@ def legislation_index(request):
                 bills = bills.filter(status_q)
             else:
                 bills = bills.none()
+
+    if classification_filter:
+        if classification_filter not in _CLASSIFICATION_VALUES:
+            bills = bills.none()
+        else:
+            raw = _CLASSIFICATION_LABELS[classification_filter]
+            bills = bills.filter(extras__MatterTypeName=raw)
 
     total_count = bills.count()
 
@@ -187,11 +207,12 @@ def legislation_index(request):
         })
 
     return JsonResponse({
-        'results':       results,
-        'total_count':   total_count,
-        'limit':         limit,
-        'offset':        offset,
-        'status_values': _STATUS_FILTER_VALUES,
+        'results':              results,
+        'total_count':          total_count,
+        'limit':                limit,
+        'offset':               offset,
+        'status_values':        _STATUS_FILTER_VALUES,
+        'classification_values': _CLASSIFICATION_VALUES,
     })
 
 

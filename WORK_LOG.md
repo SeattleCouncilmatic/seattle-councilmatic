@@ -16,7 +16,7 @@ locked decisions, known follow-up threads, and a chronological merge log.
 Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **SPA index/search pages** (each likely its own PR; specifics TBD when we pick them up)
-- **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
+- **Index polish** (deferred from PRs #30 and #31). *Legislation:* sort controls, date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
 **Frontend polish & site chrome**
 - **NavBar mobile hamburger** (deferred from PR #33). NavBar currently wraps via `flex-wrap` on narrow screens; if usability becomes a problem, replace with a proper hamburger menu.
@@ -56,6 +56,13 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Legislation — classification filter (Council Bill / Ordinance / Resolution) — committed 2026-04-28
+First of the index-polish bundle deferred from PR #30. `/legislation/` now has a type dropdown alongside the status dropdown. Filters on Legistar's `MatterTypeName` extra, which carries values like `Council Bill (CB)` / `Ordinance (Ord)` / `Resolution (Res)`. `_CLASSIFICATION_LABELS` maps display labels to raw values so the dropdown reads cleanly.
+
+API: new optional `classification` query param + `classification_values` exposed alongside `status_values` in the response. Bogus values short-circuit to `qs.none()`, same defensive pattern as the status filter. Verified the cascade: 381 total → 49 resolutions / 20 council bills / 312 ordinances (sums to total).
+
+Frontend: parallel state, dropdown, change handler. URL-synced like the status filter so filtered views are bookmarkable.
 
 ### Municode — scoped search at title and chapter levels — committed 2026-04-28
 Closes the last municode follow-up. The `/api/smc/?title=<n>` and `?chapter=<n>` filters have been wired since PR #36 but weren't surfaced anywhere in the UI; now both the title and chapter detail pages expose scoped search via an input below their header, and the index page renders a `Filtered to Title <n>` or `Filtered to Chapter <n>` pill when either filter is active.
