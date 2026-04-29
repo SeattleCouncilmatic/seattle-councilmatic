@@ -1,5 +1,6 @@
-/* NavBar lives inside Header now — no own background or container; just
-   the inline list of links. Header handles the bar background. */
+/* NavBar lives inside Header — no own background or container; just the
+   inline list of links on desktop, collapsing to a hamburger + dropdown
+   below the 768px breakpoint. */
 .navbar {
   display: flex;
   align-items: center;
@@ -40,4 +41,61 @@
 .navbar-item--active:hover {
   background: #1a2a42;
   color: #ffffff;
+}
+
+/* Hamburger toggle — hidden on desktop, shown below 768px. */
+.navbar-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding-right: 2rem;
+  color: #374151;
+  cursor: pointer;
+  border-radius: 0.375rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.navbar-toggle:hover {
+  background: #f1f5f9;
+  color: #1f2937;
+}
+
+.navbar-toggle:focus-visible {
+  outline: 2px solid #2E3D5B;
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .navbar-toggle {
+    display: inline-flex;
+  }
+
+  .navbar-inner {
+    /* Anchored to .header (the nearest positioned ancestor — sticky
+       counts) so the dropdown spans the full header width. */
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 0;
+    padding: 0.5rem;
+    background: #ffffff;
+    border-bottom: 1px solid #e0e0e0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+
+  .navbar-inner--open {
+    display: flex;
+  }
+
+  .navbar-item {
+    padding: 0.75rem 1rem;
+    width: 100%;
+    text-align: left;
+  }
 }

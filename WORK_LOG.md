@@ -15,9 +15,6 @@ locked decisions, known follow-up threads, and a chronological merge log.
 
 Prioritized to-do. Quick wins flagged with *(quick)*.
 
-**Frontend polish & site chrome**
-- **NavBar mobile hamburger** (deferred from PR #33). NavBar currently wraps via `flex-wrap` on narrow screens; if usability becomes a problem, replace with a proper hamburger menu.
-
 **LLM summaries — wire up the existing infrastructure**
 - Models, service module, and prompts already exist (`seattle_app/models.py:47,84` for `MunicipalCodeSection.plain_summary` + `LegislationSummary`; `seattle_app/services/claude_service.py` for `summarize_section`/`summarize_legislation` with full prompts). Nothing runs them and nothing surfaces them to users yet.
 - Three pieces to ship the feature end-to-end:
@@ -53,6 +50,11 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Frontend — NavBar mobile hamburger — committed 2026-04-28
+Closes the deferred-from-PR-#33 mobile-nav item. Below 768px the navbar collapses to a hamburger toggle on the right; tapping it drops a vertical list panel below the header, anchored to `.header` (which is `position: sticky` and counts as a positioning ancestor). The panel uses `position: absolute; top: 100%; left/right: 0` to span the full header width.
+
+State + dismissal: `useState` for open/closed; closes on path change (covers tap-an-item via `useLocation` watcher) and on Escape (keydown listener registered only while open). No outside-click handler — path-change covers the common dismissal flow and keeps the implementation small. Hamburger button uses `aria-expanded` / `aria-controls` and a Menu↔X icon swap from lucide-react (already a dep). Desktop styling unchanged: hamburger hidden via `display: none`, items render inline.
 
 ### Events — capture `EventTime` in pupa scraper + restore frontend time display — committed 2026-04-28
 Closes the long-standing midnight-everywhere bug filed during the events-filter PR. Legistar splits a meeting timestamp across two fields: `EventDate` always carries midnight, with the wall-clock time in `EventTime` as a 12-hour string like `"9:30 AM"`. The scraper was reading only `EventDate`, so every row in the DB had `start_date` set to midnight-Pacific (`07:00:00+00:00` or `08:00:00+00:00` depending on DST).
