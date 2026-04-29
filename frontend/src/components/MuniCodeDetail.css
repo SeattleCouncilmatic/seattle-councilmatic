@@ -182,7 +182,10 @@
 
 @media (min-width: 1024px) {
   .smc-detail-content--with-summary {
-    grid-template-columns: minmax(20rem, 1fr) minmax(0, 1.4fr);
+    /* Body (the canonical legal text) is the wider, primary column on
+       the left so it flows directly under the section header; summary
+       lives in the narrower right-hand aside. */
+    grid-template-columns: minmax(0, 1.4fr) minmax(20rem, 1fr);
     align-items: start;
   }
 }

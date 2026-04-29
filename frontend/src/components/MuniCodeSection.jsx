@@ -60,6 +60,10 @@ export default function MuniCodeSection() {
         </header>
 
         <div className={`smc-detail-content${data.plain_summary ? ' smc-detail-content--with-summary' : ''}`}>
+          <section className="smc-section-body" aria-label="Section text">
+            <SectionText text={data.full_text} />
+          </section>
+
           {data.plain_summary && (
             <aside className="smc-summary-panel" aria-label="Plain-language summary">
               <h2 className="smc-summary-heading">Plain-language summary</h2>
@@ -71,10 +75,6 @@ export default function MuniCodeSection() {
               )}
             </aside>
           )}
-
-          <section className="smc-section-body" aria-label="Section text">
-            <SectionText text={data.full_text} />
-          </section>
         </div>
 
         {data.source_pdf_page && (
