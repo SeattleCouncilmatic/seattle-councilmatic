@@ -51,6 +51,23 @@ DEFAULT_STATE_PATH = "data/summarize_smc_state.json"
 MAX_TOKENS_PER_REQUEST = 1500
 
 
+def _encode_custom_id(section_number: str) -> str:
+    """Encode an SMC section number for the Batch API's custom_id field.
+
+    Anthropic requires custom_id to match `^[a-zA-Z0-9_-]{1,64}$`, so
+    section numbers like `23.47A.004` (which contain dots) need their
+    `.` replaced with `-`. SMC section numbers never contain hyphens
+    (SECTION_RE allows only digits + an optional uppercase letter per
+    segment), so the swap is bidirectional.
+    """
+    return section_number.replace(".", "-")
+
+
+def _decode_custom_id(custom_id: str) -> str:
+    """Reverse of `_encode_custom_id`."""
+    return custom_id.replace("-", ".")
+
+
 def _build_system_prompt(few_shots: list[dict]) -> str:
     """Compose SECTION_SYSTEM_PROMPT + the curated few-shot examples.
 
@@ -220,7 +237,7 @@ class Command(BaseCommand):
         fallback_lookup = not sections_by_number
 
         for result in client.messages.batches.results(batch_id):
-            section_number = result.custom_id
+            section_number = _decode_custom_id(result.custom_id)
             kind = result.result.type
             if kind != "succeeded":
                 errors.append((section_number, kind))
@@ -323,7 +340,7 @@ class Command(BaseCommand):
             if _supports_adaptive_thinking(model):
                 params["thinking"] = {"type": "adaptive"}
             requests.append({
-                "custom_id": section.section_number,
+                "custom_id": _encode_custom_id(section.section_number),
                 "params": params,
             })
         return client.messages.batches.create(requests=requests)
