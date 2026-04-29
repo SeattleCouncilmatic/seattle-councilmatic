@@ -114,6 +114,27 @@ _STATUS_FILTER_VALUES = ['Passed', 'Adopted', 'Signed', 'Failed', 'Vetoed',
 # string comparison gives the right semantics for >= / <= when the
 # format is rigorously YYYY-MM-DD.
 _ISO_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+# Sort options. `recent` is the default and matches the previous
+# (un-parametrized) behavior — bills with the most recent action surface
+# first. `introduced` orders by the earliest action date (i.e. when a
+# bill first hit the docket) so the sort surfaces newly-filed work
+# regardless of subsequent activity. `identifier` is alphabetical for
+# users who know the citation they're after.
+_SORT_VALUES = {
+    'recent':     ('-latest_action_date', 'Most recent activity'),
+    'introduced': ('-earliest_action_date', 'Most recently introduced'),
+    'identifier': ('identifier',           'Identifier (CB number)'),
+}
+_DEFAULT_SORT = 'recent'
+# Classification filter — Legistar's MatterTypeName values include the
+# parenthesized abbreviation, but we display the clean label and translate
+# back when filtering. Order is display order on the dropdown.
+_CLASSIFICATION_LABELS = {
+    'Council Bill': 'Council Bill (CB)',
+    'Ordinance':    'Ordinance (Ord)',
+    'Resolution':   'Resolution (Res)',
+}
+_CLASSIFICATION_VALUES = list(_CLASSIFICATION_LABELS.keys())
 
 
 def _safe_int(raw, default, max_value=None):
@@ -132,6 +153,20 @@ def _safe_int(raw, default, max_value=None):
 def legislation_index(request):
     """
     GET /api/legislation/?q=<text>&status=<label>&introduced_after=<YYYY-MM-DD>&introduced_before=<YYYY-MM-DD>&limit=20&offset=0
+    GET /api/legislation/?q=<text>&status=<label>&sort=<key>&limit=20&offset=0
+
+    Search and filter all legislation; paginated. `sort` is one of
+    _SORT_VALUES (defaults to `recent` — the previous behavior). `status`
+    is one of the normalized labels from _STATUS_VARIANTS (case-
+    sensitive); the filter expands to all raw `MatterStatusName` values
+    that map to that label.
+    """
+    q = request.GET.get('q', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    sort = request.GET.get('sort', '').strip() or _DEFAULT_SORT
+    if sort not in _SORT_VALUES:
+        sort = _DEFAULT_SORT
+    GET /api/legislation/?q=<text>&status=<label>&classification=<label>&limit=20&offset=0
 
     Search and filter all legislation; paginated. Sorted by latest action
     descending (same as recent_legislation). `status` is one of the
@@ -145,6 +180,12 @@ def legislation_index(request):
     status_filter = request.GET.get('status', '').strip()
     introduced_after = request.GET.get('introduced_after', '').strip()
     introduced_before = request.GET.get('introduced_before', '').strip()
+    `classification` is one of _CLASSIFICATION_VALUES (Council Bill,
+    Ordinance, Resolution) and matches MatterTypeName.
+    """
+    q = request.GET.get('q', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    classification_filter = request.GET.get('classification', '').strip()
     limit = _safe_int(request.GET.get('limit'), default=20, max_value=100)
     offset = _safe_int(request.GET.get('offset'), default=0)
 
@@ -187,14 +228,24 @@ def legislation_index(request):
             bills = bills.filter(earliest_action_date__gte=introduced_after)
         if introduced_before:
             bills = bills.filter(earliest_action_date__lte=introduced_before + 'T99:99:99')
+    if classification_filter:
+        if classification_filter not in _CLASSIFICATION_VALUES:
+            bills = bills.none()
+        else:
+            raw = _CLASSIFICATION_LABELS[classification_filter]
+            bills = bills.filter(extras__MatterTypeName=raw)
 
     total_count = bills.count()
 
+    sort_field, _sort_label = _SORT_VALUES[sort]
     bills = (
         bills
         .prefetch_related('actions', 'sponsorships')
-        .annotate(latest_action_date=Max('actions__date'))
-        .order_by('-latest_action_date')[offset:offset + limit]
+        .annotate(
+            latest_action_date=Max('actions__date'),
+            earliest_action_date=Min('actions__date'),
+        )
+        .order_by(sort_field)[offset:offset + limit]
     )
 
     results = []
@@ -224,12 +275,36 @@ def legislation_index(request):
         'total_count':   total_count,
         'limit':         limit,
         'offset':        offset,
+        'sort':          sort,
         'status_values': _STATUS_FILTER_VALUES,
+        'sort_values':   [{'value': k, 'label': v[1]} for k, v in _SORT_VALUES.items()],
+        'results':              results,
+        'total_count':          total_count,
+        'limit':                limit,
+        'offset':               offset,
+        'status_values':        _STATUS_FILTER_VALUES,
+        'classification_values': _CLASSIFICATION_VALUES,
     })
 
 
 _TIME_FILTER_VALUES = ['upcoming', 'past', 'all']
 _TYPE_FILTER_VALUES = ['Council', 'Briefing', 'Committee', 'Hearing', 'Other']
+
+
+def _is_iso_date(s: str) -> bool:
+    """Strict YYYY-MM-DD shape check — used to validate user input on
+    the date-range filter before it's let near a SQL comparison."""
+    return bool(re.match(r'^\d{4}-\d{2}-\d{2}$', s))
+
+
+def _list_event_committees() -> list[str]:
+    """Distinct event names whose classify-bucket is 'Committee', sorted
+    alphabetically. Used for the committee-filter dropdown values."""
+    raw = Event.objects.values_list('name', flat=True).distinct()
+    return sorted({
+        name.strip() for name in raw
+        if name and _classify_event(name) == 'Committee'
+    })
 
 
 def _classify_event(name: str) -> str:
@@ -282,7 +357,7 @@ def _serialize_event(event) -> dict:
 @require_GET
 def events_index(request):
     """
-    GET /api/events/?q=<text>&time=<upcoming|past|all>&type=<label>&limit=20&offset=0
+    GET /api/events/?q=<text>&time=<upcoming|past|all>&type=<label>&committee=<name>&date_after=<YYYY-MM-DD>&date_before=<YYYY-MM-DD>&limit=20&offset=0
 
     Search and browse all events; paginated. The `time` param controls
     both the slice of events returned and the sort direction:
@@ -291,23 +366,37 @@ def events_index(request):
       - all                 — every event, sorted most-recent first
     `type` is one of _TYPE_FILTER_VALUES; filtering by type happens
     in-Python after the queryset slice because event type is derived
-    from the name rather than stored as a column.
+    from the name rather than stored as a column. `committee` is one
+    of `committee_values` (exact event-name match — a more specific
+    cut than `type=Committee`). `date_after` / `date_before` filter on
+    start_date (inclusive both ends).
     """
     q = request.GET.get('q', '').strip()
     time_filter = request.GET.get('time', 'upcoming').strip().lower()
     type_filter = request.GET.get('type', '').strip()
+    committee_filter = request.GET.get('committee', '').strip()
+    date_after = request.GET.get('date_after', '').strip()
+    date_before = request.GET.get('date_before', '').strip()
     limit = _safe_int(request.GET.get('limit'), default=20, max_value=100)
     offset = _safe_int(request.GET.get('offset'), default=0)
 
     if time_filter not in _TIME_FILTER_VALUES:
         time_filter = 'upcoming'
+    if date_after and not _is_iso_date(date_after):
+        date_after = ''
+    if date_before and not _is_iso_date(date_before):
+        date_before = ''
+
+    committee_values = _list_event_committees()
+
     if type_filter and type_filter not in _TYPE_FILTER_VALUES:
         # Reject unknown types rather than silently ignore.
         return JsonResponse({
             'results': [], 'total_count': 0,
             'limit': limit, 'offset': offset,
-            'time_values': _TIME_FILTER_VALUES,
-            'type_values': _TYPE_FILTER_VALUES,
+            'time_values':       _TIME_FILTER_VALUES,
+            'type_values':       _TYPE_FILTER_VALUES,
+            'committee_values':  committee_values,
         })
 
     events = Event.objects.prefetch_related('sources')
@@ -333,18 +422,35 @@ def events_index(request):
         else:
             events = events.filter(name__in=matching_names)
 
+    if committee_filter:
+        if committee_filter not in committee_values:
+            events = events.none()
+        else:
+            events = events.filter(name__iexact=committee_filter)
+
+    # start_date is a CharField with full ISO 8601 + timezone, so the
+    # same date-range trick from legislation_index applies: bare-date
+    # `>=` lower bound works (longer timestamp string-sorts after the
+    # bare date), but `<=` needs upper-bound padding to include same-day
+    # rows. See the comment on legislation_index for the full reasoning.
+    if date_after:
+        events = events.filter(start_date__gte=date_after)
+    if date_before:
+        events = events.filter(start_date__lte=date_before + 'T99:99:99')
+
     total_count = events.count()
     events = events[offset:offset + limit]
 
     results = [_serialize_event(e) for e in events]
 
     return JsonResponse({
-        'results':     results,
-        'total_count': total_count,
-        'limit':       limit,
-        'offset':      offset,
-        'time_values': _TIME_FILTER_VALUES,
-        'type_values': _TYPE_FILTER_VALUES,
+        'results':          results,
+        'total_count':      total_count,
+        'limit':            limit,
+        'offset':           offset,
+        'time_values':      _TIME_FILTER_VALUES,
+        'type_values':      _TYPE_FILTER_VALUES,
+        'committee_values': committee_values,
     })
 
 

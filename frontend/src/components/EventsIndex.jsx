@@ -18,12 +18,16 @@ export default function EventsIndex() {
   const q = searchParams.get('q') ?? ''
   const time = searchParams.get('time') ?? 'upcoming'
   const type = searchParams.get('type') ?? ''
+  const committee = searchParams.get('committee') ?? ''
+  const dateAfter = searchParams.get('date_after') ?? ''
+  const dateBefore = searchParams.get('date_before') ?? ''
   const offset = Number(searchParams.get('offset') ?? 0)
 
   const [results, setResults] = useState([])
   const [totalCount, setTotalCount] = useState(0)
   const [timeValues, setTimeValues] = useState(['upcoming', 'past', 'all'])
   const [typeValues, setTypeValues] = useState([])
+  const [committeeValues, setCommitteeValues] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -53,6 +57,9 @@ export default function EventsIndex() {
     if (q) params.set('q', q)
     if (time && time !== 'upcoming') params.set('time', time)
     if (type) params.set('type', type)
+    if (committee) params.set('committee', committee)
+    if (dateAfter) params.set('date_after', dateAfter)
+    if (dateBefore) params.set('date_before', dateBefore)
     params.set('limit', PAGE_SIZE)
     params.set('offset', offset)
 
@@ -66,15 +73,32 @@ export default function EventsIndex() {
         setTotalCount(data.total_count ?? 0)
         if (data.time_values) setTimeValues(data.time_values)
         if (data.type_values) setTypeValues(data.type_values)
+        if (data.committee_values) setCommitteeValues(data.committee_values)
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [q, time, type, offset])
+  }, [q, time, type, committee, dateAfter, dateBefore, offset])
 
   const handleTypeChange = (e) => {
     const next = new URLSearchParams(searchParams)
     if (e.target.value) next.set('type', e.target.value)
     else next.delete('type')
+    next.delete('offset')
+    setSearchParams(next)
+  }
+
+  const handleCommitteeChange = (e) => {
+    const next = new URLSearchParams(searchParams)
+    if (e.target.value) next.set('committee', e.target.value)
+    else next.delete('committee')
+    next.delete('offset')
+    setSearchParams(next)
+  }
+
+  const handleDateChange = (paramName) => (e) => {
+    const next = new URLSearchParams(searchParams)
+    if (e.target.value) next.set(paramName, e.target.value)
+    else next.delete(paramName)
     next.delete('offset')
     setSearchParams(next)
   }
@@ -136,6 +160,17 @@ export default function EventsIndex() {
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
+          <select
+            className="evt-index-type"
+            value={committee}
+            onChange={handleCommitteeChange}
+            aria-label="Filter by committee"
+          >
+            <option value="">All committees</option>
+            {committeeValues.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
           <div className="evt-index-time-toggle" role="group" aria-label="Filter by time">
             {timeValues.map(v => (
               <button
@@ -149,6 +184,29 @@ export default function EventsIndex() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="evt-index-controls evt-index-date-controls">
+          <label className="evt-index-date-field">
+            <span className="evt-index-date-label">Date from</span>
+            <input
+              type="date"
+              className="evt-index-date-input"
+              value={dateAfter}
+              onChange={handleDateChange('date_after')}
+              aria-label="Date from"
+            />
+          </label>
+          <label className="evt-index-date-field">
+            <span className="evt-index-date-label">to</span>
+            <input
+              type="date"
+              className="evt-index-date-input"
+              value={dateBefore}
+              onChange={handleDateChange('date_before')}
+              aria-label="Date to"
+            />
+          </label>
         </div>
 
         <div className="evt-index-summary">
