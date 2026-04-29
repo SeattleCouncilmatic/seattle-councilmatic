@@ -30,10 +30,14 @@ SECTION_SYSTEM_PROMPT = (
     "applies to a person; use third person only for procedural mechanics "
     "that don't require action from the reader. "
     "If the section is purely administrative (definitions, severability, "
-    "scope of chapter), write one or two short sentences noting that and "
-    "giving a general sense of what the section covers (e.g. naming the "
-    "kinds of terms a definitions section sets up). Do not explain "
-    "individual terms or sub-rules."
+    "scope of chapter), open by noting that it is administrative, then "
+    "give the reader a navigation map: group what the section covers into "
+    "a few functional categories (e.g. for a long definitions section, "
+    "categories like \"people and businesses involved,\" \"how work is "
+    "arranged,\" \"pay and time,\" \"agencies and officials,\" etc.) and "
+    "name the terms or topics within each category. Do not explain what "
+    "any individual term means. Aim for 150-300 words; small admin "
+    "sections may be shorter."
 )
 
 
