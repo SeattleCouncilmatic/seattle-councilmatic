@@ -30,8 +30,10 @@ SECTION_SYSTEM_PROMPT = (
     "applies to a person; use third person only for procedural mechanics "
     "that don't require action from the reader. "
     "If the section is purely administrative (definitions, severability, "
-    "scope of chapter), write a single sentence noting that and stop — "
-    "do not enumerate individual terms or sub-rules."
+    "scope of chapter), write one or two short sentences noting that and "
+    "giving a general sense of what the section covers (e.g. naming the "
+    "kinds of terms a definitions section sets up). Do not explain "
+    "individual terms or sub-rules."
 )
 
 
