@@ -149,9 +149,27 @@ def _safe_int(raw, default, max_value=None):
     return v
 
 
+def _list_legislation_sponsors() -> list[str]:
+    """All distinct sponsorship names that appear on bills, minus
+    Legistar's '(No Sponsor Required)'-style placeholders, sorted
+    alphabetically. Used for the sponsor-filter dropdown values; the
+    filter itself matches against this same canonical set.
+
+    Note: BillSponsorship.entity_name is a Python property, not a DB
+    field — Django can't traverse it in a queryset. The actual column
+    is `name`, which equals entity_name for person-typed sponsors
+    (which is everyone in our data)."""
+    raw = Bill.objects.values_list('sponsorships__name', flat=True).distinct()
+    return sorted({
+        name.strip() for name in raw
+        if name and 'No Sponsor' not in name
+    })
+
+
 @require_GET
 def legislation_index(request):
     """
+    GET /api/legislation/?q=<text>&status=<label>&sponsor=<name>&limit=20&offset=0
     GET /api/legislation/?q=<text>&status=<label>&introduced_after=<YYYY-MM-DD>&introduced_before=<YYYY-MM-DD>&limit=20&offset=0
     GET /api/legislation/?q=<text>&status=<label>&sort=<key>&limit=20&offset=0
 
@@ -172,6 +190,11 @@ def legislation_index(request):
     descending (same as recent_legislation). `status` is one of the
     normalized labels from _STATUS_VARIANTS (case-sensitive); the filter
     expands to all raw `MatterStatusName` values that map to that label.
+    `sponsor` is one of the names in `sponsor_values`.
+    """
+    q = request.GET.get('q', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    sponsor_filter = request.GET.get('sponsor', '').strip()
     `introduced_after` / `introduced_before` filter on the earliest
     action date (the introduction date), inclusive on both ends.
     Malformed dates are silently ignored.
@@ -212,6 +235,17 @@ def legislation_index(request):
             else:
                 bills = bills.none()
 
+    sponsor_values = _list_legislation_sponsors()
+    if sponsor_filter:
+        if sponsor_filter not in sponsor_values:
+            bills = bills.none()
+        else:
+            # distinct() guards against duplicate Bill rows when a bill
+            # has multiple matching sponsorship rows (rare but possible).
+            # Filter on `name` not `entity_name` — see _list_legislation_sponsors.
+            bills = bills.filter(
+                sponsorships__name__iexact=sponsor_filter
+            ).distinct()
     # Annotate earliest_action_date *before* the date-range filter so we
     # can filter by it; doesn't affect ordering, which still uses the
     # latest_action_date annotated below.
@@ -271,6 +305,12 @@ def legislation_index(request):
         })
 
     return JsonResponse({
+        'results':        results,
+        'total_count':    total_count,
+        'limit':          limit,
+        'offset':         offset,
+        'status_values':  _STATUS_FILTER_VALUES,
+        'sponsor_values': sponsor_values,
         'results':       results,
         'total_count':   total_count,
         'limit':         limit,

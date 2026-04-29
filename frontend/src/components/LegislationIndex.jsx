@@ -11,6 +11,7 @@ export default function LegislationIndex() {
 
   const q = searchParams.get('q') ?? ''
   const status = searchParams.get('status') ?? ''
+  const sponsor = searchParams.get('sponsor') ?? ''
   const introducedAfter = searchParams.get('introduced_after') ?? ''
   const introducedBefore = searchParams.get('introduced_before') ?? ''
   const sort = searchParams.get('sort') ?? ''
@@ -20,6 +21,7 @@ export default function LegislationIndex() {
   const [results, setResults] = useState([])
   const [totalCount, setTotalCount] = useState(0)
   const [statusValues, setStatusValues] = useState([])
+  const [sponsorValues, setSponsorValues] = useState([])
   const [sortValues, setSortValues] = useState([])
   const [classificationValues, setClassificationValues] = useState([])
   const [loading, setLoading] = useState(true)
@@ -54,6 +56,7 @@ export default function LegislationIndex() {
     const params = new URLSearchParams()
     if (q) params.set('q', q)
     if (status) params.set('status', status)
+    if (sponsor) params.set('sponsor', sponsor)
     if (introducedAfter) params.set('introduced_after', introducedAfter)
     if (introducedBefore) params.set('introduced_before', introducedBefore)
     if (sort) params.set('sort', sort)
@@ -70,6 +73,11 @@ export default function LegislationIndex() {
         setResults(data.results || [])
         setTotalCount(data.total_count ?? 0)
         if (data.status_values) setStatusValues(data.status_values)
+        if (data.sponsor_values) setSponsorValues(data.sponsor_values)
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [q, status, sponsor, offset])
         if (data.sort_values) setSortValues(data.sort_values)
       })
       .catch(e => setError(e.message))
@@ -90,6 +98,10 @@ export default function LegislationIndex() {
     setSearchParams(next)
   }
 
+  const handleSponsorChange = (e) => {
+    const next = new URLSearchParams(searchParams)
+    if (e.target.value) next.set('sponsor', e.target.value)
+    else next.delete('sponsor')
   const handleDateChange = (paramName) => (e) => {
     const next = new URLSearchParams(searchParams)
     if (e.target.value) next.set(paramName, e.target.value)
@@ -170,6 +182,15 @@ export default function LegislationIndex() {
           </select>
           <select
             className="leg-index-status"
+            value={sponsor}
+            onChange={handleSponsorChange}
+            aria-label="Filter by sponsor"
+          >
+            <option value="">All sponsors</option>
+            {sponsorValues.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
             value={sort || 'recent'}
             onChange={handleSortChange}
             aria-label="Sort order"
