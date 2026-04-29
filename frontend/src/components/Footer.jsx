@@ -13,10 +13,11 @@ export default function Footer() {
           <a href={REPO_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
           <span className="site-footer-sep" aria-hidden="true">·</span>
           <span>
-            Powered by{' '}
+            Part of the{' '}
             <a href={COUNCILMATIC_URL} target="_blank" rel="noopener noreferrer">
               Councilmatic
             </a>
+            {' '}Family
           </span>
         </div>
       </div>
