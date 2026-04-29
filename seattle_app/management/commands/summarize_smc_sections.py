@@ -226,17 +226,21 @@ class Command(BaseCommand):
     ):
         success = 0
         errors: list[tuple[str, str]] = []
+
+        # Materialize results once so we can prefetch all matching sections
+        # in a single query. ~7.4k results at ~5KB each fits easily in
+        # memory; if batches grow past 100k requests we should stream and
+        # batch-fetch instead.
+        results = list(client.messages.batches.results(batch_id))
+        section_numbers = [_decode_custom_id(r.custom_id) for r in results]
         sections_by_number = {
             s.section_number: s
             for s in MunicipalCodeSection.objects.filter(
-                section_number__in=self._batch_section_numbers_or_none()
+                section_number__in=section_numbers
             )
         }
-        # If we don't have the original section list anymore (state lost or
-        # truncated), fall back to fetching each section as it comes back.
-        fallback_lookup = not sections_by_number
 
-        for result in client.messages.batches.results(batch_id):
+        for result in results:
             section_number = _decode_custom_id(result.custom_id)
             kind = result.result.type
             if kind != "succeeded":
@@ -251,16 +255,8 @@ class Command(BaseCommand):
 
             section = sections_by_number.get(section_number)
             if section is None:
-                if not fallback_lookup:
-                    errors.append((section_number, "section not in DB"))
-                    continue
-                try:
-                    section = MunicipalCodeSection.objects.get(
-                        section_number=section_number
-                    )
-                except MunicipalCodeSection.DoesNotExist:
-                    errors.append((section_number, "section not in DB"))
-                    continue
+                errors.append((section_number, "section not in DB"))
+                continue
 
             section.plain_summary = summary_text
             section.summary_model = message.model
@@ -287,13 +283,6 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(
                 f"First errors: {errors[:5]}"
             ))
-
-    def _batch_section_numbers_or_none(self) -> Optional[list[str]]:
-        # Returning None means "we don't have the list", so the caller falls
-        # back to a per-result lookup. We don't currently persist the section
-        # list across runs (it's recoverable from the state's section_count
-        # only loosely), so always return None for now.
-        return None
 
     # ------------------------------------------------------------------ #
     #  Phase 2 — submit                                                   #
