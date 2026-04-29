@@ -11,6 +11,8 @@ export default function LegislationIndex() {
 
   const q = searchParams.get('q') ?? ''
   const status = searchParams.get('status') ?? ''
+  const introducedAfter = searchParams.get('introduced_after') ?? ''
+  const introducedBefore = searchParams.get('introduced_before') ?? ''
   const sort = searchParams.get('sort') ?? ''
   const classification = searchParams.get('classification') ?? ''
   const offset = Number(searchParams.get('offset') ?? 0)
@@ -52,6 +54,8 @@ export default function LegislationIndex() {
     const params = new URLSearchParams()
     if (q) params.set('q', q)
     if (status) params.set('status', status)
+    if (introducedAfter) params.set('introduced_after', introducedAfter)
+    if (introducedBefore) params.set('introduced_before', introducedBefore)
     if (sort) params.set('sort', sort)
     if (classification) params.set('classification', classification)
     params.set('limit', PAGE_SIZE)
@@ -70,6 +74,7 @@ export default function LegislationIndex() {
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
+  }, [q, status, introducedAfter, introducedBefore, offset])
   }, [q, status, sort, offset])
         if (data.classification_values) setClassificationValues(data.classification_values)
       })
@@ -85,6 +90,10 @@ export default function LegislationIndex() {
     setSearchParams(next)
   }
 
+  const handleDateChange = (paramName) => (e) => {
+    const next = new URLSearchParams(searchParams)
+    if (e.target.value) next.set(paramName, e.target.value)
+    else next.delete(paramName)
   const handleSortChange = (e) => {
     const next = new URLSearchParams(searchParams)
     // Don't bother carrying the default sort in the URL — it's the
@@ -169,6 +178,29 @@ export default function LegislationIndex() {
               <option key={s.value} value={s.value}>{s.label}</option>
             ))}
           </select>
+        </div>
+
+        <div className="leg-index-controls leg-index-date-controls">
+          <label className="leg-index-date-field">
+            <span className="leg-index-date-label">Introduced from</span>
+            <input
+              type="date"
+              className="leg-index-date-input"
+              value={introducedAfter}
+              onChange={handleDateChange('introduced_after')}
+              aria-label="Introduced from date"
+            />
+          </label>
+          <label className="leg-index-date-field">
+            <span className="leg-index-date-label">to</span>
+            <input
+              type="date"
+              className="leg-index-date-input"
+              value={introducedBefore}
+              onChange={handleDateChange('introduced_before')}
+              aria-label="Introduced to date"
+            />
+          </label>
         </div>
 
         <div className="leg-index-summary">
