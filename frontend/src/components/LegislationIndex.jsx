@@ -12,12 +12,14 @@ export default function LegislationIndex() {
   const q = searchParams.get('q') ?? ''
   const status = searchParams.get('status') ?? ''
   const sort = searchParams.get('sort') ?? ''
+  const classification = searchParams.get('classification') ?? ''
   const offset = Number(searchParams.get('offset') ?? 0)
 
   const [results, setResults] = useState([])
   const [totalCount, setTotalCount] = useState(0)
   const [statusValues, setStatusValues] = useState([])
   const [sortValues, setSortValues] = useState([])
+  const [classificationValues, setClassificationValues] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -51,6 +53,7 @@ export default function LegislationIndex() {
     if (q) params.set('q', q)
     if (status) params.set('status', status)
     if (sort) params.set('sort', sort)
+    if (classification) params.set('classification', classification)
     params.set('limit', PAGE_SIZE)
     params.set('offset', offset)
 
@@ -68,6 +71,11 @@ export default function LegislationIndex() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [q, status, sort, offset])
+        if (data.classification_values) setClassificationValues(data.classification_values)
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [q, status, classification, offset])
 
   const handleStatusChange = (e) => {
     const next = new URLSearchParams(searchParams)
@@ -83,6 +91,10 @@ export default function LegislationIndex() {
     // implicit value when the param is absent.
     if (e.target.value && e.target.value !== 'recent') next.set('sort', e.target.value)
     else next.delete('sort')
+  const handleClassificationChange = (e) => {
+    const next = new URLSearchParams(searchParams)
+    if (e.target.value) next.set('classification', e.target.value)
+    else next.delete('classification')
     next.delete('offset')
     setSearchParams(next)
   }
@@ -125,6 +137,17 @@ export default function LegislationIndex() {
             aria-label="Search legislation"
             autoFocus
           />
+          <select
+            className="leg-index-status"
+            value={classification}
+            onChange={handleClassificationChange}
+            aria-label="Filter by type"
+          >
+            <option value="">All types</option>
+            {classificationValues.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
           <select
             className="leg-index-status"
             value={status}

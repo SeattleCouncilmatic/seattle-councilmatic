@@ -19,6 +19,7 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 - **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), date-range filter, sponsor filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
 **Frontend polish & site chrome**
+- **Events: capture EventTime in pupa scraper** (deferred from the events-filter PR). Every event in the DB has `start_date` set to either `07:00:00+00:00` or `08:00:00+00:00` — exactly midnight Pacific (offset depending on DST). Legistar's API exposes `EventDate` and `EventTime` as separate fields, but the scraper only captures the date and stores it as midnight-local. Real meeting times (9:30 AM, 2:00 PM, etc.) aren't in our DB at all. Frontend currently hides the time portion to avoid showing "midnight" everywhere; restore the `hour` / `minute` / `timeZoneName` keys in `EventCard.formatEventDate` and `EventDetail.formatDateTime` once the scraper picks up `EventTime`. Re-scrape required after the fix.
 - **NavBar mobile hamburger** (deferred from PR #33). NavBar currently wraps via `flex-wrap` on narrow screens; if usability becomes a problem, replace with a proper hamburger menu.
 
 **LLM summaries — wire up the existing infrastructure**
@@ -67,6 +68,22 @@ Second of the index-polish bundle. `/legislation/` gets a sort dropdown alongsid
 API: new `sort` query param. Bogus values fall back to default rather than 400ing — easier UX, matches the defensive pattern of the other filters. Backend annotates both `Max('actions__date')` and `Min('actions__date')` since `recent` and `introduced` use different aggregates; cost is bounded because we only do this on the post-LIMIT slice. New `sort_values` exposed in the response as `[{value, label}, ...]` so the frontend renders human-readable option text.
 
 Frontend handler omits the default value from the URL (`?sort=recent` would be redundant; absent param implies default). State + dropdown follow the same pattern as the existing status/classification dropdowns.
+### Events — committee dropdown, date-range filter, hide misleading time — committed 2026-04-28
+Closes the events half of the index-polish bundle. `/events/` gets two new filters and a small data-display fix.
+
+**Committee dropdown.** New `committee` query param + `committee_values` exposed in the response. The list is the 31 distinct event names that classify as `Committee` via `_classify_event`, sorted alphabetically. More specific cut than `type=Committee`: pick a single committee directly. New `_list_event_committees` helper. Filter joins via `name__iexact`; bogus values short-circuit to `qs.none()`.
+
+**Date range.** New `date_after` / `date_before` query params on the events endpoint, validated against `^\d{4}-\d{2}-\d{2}$`. Same upper-bound padding trick used on the legislation date filter (`+ 'T99:99:99'`) so same-day rows count for `<=` — `start_date` is also a CharField with full ISO 8601 + timezone. Boundary inclusivity verified: a single-day window `2026-04-01 → 2026-04-01` returns 2 events on that exact date. Frontend mirrors the legislation date-range row visually.
+
+**Time-display fix (data quality footgun).** While building this, noticed every event in the DB has `start_date` set to either `07:00:00+00:00` or `08:00:00+00:00` — exactly midnight Pacific (offset depending on DST). Legistar's API exposes `EventDate` and `EventTime` separately, but the seattle pupa scraper only captures the date, storing it as midnight-local. Actual meeting times (9:30 AM, 2:00 PM, etc.) aren't in our DB at all. The `EventCard` and `EventDetail` formatters were rendering `12:00 AM` everywhere — actively misleading. UI workaround: dropped the `hour` / `minute` / `timeZoneName` keys from both formatters so we just show the date. Filed the real fix (capture `EventTime` in the pupa scraper, then re-scrape) as a follow-up.
+
+`_is_iso_date` helper introduced as a small inline utility — chose this over a top-level `_ISO_DATE_RE` constant because the legislation date-range PR (#47) introduces an identically-named constant, and a parallel constant on this branch would conflict needlessly.
+### Legislation — classification filter (Council Bill / Ordinance / Resolution) — committed 2026-04-28
+First of the index-polish bundle deferred from PR #30. `/legislation/` now has a type dropdown alongside the status dropdown. Filters on Legistar's `MatterTypeName` extra, which carries values like `Council Bill (CB)` / `Ordinance (Ord)` / `Resolution (Res)`. `_CLASSIFICATION_LABELS` maps display labels to raw values so the dropdown reads cleanly.
+
+API: new optional `classification` query param + `classification_values` exposed alongside `status_values` in the response. Bogus values short-circuit to `qs.none()`, same defensive pattern as the status filter. Verified the cascade: 381 total → 49 resolutions / 20 council bills / 312 ordinances (sums to total).
+
+Frontend: parallel state, dropdown, change handler. URL-synced like the status filter so filtered views are bookmarkable.
 
 ### Municode — scoped search at title and chapter levels — committed 2026-04-28
 Closes the last municode follow-up. The `/api/smc/?title=<n>` and `?chapter=<n>` filters have been wired since PR #36 but weren't surfaced anywhere in the UI; now both the title and chapter detail pages expose scoped search via an input below their header, and the index page renders a `Filtered to Title <n>` or `Filtered to Chapter <n>` pill when either filter is active.
