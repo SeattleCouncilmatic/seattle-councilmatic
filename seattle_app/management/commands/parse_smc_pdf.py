@@ -1078,11 +1078,44 @@ class Command(BaseCommand):
             so multi-line wrapped TOC entries become one section-shaped
             line — recovers boundary detection for the first body section
             in chapters whose last TOC entry wraps to multiple lines.
+          * Detect tables (permission tables in LUC sections like 23.47A.004
+            "Table A for ..."), exclude their words from the column-aware
+            reader, and append a markdown serialization of each table after
+            the prose. Without this, the mid_x split mangles cell values
+            into a bag of bare codes (`X X X CCU CCU` / `P P P P P`) with
+            no row labels attached.
         """
         try:
             words = page.extract_words(x_tolerance=2, y_tolerance=3)
         except Exception:
             return []
+
+        # Pull table words out of the column-aware reader and serialize each
+        # detected table as markdown for appending after the prose. Position
+        # is page-accurate (after the page's prose lines), not intra-page-
+        # accurate — for LUC sections that are mostly section-heading + one
+        # big table this works well; for the rare page where prose sandwiches
+        # a table mid-section, the table lands at the section's tail.
+        try:
+            tables = page.find_tables()
+        except Exception:
+            tables = []
+        table_bboxes: list[tuple[float, float, float, float]] = []
+        table_blocks: list[list[str]] = []
+        for t in tables:
+            try:
+                rows = t.extract()
+            except Exception:
+                continue
+            md = self._serialize_table_as_markdown(rows)
+            if md:
+                table_bboxes.append(t.bbox)
+                table_blocks.append(md)
+        if table_bboxes:
+            words = [
+                w for w in words
+                if not self._word_inside_any_bbox(w, table_bboxes)
+            ]
 
         # Sparse pages (chapter-end/transition pages with a handful of
         # words) aren't really two-column — title lines can span the full
@@ -1149,7 +1182,56 @@ class Command(BaseCommand):
         body_lines = self._fold_soft_hyphens(body_lines)
         body_lines = self._fold_toc_name_wraps(body_lines)
 
+        # Append serialized tables. Blank line before each block keeps it
+        # visually separated from the preceding prose in body_text dumps.
+        for block in table_blocks:
+            if body_lines:
+                body_lines.append("")
+            body_lines.extend(block)
+
         return body_lines
+
+    @staticmethod
+    def _word_inside_any_bbox(
+        word: dict, bboxes: list[tuple[float, float, float, float]]
+    ) -> bool:
+        cx = (word["x0"] + word["x1"]) / 2
+        cy = (word["top"] + word["bottom"]) / 2
+        for x0, top, x1, bottom in bboxes:
+            if x0 <= cx <= x1 and top <= cy <= bottom:
+                return True
+        return False
+
+    @staticmethod
+    def _serialize_table_as_markdown(rows) -> list[str]:
+        """Convert pdfplumber's 2D cell array into markdown table lines.
+
+        First row is treated as the header. Single-row or single-column
+        "tables" are skipped — find_tables() occasionally fires on layout
+        grids (a heading with a vertical rule beside it, etc.); requiring
+        at least 2 rows AND 2 columns rejects those without losing the
+        real permission tables we care about. Empty cells render as empty
+        strings; cell text is flattened to a single line and `|` is
+        escaped so it doesn't break markdown row boundaries.
+        """
+        if not rows:
+            return []
+        cleaned = [
+            [(c or "").strip().replace("\n", " ").replace("|", r"\|") for c in row]
+            for row in rows
+        ]
+        cleaned = [row for row in cleaned if any(c for c in row)]
+        if len(cleaned) < 2:
+            return []
+        width = max(len(row) for row in cleaned)
+        if width < 2:
+            return []
+        cleaned = [row + [""] * (width - len(row)) for row in cleaned]
+        out = ["| " + " | ".join(cleaned[0]) + " |"]
+        out.append("| " + " | ".join(["---"] * width) + " |")
+        for row in cleaned[1:]:
+            out.append("| " + " | ".join(row) + " |")
+        return out
 
     @staticmethod
     def _strip_layout_artifacts(lines: list[str], right_col_start: int) -> list[str]:
