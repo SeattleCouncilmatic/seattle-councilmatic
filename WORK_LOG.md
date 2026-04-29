@@ -16,7 +16,7 @@ locked decisions, known follow-up threads, and a chronological merge log.
 Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **SPA index/search pages** (each likely its own PR; specifics TBD when we pick them up)
-- **Index polish** (deferred from PRs #30 and #31). *Legislation:* classification filter (Bill/Resolution/etc.), sort controls, date-range filter. *Events:* committee-name dropdown (separate from type), date-range filter. *Both:* NavBar's hash-anchor stubs (`#about`, `#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links. NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
+- **Index polish — leftovers** (filter/sort bundle landed in PRs #45–#49 + #52). NavBar's remaining hash-anchor stubs (`#how-it-works`, `#my-council-members`, `#glossary`) still point at homepage sections that don't exist yet — wire them up as those sections ship, or convert to real `/path` Links (`#about` already converted in PR #42). NavBar isn't shown on the index pages (only on the homepage); think about whether the index pages should get their own header/nav. CSS class names `.meeting-card-*` / `.mtg-detail-*` weren't renamed when MeetingCard/MeetingDetail → EventCard/EventDetail in PR #31; rename if/when those files get more substantive changes.
 
 **Frontend polish & site chrome**
 - **Events: capture EventTime in pupa scraper** (deferred from the events-filter PR). Every event in the DB has `start_date` set to either `07:00:00+00:00` or `08:00:00+00:00` — exactly midnight Pacific (offset depending on DST). Legistar's API exposes `EventDate` and `EventTime` as separate fields, but the scraper only captures the date and stores it as midnight-local. Real meeting times (9:30 AM, 2:00 PM, etc.) aren't in our DB at all. Frontend currently hides the time portion to avoid showing "midnight" everywhere; restore the `hour` / `minute` / `timeZoneName` keys in `EventCard.formatEventDate` and `EventDetail.formatDateTime` once the scraper picks up `EventTime`. Re-scrape required after the fix.
@@ -57,6 +57,15 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Legislation — group sponsor dropdown by current vs former council — committed 2026-04-28
+Small follow-up to PR #48. The flat sponsor dropdown surfaced 14 names alphabetically, mixing current and former council members with no visual cue. Now the `<select>` splits into two `<optgroup>`s — "Current council" (9) and "Former members" (5) — keyed off `councilmatic_core_person.is_current`.
+
+API: `_list_legislation_sponsors` reshaped from `list[str]` → `dict[str, list[str]]` with `current` / `former` keys. New `_current_council_member_names()` helper drops to raw SQL because `is_current` was added by a raw `ALTER` (see migration `0001_add_is_current_to_person`) and isn't on the `Person` ORM model. Filter validation accepts names from either bucket via the union; everything else (filtering, distinct, etc.) unchanged.
+
+Frontend: `sponsorValues` state default flipped to `{ current: [], former: [] }`; render uses two `<optgroup>` blocks with the native HTML divider. Empty buckets are guarded so the optgroup labels don't render against empty option lists.
+
+Verified: filtering by Dan Strauss (current) returns 173 bills, Sara Nelson (former) returns 49; bogus name still rejected.
 
 ### Legislation — sponsor filter — committed 2026-04-28
 Fourth of the index-polish bundle. `/legislation/` gets a sponsor dropdown alongside the existing status filter — 14 distinct council member names sourced from `BillSponsorship.name`, sorted alphabetically. Legistar's `' No Sponsor Required'` placeholder is filtered out; everyone else surfaces.
