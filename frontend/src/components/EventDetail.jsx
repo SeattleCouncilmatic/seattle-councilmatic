@@ -6,14 +6,15 @@ import './EventDetail.css'
 function formatDateTime(isoString) {
   if (!isoString) return '—'
   const d = new Date(isoString)
+  // Time portion deliberately omitted: Legistar's EventTime isn't in
+  // our scrape, so start_date always carries midnight-Pacific. Restore
+  // hour/minute/timeZoneName once the scraper picks up EventTime — see
+  // the "Events: capture EventTime in pupa scraper" follow-up.
   return d.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZoneName: 'short',
   })
 }
 
