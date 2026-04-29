@@ -46,9 +46,14 @@ logger = logging.getLogger(__name__)
 DEFAULT_FEW_SHOTS_PATH = "data/few_shot_section_summaries.json"
 DEFAULT_STATE_PATH = "data/summarize_smc_state.json"
 
-# Per-request output ceiling. Above the prompt's 400-word target so
-# adaptive thinking has headroom and we don't truncate mid-sentence.
-MAX_TOKENS_PER_REQUEST = 1500
+# Per-request token ceiling. With `thinking: adaptive` the budget is
+# shared between the model's thinking blocks and the final output, so
+# we need ample headroom — 1500 was too tight (88 of 7,430 sections in
+# the first bulk run came back with thinking blocks but no text block,
+# i.e. thinking ate all the budget). The prompt still caps the actual
+# summary at ~400 words; this is just so adaptive thinking can't starve
+# the output.
+MAX_TOKENS_PER_REQUEST = 4096
 
 
 def _encode_custom_id(section_number: str) -> str:
@@ -250,7 +255,16 @@ class Command(BaseCommand):
             message = result.result.message
             summary_text = self._extract_text(message)
             if not summary_text:
-                errors.append((section_number, "empty text in response"))
+                # Common cause: `thinking: adaptive` ate the max_tokens
+                # budget so no text block was produced. Capture the
+                # stop_reason and block types so we can tell if it's that
+                # vs. a refusal vs. something else.
+                block_types = sorted({getattr(b, "type", "?") for b in message.content})
+                stop_reason = getattr(message, "stop_reason", "?")
+                errors.append((
+                    section_number,
+                    f"empty text (stop_reason={stop_reason} blocks={block_types})",
+                ))
                 continue
 
             section = sections_by_number.get(section_number)
