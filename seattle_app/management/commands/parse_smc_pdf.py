@@ -925,11 +925,28 @@ class Command(BaseCommand):
                     title_num, chap_tail, sec_tail, title = m.groups()
                     title = title.strip()
                     # Handle soft-hyphen wraps: long section titles split across
-                    # two lines end with "-"; fold the next line in.
-                    if title.endswith("-") and i + 1 < len(lines):
-                        next_line = lines[i + 1].strip()
-                        title = title[:-1] + next_line
-                        i += 1
+                    # two lines end with "-"; fold the next line in. Mirror the
+                    # guards in _fold_soft_hyphens — pdfplumber's column-aware
+                    # reader sometimes lands a sentence fragment from a
+                    # different column in the next-line slot (e.g. "Canna-"
+                    # followed by "This Chapter 8.38 shall constitute the…"
+                    # instead of "bis Employee Job Retention Ordinance"). Fold
+                    # only when the next line plausibly continues the broken
+                    # word; otherwise drop the trailing hyphen and accept the
+                    # truncated title.
+                    if title.endswith("-"):
+                        next_line = lines[i + 1].strip() if i + 1 < len(lines) else ""
+                        if (
+                            next_line
+                            and next_line[0].islower()
+                            and not SECTION_RE.match(next_line)
+                            and not CHAPTER_HEADING_RE.match(next_line)
+                            and not SUBCHAPTER_LINE_RE.match(next_line)
+                        ):
+                            title = title[:-1] + next_line
+                            i += 1
+                        else:
+                            title = title[:-1]
                     full_section = f"{title_num}.{chap_tail}.{sec_tail}"
                     chapter_number = f"{title_num}.{chap_tail}"
                     # Only stamp a subchapter_key if the divider's chapter
