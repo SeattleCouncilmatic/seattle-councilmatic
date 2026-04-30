@@ -50,6 +50,14 @@ SUMMARY_NOTE_RE = re.compile(r"^summary\s+and\s+fiscal\s+note\b", re.IGNORECASE)
 # stray "Signed [Something Else]" doc is small in practice — Legistar's
 # document templates are predictable.
 SIGNED_NOTE_RE = re.compile(r"^signed\s+", re.IGNORECASE)
+# Pre-enactment canonical text. Legistar attaches the ordinance body as
+# "Full Text: CB 121173 v1" (or vN for revised drafts) BEFORE the bill
+# is signed; once signed, it gets renamed and re-attached as "Signed
+# Ordinance NNNNN". Both are canonical bill body for our summarization
+# purposes — categorizing separately just so the audit trail can tell
+# them apart and so future code can prefer signed over draft if both
+# are present.
+FULL_TEXT_NOTE_RE = re.compile(r"^full\s+text\b", re.IGNORECASE)
 AFFIDAVIT_NOTE_RE = re.compile(r"\baffidavit\b", re.IGNORECASE)
 
 
@@ -80,6 +88,8 @@ def categorize_note(note: str) -> str:
         return "summary"
     if SIGNED_NOTE_RE.match(note or ""):
         return "signed"
+    if FULL_TEXT_NOTE_RE.match(note or ""):
+        return "full_text"
     if AFFIDAVIT_NOTE_RE.search(note or ""):
         return "affidavit"
     return "other"
@@ -180,10 +190,17 @@ def combine_bill_documents(
         ))
 
     parts: list[str] = []
-    # Summary first, then signed, so the LLM reads framing before
-    # canonical text. Multiple matches in a category get all included.
-    for category, header_word in (("summary", "STAFF SUMMARY AND FISCAL NOTE"),
-                                  ("signed", "SIGNED CANONICAL TEXT")):
+    # Summary first (staff framing), then canonical text (signed if
+    # available, else the pre-enactment "Full Text" draft). Multiple
+    # matches in a category get all included; for an enacted bill that
+    # also still has a draft attached, the LLM sees both — small cost
+    # in tokens, robust to versions diverging.
+    sections = (
+        ("summary",   "STAFF SUMMARY AND FISCAL NOTE"),
+        ("signed",    "SIGNED CANONICAL TEXT"),
+        ("full_text", "FULL TEXT (PRE-ENACTMENT DRAFT)"),
+    )
+    for category, header_word in sections:
         for doc in extracted:
             if doc.category == category and doc.text:
                 parts.append(f"[{header_word} — {doc.note}]\n{doc.text}")
