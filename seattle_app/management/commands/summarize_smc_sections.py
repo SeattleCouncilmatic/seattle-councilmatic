@@ -277,8 +277,12 @@ class Command(BaseCommand):
             section.plain_summary = summary_text
             section.summary_model = message.model
             section.summary_generated_at = timezone.now()
+            section.summary_batch_id = batch_id
             section.save(update_fields=[
-                "plain_summary", "summary_model", "summary_generated_at"
+                "plain_summary",
+                "summary_model",
+                "summary_generated_at",
+                "summary_batch_id",
             ])
             success += 1
 
