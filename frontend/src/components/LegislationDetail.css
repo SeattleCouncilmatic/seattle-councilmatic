@@ -108,17 +108,31 @@
   }
 }
 
-/* ── LLM summary stack (above the body grid) ──────────────────── */
-/* Two stacked cards: "Plain-language summary" (Summary + Impact
-   prose) and "Key changes" (structured list). Render before the
-   sidebar/timeline grid so users see the summary first. Hidden
-   entirely when the bill has no llm_summary. */
+/* ── Right column ─────────────────────────────────────────────── */
+/* Vertical stack of cards in the right column of .leg-detail-body:
+   LLM summary (when available) → Key changes (when key_changes is
+   non-empty) → Action history. The sidebar (Details / Sponsors /
+   Documents) sits to the LEFT in the same grid so the summary
+   prose has the wider column to fill rather than wrapping at half
+   the page width. */
 
+.leg-detail-main-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  /* min-width: 0 so the right column can actually shrink to fit
+     its grid track when prose is narrow; without this a single
+     long unbroken token in the prose would blow out the column. */
+  min-width: 0;
+}
+
+/* Backwards-compat shim — earlier markup used .leg-summary-stack as
+   the wrapper before the layout flip. Keep it as an alias so any
+   stragglers still get the same flex stack. */
 .leg-summary-stack {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  margin-bottom: 1.5rem;
 }
 
 .leg-summary-card {
@@ -246,11 +260,14 @@
 }
 
 .leg-detail-section-title {
-  font-size: 0.75rem;
+  /* Prominent card titles — was small uppercase eyebrow style
+     (0.75rem, gray); bumped to readable card-header weight so
+     "Plain-language summary" and "Key changes" land with proper
+     visual weight. Sidebar cards (Details / Sponsors / Documents)
+     pick up the same treatment for consistency across the page. */
+  font-size: 1.125rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: #6b7280;
+  color: #111827;
   margin: 0 0 1rem;
 }
 
