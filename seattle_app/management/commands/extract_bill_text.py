@@ -86,9 +86,22 @@ class Command(BaseCommand):
                 skipped_no_docs += 1
                 continue
 
+            # Print per-document progress so a stuck or slow extraction
+            # tells us which document is the culprit. Streamed via a
+            # callback so we don't have to refactor combine_bill_documents
+            # to be a generator.
+            def _on_doc(note: str, category: str, status: str, chars: int = 0) -> None:
+                if status == "extracting":
+                    self.stdout.write(f"    · extracting [{category}] {note[:80]}")
+                elif status == "done":
+                    self.stdout.write(f"      → {chars:,} chars")
+                elif status == "skipped":
+                    self.stdout.write(f"    · skipped   [{category}] {note[:80]}")
+
             text, extracted = combine_bill_documents(
                 documents,
                 include_other=opts["include_other"],
+                progress=_on_doc,
             )
             if not text:
                 self.stdout.write(self.style.WARNING(

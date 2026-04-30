@@ -37,10 +37,22 @@ logger = logging.getLogger(__name__)
 # but a stuck request shouldn't block a whole batch run.
 _HTTP_TIMEOUT_SECONDS = 30
 
+# Bytes ceiling for a single attachment download. Most "Full Text" /
+# "Summary and Fiscal Note" docs are well under 1 MB; some bills attach
+# multi-MB EIS reports or comprehensive-plan PDFs that pdfplumber will
+# happily try to parse and balloon memory on. Cap at 50 MB and skip
+# anything larger.
+_MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+
 # How long an extracted blob can grow before we treat it as suspicious
 # and bail out. Bill texts in the wild run 5k–80k chars; anything past
 # this is almost certainly a scan/OCR artifact or wrong document.
 _MAX_TEXT_CHARS = 500_000
+
+# Read chunk size when streaming the download. Smaller chunks help us
+# notice we've exceeded _MAX_DOWNLOAD_BYTES quickly without buffering
+# more than necessary.
+_DOWNLOAD_CHUNK_BYTES = 64 * 1024
 
 # Document categories. Matched against BillDocument.note (case-insensitive,
 # anchored). Order here mirrors the LLM-input concatenation order.
@@ -99,27 +111,54 @@ def extract_text(url: str, media_type: str) -> str:
     """Download `url` and return its plain text.
 
     Returns "" on download failure, unsupported media type (legacy .doc),
-    or extraction failure. Errors are logged at WARNING; callers
-    decide whether to skip the document or surface the error.
+    download exceeding _MAX_DOWNLOAD_BYTES, or extraction failure.
+    Errors are logged at WARNING; callers decide whether to skip the
+    document or surface the error.
+
+    The download is streamed and capped to bound memory: we abort if
+    Content-Length advertises more than the cap, and we stop reading
+    once we've accumulated more than the cap regardless of headers
+    (some servers don't send Content-Length, or lie about it).
     """
+    # Skip the whole download for unsupported media types — no point
+    # eating bytes on a legacy .doc we'll just throw out.
+    if media_type == _DOC_MEDIA:
+        logger.warning("skipping legacy .doc (not supported): %s", url)
+        return ""
+    if media_type not in (_PDF_MEDIA, _DOCX_MEDIA):
+        logger.warning("unsupported media type %r for %s", media_type, url)
+        return ""
+
     try:
-        resp = requests.get(url, timeout=_HTTP_TIMEOUT_SECONDS)
-        resp.raise_for_status()
+        with requests.get(url, timeout=_HTTP_TIMEOUT_SECONDS, stream=True) as resp:
+            resp.raise_for_status()
+            advertised = resp.headers.get("Content-Length")
+            if advertised and advertised.isdigit() and int(advertised) > _MAX_DOWNLOAD_BYTES:
+                logger.warning(
+                    "skipping oversized download (Content-Length=%s, cap=%d): %s",
+                    advertised, _MAX_DOWNLOAD_BYTES, url,
+                )
+                return ""
+            buf = bytearray()
+            for chunk in resp.iter_content(chunk_size=_DOWNLOAD_CHUNK_BYTES):
+                if not chunk:
+                    continue
+                buf.extend(chunk)
+                if len(buf) > _MAX_DOWNLOAD_BYTES:
+                    logger.warning(
+                        "aborting download — exceeded %d bytes: %s",
+                        _MAX_DOWNLOAD_BYTES, url,
+                    )
+                    return ""
+            blob = bytes(buf)
     except requests.RequestException as e:
         logger.warning("download failed: %s — %s", url, e)
         return ""
 
-    blob = resp.content
     if media_type == _PDF_MEDIA:
         return _extract_pdf(blob, url)
     if media_type == _DOCX_MEDIA:
         return _extract_docx(blob, url)
-    if media_type == _DOC_MEDIA:
-        # Legacy binary .doc — not commonly used by Seattle but possible
-        # for older bills. Skip rather than introduce another dep.
-        logger.warning("skipping legacy .doc (not supported): %s", url)
-        return ""
-    logger.warning("unsupported media type %r for %s", media_type, url)
     return ""
 
 
@@ -127,6 +166,7 @@ def combine_bill_documents(
     documents: Iterable[dict],
     *,
     include_other: bool = False,
+    progress=None,
 ) -> tuple[str, list[ExtractedDocument]]:
     """Pick the right documents for a bill, extract each, and return a
     single concatenated text block plus a per-document audit trail.
@@ -134,6 +174,14 @@ def combine_bill_documents(
     Each document in `documents` is a dict with ``note``, ``url``, and
     ``media_type`` keys (matching the shape we already serialize in the
     bill detail API).
+
+    `progress` is an optional callback ``(note, category, status, chars)``
+    invoked at each per-document state transition. ``status`` is one
+    of ``"extracting"`` (about to download/parse), ``"done"`` (text
+    extracted; chars is the count), ``"skipped"`` (category was
+    affidavit/other or text was empty/too large). Use it to stream
+    progress in CLI tools without refactoring this helper into a
+    generator.
 
     The returned text is structured for LLM consumption:
 
@@ -146,6 +194,10 @@ def combine_bill_documents(
     Section markers help the LLM tell staff framing apart from the
     canonical text. If a category yields no text, its block is omitted.
     """
+    def _emit(note: str, category: str, status: str, chars: int = 0) -> None:
+        if progress is not None:
+            progress(note, category, status, chars)
+
     extracted: list[ExtractedDocument] = []
     for doc in documents:
         note = (doc.get("note") or "").strip()
@@ -156,18 +208,21 @@ def combine_bill_documents(
         if category == "affidavit":
             # Legal notice; never has bill content. Record it for the
             # audit trail but don't download.
+            _emit(note, category, "skipped")
             extracted.append(ExtractedDocument(
                 note=note, url=url, media_type=media_type,
                 category=category, text="",
             ))
             continue
         if category == "other" and not include_other:
+            _emit(note, category, "skipped")
             extracted.append(ExtractedDocument(
                 note=note, url=url, media_type=media_type,
                 category=category, text="",
             ))
             continue
         if not url:
+            _emit(note, category, "skipped")
             extracted.append(ExtractedDocument(
                 note=note, url=url, media_type=media_type,
                 category=category, text="",
@@ -175,15 +230,18 @@ def combine_bill_documents(
             ))
             continue
 
+        _emit(note, category, "extracting")
         text = extract_text(url, media_type)
         if len(text) > _MAX_TEXT_CHARS:
             err = f"extracted text too large ({len(text)} chars), suspicious"
             logger.warning("%s: %s", url, err)
+            _emit(note, category, "skipped")
             extracted.append(ExtractedDocument(
                 note=note, url=url, media_type=media_type,
                 category=category, text="", error=err,
             ))
             continue
+        _emit(note, category, "done", len(text))
         extracted.append(ExtractedDocument(
             note=note, url=url, media_type=media_type,
             category=category, text=text,
@@ -218,6 +276,11 @@ def _extract_pdf(blob: bytes, url: str) -> str:
     suitable for the well-formatted ordinance PDFs Legistar produces.
     Page-by-page join with single newlines so paragraph reflow is
     tractable downstream.
+
+    Each page's parsed-char cache is flushed after we extract its text
+    so a 500-page PDF doesn't keep all 500 pages' parsed chars in
+    memory at once. Without this, a single big PDF can balloon a
+    container's RSS by hundreds of megabytes.
     """
     try:
         with pdfplumber.open(io.BytesIO(blob)) as pdf:
@@ -226,6 +289,7 @@ def _extract_pdf(blob: bytes, url: str) -> str:
                 text = page.extract_text() or ""
                 if text.strip():
                     pages.append(text)
+                page.flush_cache()
         return "\n".join(pages).strip()
     except Exception as e:
         logger.warning("pdfplumber failed on %s: %s", url, e)
