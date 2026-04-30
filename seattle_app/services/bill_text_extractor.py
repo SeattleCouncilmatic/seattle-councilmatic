@@ -24,6 +24,8 @@ from __future__ import annotations
 import io
 import logging
 import re
+import signal
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Iterable, Optional
 
@@ -53,6 +55,22 @@ _MAX_TEXT_CHARS = 500_000
 # notice we've exceeded _MAX_DOWNLOAD_BYTES quickly without buffering
 # more than necessary.
 _DOWNLOAD_CHUNK_BYTES = 64 * 1024
+
+# Page-count cap on PDF extraction. Most bill attachments are under
+# 50 pages; "Signed Ordinance" PDFs that embed full settlement
+# agreements or comprehensive-plan documents can run into the
+# hundreds. pdfplumber's per-page parse cost adds up faster than the
+# per-page cache flush releases memory, so we hard-skip past this
+# threshold rather than spending minutes (and gigabytes of RSS) on
+# what's almost never the canonical bill body anyway.
+_MAX_PDF_PAGES = 300
+
+# Wall-clock cap on a single PDF parse. SIGALRM-based, so it works
+# inside the Linux Docker container (manage.py runs in the main
+# thread). Catches malformed PDFs that send pdfplumber/pdfminer into
+# an effectively-infinite loop, and over-large legitimate PDFs whose
+# page count slipped under the cap but still take forever.
+_PDF_EXTRACT_TIMEOUT_SECONDS = 90
 
 # Document categories. Matched against BillDocument.note (case-insensitive,
 # anchored). Order here mirrors the LLM-input concatenation order.
@@ -269,6 +287,40 @@ def combine_bill_documents(
 # Format-specific extraction
 # ---------------------------------------------------------------------------
 
+class _ExtractionTimeout(Exception):
+    """Internal — raised by SIGALRM handler when a PDF parse runs too long."""
+
+
+@contextmanager
+def _pdf_extract_timeout(seconds: int, url: str):
+    """Set a SIGALRM-based wall-clock timeout for the enclosed block.
+
+    Linux-only (signal.SIGALRM doesn't exist on Windows). The Docker
+    container runs Linux and manage.py runs in the main thread, so this
+    works for our use case. Falls back to a no-op on non-Linux callers
+    (e.g. running tests on Windows directly).
+
+    Note: signals only interrupt at Python bytecode boundaries, so
+    pdfplumber blocking deep in a C extension might not return
+    immediately. In practice pdfplumber/pdfminer is mostly Python and
+    interrupts cleanly within a few hundred ms.
+    """
+    if not hasattr(signal, "SIGALRM"):
+        yield
+        return
+
+    def _handler(signum, frame):
+        raise _ExtractionTimeout(f"pdf extraction exceeded {seconds}s: {url}")
+
+    prev = signal.signal(signal.SIGALRM, _handler)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, prev)
+
+
 def _extract_pdf(blob: bytes, url: str) -> str:
     """Plain-text extraction from a PDF blob via pdfplumber.
 
@@ -277,20 +329,41 @@ def _extract_pdf(blob: bytes, url: str) -> str:
     Page-by-page join with single newlines so paragraph reflow is
     tractable downstream.
 
-    Each page's parsed-char cache is flushed after we extract its text
-    so a 500-page PDF doesn't keep all 500 pages' parsed chars in
-    memory at once. Without this, a single big PDF can balloon a
-    container's RSS by hundreds of megabytes.
+    Two memory/runtime bounds:
+
+    1. **Page count cap.** PDFs with more than ``_MAX_PDF_PAGES`` pages
+       are skipped without per-page extraction. Bill bodies don't run
+       300+ pages; an attached comprehensive-plan EIS or settlement
+       agreement does, and that's not the canonical bill text we want.
+    2. **Wall-clock timeout.** Each parse is bounded by
+       ``_PDF_EXTRACT_TIMEOUT_SECONDS`` via SIGALRM. Catches malformed
+       PDFs that send pdfminer into pathological loops, and otherwise
+       gracefully aborts on any single doc taking unreasonable time.
+
+    Each page's parsed-char cache is also flushed immediately after
+    extraction so memory holds at most one page's worth of intermediate
+    state at any given time.
     """
     try:
-        with pdfplumber.open(io.BytesIO(blob)) as pdf:
-            pages: list[str] = []
-            for page in pdf.pages:
-                text = page.extract_text() or ""
-                if text.strip():
-                    pages.append(text)
-                page.flush_cache()
-        return "\n".join(pages).strip()
+        with _pdf_extract_timeout(_PDF_EXTRACT_TIMEOUT_SECONDS, url):
+            with pdfplumber.open(io.BytesIO(blob)) as pdf:
+                num_pages = len(pdf.pages)
+                if num_pages > _MAX_PDF_PAGES:
+                    logger.warning(
+                        "skipping PDF with too many pages (%d > %d): %s",
+                        num_pages, _MAX_PDF_PAGES, url,
+                    )
+                    return ""
+                pages: list[str] = []
+                for page in pdf.pages:
+                    text = page.extract_text() or ""
+                    if text.strip():
+                        pages.append(text)
+                    page.flush_cache()
+            return "\n".join(pages).strip()
+    except _ExtractionTimeout as e:
+        logger.warning("%s", e)
+        return ""
     except Exception as e:
         logger.warning("pdfplumber failed on %s: %s", url, e)
         return ""
