@@ -121,22 +121,36 @@
 }
 
 @media (min-width: 1024px) {
-  /* Default desktop: just the sidebar + one main column.
-     Active when the bill hasn't been summarized yet (only
-     sidebar + Action history are rendered) — sidebar gets
-     its 280px, the rest is empty space. */
+  /* Default desktop: sidebar + one content column. Active when
+     a bill has neither summary nor right-column content (rare —
+     sidebar fills track 1 and track 2 stays empty until the
+     batch fills in a summary). */
   .leg-detail-body {
     grid-template-columns: 280px 1fr;
   }
-  /* Has summary, no key_changes (operational bills): sidebar +
-     summary spanning the rest. */
-  .leg-detail-body--has-summary {
+  /* Single content column on the right — either summary alone
+     (no sponsors, no key_changes) or right-col alone (no
+     summary). Both render in track 2. */
+  .leg-detail-body--has-summary,
+  .leg-detail-body--has-rightcol {
     grid-template-columns: 280px 1fr;
   }
-  /* Has both summary and key_changes: full 3-column layout. */
-  .leg-detail-body--has-summary.leg-detail-body--has-changes {
+  /* Full 3-column: sidebar + summary + right column (Sponsors
+     stacked above Key changes). Activated whenever there's a
+     summary AND something for the right column. */
+  .leg-detail-body--has-summary.leg-detail-body--has-rightcol {
     grid-template-columns: 280px 1fr 1fr;
   }
+}
+
+/* Right column wrapper: Sponsors (when present) on top, Key
+   changes (when present) below. The wrapper itself is one grid
+   item; its children stack vertically. */
+.leg-detail-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
 }
 
 .leg-summary-card {

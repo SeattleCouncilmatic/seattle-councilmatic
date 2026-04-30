@@ -97,6 +97,8 @@ export default function LegislationDetail() {
   const coSponsors      = bill.sponsors.filter(s => !s.primary)
   const hasSummary = !!bill.llm_summary
   const hasKeyChanges = (bill.llm_summary?.key_changes?.length || 0) > 0
+  const hasSponsors = bill.sponsors.length > 0
+  const showRightCol = hasSponsors || hasKeyChanges
 
   return (
     <main className="leg-detail-page">
@@ -129,7 +131,7 @@ export default function LegislationDetail() {
         <div className={`leg-detail-body${
           hasSummary ? ' leg-detail-body--has-summary' : ''
         }${
-          hasKeyChanges ? ' leg-detail-body--has-changes' : ''
+          showRightCol ? ' leg-detail-body--has-rightcol' : ''
         }`}>
 
           {/* Left column: reference info — Details, Sponsors, Documents,
@@ -165,33 +167,6 @@ export default function LegislationDetail() {
                 )}
               </dl>
             </section>
-
-            {bill.sponsors.length > 0 && (
-              <section className="leg-detail-section">
-                <h2 className="leg-detail-section-title">Sponsors</h2>
-                {primarySponsors.length > 0 && (
-                  <ul className="leg-detail-sponsor-list">
-                    {primarySponsors.map(s => (
-                      <li key={s.name} className="leg-detail-sponsor leg-detail-sponsor--primary">
-                        {s.name}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {coSponsors.length > 0 && (
-                  <>
-                    <p className="leg-detail-cosponsor-label">Co-sponsors</p>
-                    <ul className="leg-detail-sponsor-list">
-                      {coSponsors.map(s => (
-                        <li key={s.name} className="leg-detail-sponsor">
-                          {s.name}
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </section>
-            )}
 
             {bill.documents.length > 0 && (
               <section className="leg-detail-section">
@@ -260,32 +235,67 @@ export default function LegislationDetail() {
             </article>
           )}
 
-          {/* Right column: Key changes */}
-          {hasKeyChanges && (() => {
-            const validSet = new Set(
-              (bill.llm_summary.affected_sections || []).map(s => s.section_number)
-            )
-            return (
-              <article className="leg-detail-section leg-summary-card leg-card-changes">
-                <h2 className="leg-detail-section-title">Key changes</h2>
-                <ol className="leg-key-changes">
-                  {bill.llm_summary.key_changes.map((kc, i) => (
-                    <li key={i} className="leg-key-change">
-                      <h3 className="leg-key-change-title">{kc.title}</h3>
-                      {kc.description && (
-                        <p className="leg-key-change-desc">{kc.description}</p>
-                      )}
-                      {kc.affected_section && (
-                        <p className="leg-key-change-section">
-                          Affected: <SmcSectionRef number={kc.affected_section} validSet={validSet} />
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ol>
-              </article>
-            )
-          })()}
+          {/* Right column: Sponsors on top, Key changes below. Wrapped so
+              the column itself is one grid child even when both cards are
+              present; the wrapper renders only when there's content for it. */}
+          {showRightCol && (
+            <div className="leg-detail-right-col">
+
+              {hasSponsors && (
+                <section className="leg-detail-section">
+                  <h2 className="leg-detail-section-title">Sponsors</h2>
+                  {primarySponsors.length > 0 && (
+                    <ul className="leg-detail-sponsor-list">
+                      {primarySponsors.map(s => (
+                        <li key={s.name} className="leg-detail-sponsor leg-detail-sponsor--primary">
+                          {s.name}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {coSponsors.length > 0 && (
+                    <>
+                      <p className="leg-detail-cosponsor-label">Co-sponsors</p>
+                      <ul className="leg-detail-sponsor-list">
+                        {coSponsors.map(s => (
+                          <li key={s.name} className="leg-detail-sponsor">
+                            {s.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </section>
+              )}
+
+              {hasKeyChanges && (() => {
+                const validSet = new Set(
+                  (bill.llm_summary.affected_sections || []).map(s => s.section_number)
+                )
+                return (
+                  <article className="leg-detail-section leg-summary-card leg-card-changes">
+                    <h2 className="leg-detail-section-title">Key changes</h2>
+                    <ol className="leg-key-changes">
+                      {bill.llm_summary.key_changes.map((kc, i) => (
+                        <li key={i} className="leg-key-change">
+                          <h3 className="leg-key-change-title">{kc.title}</h3>
+                          {kc.description && (
+                            <p className="leg-key-change-desc">{kc.description}</p>
+                          )}
+                          {kc.affected_section && (
+                            <p className="leg-key-change-section">
+                              Affected: <SmcSectionRef number={kc.affected_section} validSet={validSet} />
+                            </p>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  </article>
+                )
+              })()}
+
+            </div>
+          )}
 
         </div>
       </div>
