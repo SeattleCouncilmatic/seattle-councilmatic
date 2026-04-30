@@ -178,12 +178,12 @@ export default function LegislationDetail() {
                     </dd>
                   </>
                 )}
-                {bill.legistar_id && (
+                {bill.legistar_url && (
                   <>
                     <dt>Legistar</dt>
                     <dd>
                       <a
-                        href={`https://seattle.legistar.com/LegislationDetail.aspx?ID=${bill.legistar_id}`}
+                        href={bill.legistar_url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="leg-detail-external-link"
