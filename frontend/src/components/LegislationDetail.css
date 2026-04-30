@@ -343,6 +343,21 @@
   font-weight: 700;
 }
 
+/* Inline variant — used when the sponsor list lives inside the
+   Details dl rather than its own card. The standalone-card
+   styling (border separators, larger padding) reads as visually
+   heavy in the dl context, so we drop the borders and tighten
+   spacing. */
+.leg-detail-sponsor-list--inline {
+  margin: 0;
+}
+.leg-detail-sponsor-list--inline .leg-detail-sponsor {
+  padding: 0;
+  border-bottom: none;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
 .leg-detail-cosponsor-label {
   font-size: 0.75rem;
   font-weight: 600;

@@ -97,8 +97,8 @@ export default function LegislationDetail() {
   const coSponsors      = bill.sponsors.filter(s => !s.primary)
   const hasSummary = !!bill.llm_summary
   const hasKeyChanges = (bill.llm_summary?.key_changes?.length || 0) > 0
-  const hasSponsors = bill.sponsors.length > 0
-  const showRightCol = hasSponsors || hasKeyChanges
+  const hasDocuments = bill.documents.length > 0
+  const showRightCol = hasKeyChanges || hasDocuments
 
   return (
     <main className="leg-detail-page">
@@ -150,6 +150,34 @@ export default function LegislationDetail() {
                 <dd>{bill.bill_type || '—'}</dd>
                 <dt>Last updated</dt>
                 <dd>{bill.last_modified ? new Date(bill.last_modified).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</dd>
+                {primarySponsors.length > 0 && (
+                  <>
+                    <dt>{primarySponsors.length === 1 ? 'Sponsor' : 'Sponsors'}</dt>
+                    <dd>
+                      <ul className="leg-detail-sponsor-list leg-detail-sponsor-list--inline">
+                        {primarySponsors.map(s => (
+                          <li key={s.name} className="leg-detail-sponsor leg-detail-sponsor--primary">
+                            {s.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </>
+                )}
+                {coSponsors.length > 0 && (
+                  <>
+                    <dt>Co-sponsors</dt>
+                    <dd>
+                      <ul className="leg-detail-sponsor-list leg-detail-sponsor-list--inline">
+                        {coSponsors.map(s => (
+                          <li key={s.name} className="leg-detail-sponsor">
+                            {s.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </>
+                )}
                 {bill.legistar_id && (
                   <>
                     <dt>Legistar</dt>
@@ -167,27 +195,6 @@ export default function LegislationDetail() {
                 )}
               </dl>
             </section>
-
-            {bill.documents.length > 0 && (
-              <section className="leg-detail-section">
-                <h2 className="leg-detail-section-title">Documents</h2>
-                <ul className="leg-detail-doc-list">
-                  {bill.documents.map((doc, i) => (
-                    <li key={i} className="leg-detail-doc-item">
-                      <MediaIcon mediaType={doc.media_type} />
-                      <a
-                        href={doc.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="leg-detail-doc-link"
-                      >
-                        {doc.name}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
 
             <section className="leg-detail-section leg-detail-main">
               <h2 className="leg-detail-section-title">Action history</h2>
@@ -235,38 +242,11 @@ export default function LegislationDetail() {
             </article>
           )}
 
-          {/* Right column: Sponsors on top, Key changes below. Wrapped so
-              the column itself is one grid child even when both cards are
-              present; the wrapper renders only when there's content for it. */}
+          {/* Right column: Key changes on top, Documents below. The
+              wrapper itself is one grid child; renders only when there's
+              content for it (key_changes or documents). */}
           {showRightCol && (
             <div className="leg-detail-right-col">
-
-              {hasSponsors && (
-                <section className="leg-detail-section">
-                  <h2 className="leg-detail-section-title">Sponsors</h2>
-                  {primarySponsors.length > 0 && (
-                    <ul className="leg-detail-sponsor-list">
-                      {primarySponsors.map(s => (
-                        <li key={s.name} className="leg-detail-sponsor leg-detail-sponsor--primary">
-                          {s.name}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {coSponsors.length > 0 && (
-                    <>
-                      <p className="leg-detail-cosponsor-label">Co-sponsors</p>
-                      <ul className="leg-detail-sponsor-list">
-                        {coSponsors.map(s => (
-                          <li key={s.name} className="leg-detail-sponsor">
-                            {s.name}
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </section>
-              )}
 
               {hasKeyChanges && (() => {
                 const validSet = new Set(
@@ -293,6 +273,27 @@ export default function LegislationDetail() {
                   </article>
                 )
               })()}
+
+              {hasDocuments && (
+                <section className="leg-detail-section">
+                  <h2 className="leg-detail-section-title">Documents</h2>
+                  <ul className="leg-detail-doc-list">
+                    {bill.documents.map((doc, i) => (
+                      <li key={i} className="leg-detail-doc-item">
+                        <MediaIcon mediaType={doc.media_type} />
+                        <a
+                          href={doc.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="leg-detail-doc-link"
+                        >
+                          {doc.name}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
 
             </div>
           )}
