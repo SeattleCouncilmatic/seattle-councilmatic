@@ -30,6 +30,7 @@ data/few_shot_section_summaries_*.json
 
 # Bulk-summarizer state (Anthropic batch IDs are per-environment).
 data/summarize_smc_state.json
+data/summarize_legislation_state.json
 
 # JavaScript
 frontend/node_modules/

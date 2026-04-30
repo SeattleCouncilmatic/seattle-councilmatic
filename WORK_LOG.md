@@ -24,7 +24,7 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
   3. ~~**Bulk command** `summarize_smc_sections` — reads `data/few_shot_section_summaries.json` to build cached few-shot system prompt; submits Batch API jobs over sections without `plain_summary`; resumable via persisted batch IDs; idempotent on re-run.~~ *(shipped this PR.)*
   4. **Bills text extraction → summarization → API → frontend**, staged because the scraper only stores attachment URLs (not text):
      - 4a. ~~**Bill text extractor** — `seattle_app/services/bill_text_extractor.py` + `BillText` model + `extract_bill_text` management command. Downloads each bill's "Summary and Fiscal Note" (.docx) and "Signed Ordinance/Resolution" (.pdf) attachments, concatenates with section markers, persists to `BillText`. Audit trail in `source_documents` JSON.~~ *(shipped this PR.)*
-     - 4b. **Bills summarizer** `summarize_legislation` — reads `BillText.text`, submits to Anthropic Batch API with Opus, persists to `LegislationSummary` (already exists). Adds `summary_batch_id` for parity with the SMC pattern. `affected_sections` discovered via `extract_ordinance_refs` over the extracted text.
+     - 4b. ~~**Bills summarizer** `summarize_legislation` — reads `BillText.text`, submits to Anthropic Batch API with Opus, persists to `LegislationSummary` (already exists). Adds `summary_batch_id` for parity with the SMC pattern. `affected_sections` discovered from the LLM's `key_changes[].affected_section` strings (resolved to `MunicipalCodeSection` rows post-response).~~ *(shipped this PR.)*
      - 4c. **API**: extend `/api/legislation/<slug>/` to include `llm_summary` block.
      - 4d. **Frontend**: render summary in `LegislationDetail` with the same plain-prose paragraph treatment as `MuniCodeSection`.
   5. **API**: ~~add section summary to `/api/smc/sections/<n>/` — already exposed `plain_summary` / `summary_model` / `summary_generated_at` (this PR uses them).~~ Still pending: extend `/api/legislation/<slug>/` to include `llm_summary` once the bills command runs.
@@ -57,6 +57,23 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### LLM — `summarize_legislation` command (Stage 2 of bills pipeline) — committed 2026-04-30
+Reads `BillText.text` (populated by Stage 1's `extract_bill_text`), submits each bill to Sonnet 4.6 via the Anthropic Message Batches API, and persists structured results to the existing `LegislationSummary` model. Two-phase like `summarize_smc_sections`: first invocation submits, subsequent invocations poll + process. State at `data/summarize_legislation_state.json` (gitignored).
+
+**Schema**: new `LegislationSummary.summary_batch_id` (CharField max 64) — parity with `MunicipalCodeSection.summary_batch_id` from PR #73. Migration `0019_legislationsummary_summary_batch_id`.
+
+**Per-bill request**: cached `LEGISLATION_SYSTEM_PROMPT` (`cache_control: ephemeral`) + structured JSON output via `output_config.format.json_schema` against the existing `LEGISLATION_OUTPUT_SCHEMA` (summary, impact_analysis, key_changes[]). Explicit thinking budget `{"type": "enabled", "budget_tokens": 8192}` with `max_tokens=16384` — same lesson learned in PR #70 about adaptive thinking starving output. Bill identifiers go through space↔underscore encoding for the `custom_id` field (Anthropic's `^[a-zA-Z0-9_-]{1,64}$` doesn't allow spaces in `"CB 121177"` style identifiers).
+
+**Input cap**: 600k chars per bill, tail-truncated. Opus's 200k-token context fits ~800k chars but we need room for system prompt + thinking + output. p95 of `BillText.text` is 192k chars, so the cap only bites on the very largest bills (e.g., CB 120993 at 871k chars) — and `BillText` concatenates the staff Summary first, so truncating the tail keeps the most useful content.
+
+**Idempotency + affected_sections**: bills with an existing `LegislationSummary` row are skipped unless `--force`. After parsing the LLM's structured response, `key_changes[].affected_section` strings are resolved to `MunicipalCodeSection` rows via `section_number` lookup and saved to the M2M; unmatched section numbers (typos, deprecated sections) are silently dropped from the M2M but remain in the JSON for the audit trail.
+
+**Model selection**: `CLAUDE_LEGISLATION_MODEL` default flipped from `claude-opus-4-7` → `claude-sonnet-4-6`. The original "Opus for legislation" decision was made before we'd tested anything; with the structured JSON output config enforcing format and the input being mostly staff-prepared plain-language summaries, Sonnet is sufficient and ~5x cheaper. New `--model` CLI flag for ad-hoc A/B testing (e.g. `--model claude-opus-4-7 --limit 5` to compare on a smoke batch).
+
+**CLI**: `--limit N`, `--force`, `--dry-run`, `--bill <identifier>`, `--model`, `--state-file`.
+
+**Cost estimate** (with current size distribution: avg 40k chars, p95 192k chars, max 871k chars per bill): **~$17 total** via Sonnet 4.6 + Batch API + cached system prompt for the full 381 bills (~$85 if escalated to Opus).
 
 ### LLM — bill text extractor (Stage 1 of bills pipeline) — committed 2026-04-29
 First piece of the bills LLM pipeline. The OCD/pupa scraper only stores attachment URLs (not text), so this stage adds the download + extract layer that the bills summarizer (Stage 2) will read from.
