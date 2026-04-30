@@ -255,6 +255,54 @@ class LegislationSummary(models.Model):
         return f"Summary: {self.bill.identifier}"
 
 
+class BillText(models.Model):
+    """Extracted plain text of a Bill's substantive attachments.
+
+    Seattle bills carry their content in Legistar document attachments
+    — typically a "Summary and Fiscal Note" (.docx) plus, after
+    enactment, a "Signed Ordinance NNNNN" (.pdf). The OCD/pupa Bill row
+    only stores attachment URLs, so this model is the cache of their
+    extracted plain text, keyed 1:1 by Bill. The bill summarizer
+    reads from `text` instead of re-downloading on every LLM call.
+
+    `source_documents` is the audit trail: which attachments were
+    extracted, what category they fell into, what their byte sizes were,
+    and any per-document error message. Re-running extraction overwrites
+    `text` and refreshes the audit trail.
+    """
+    bill = models.OneToOneField(
+        Bill,
+        on_delete=models.CASCADE,
+        related_name="extracted_text",
+        help_text="The legislation whose attachments produced this text.",
+    )
+    text = models.TextField(
+        blank=True,
+        help_text=(
+            "Concatenated plain text of all chosen attachments, with "
+            "section markers between sources (staff summary first, then "
+            "signed canonical text)."
+        ),
+    )
+    source_documents = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "Per-document audit trail: list of "
+            "{note, url, media_type, category, char_count, error}."
+        ),
+    )
+    extracted_at = models.DateTimeField(auto_now_add=True)
+    last_regenerated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Bill Text"
+        verbose_name_plural = "Bill Texts"
+
+    def __str__(self):
+        return f"Text: {self.bill.identifier} ({len(self.text):,} chars)"
+
+
 class SeattleBill(Bill):
     """
     Extend the base Bill model for city-specific functionality.
