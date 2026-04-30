@@ -605,7 +605,12 @@ def legislation_detail(request, slug):
     full action history (oldest first), and attached documents.
     """
     bill = get_object_or_404(
-        Bill.objects.prefetch_related('actions', 'sponsorships', 'documents__links'),
+        Bill.objects.prefetch_related(
+            'actions',
+            'sponsorships',
+            'documents__links',
+            'llm_summary__affected_sections',
+        ),
         slug=slug,
     )
 
@@ -648,6 +653,29 @@ def legislation_detail(request, slug):
     earliest = bill.actions.order_by('date').first()
     date_introduced = earliest.date[:10] if earliest and earliest.date else None
 
+    # LLM summary block — null when the summarize_legislation pipeline hasn't
+    # touched this bill yet (or when summarization failed for it). Frontend
+    # renders the cards conditionally so a missing summary degrades to the
+    # original sidebar/timeline layout.
+    llm_summary = None
+    summary = getattr(bill, 'llm_summary', None)
+    if summary is not None:
+        llm_summary = {
+            'summary':           summary.summary,
+            'impact_analysis':   summary.impact_analysis,
+            'key_changes':       summary.key_changes,
+            'affected_sections': [
+                {
+                    'section_number': s.section_number,
+                    'title':          s.title,
+                }
+                for s in summary.affected_sections.all().order_by('section_number')
+            ],
+            'model_version':     summary.model_version,
+            'generated_at':      summary.generated_at.isoformat() if summary.generated_at else None,
+            'summary_batch_id':  summary.summary_batch_id or None,
+        }
+
     return JsonResponse({
         'identifier':      bill.identifier,
         'title':           bill.title,
@@ -663,6 +691,7 @@ def legislation_detail(request, slug):
         'actions':         actions,
         'documents':       documents,
         'slug':            bill.slug,
+        'llm_summary':     llm_summary,
     })
 
 

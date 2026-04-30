@@ -25,8 +25,8 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
   4. **Bills text extraction → summarization → API → frontend**, staged because the scraper only stores attachment URLs (not text):
      - 4a. ~~**Bill text extractor** — `seattle_app/services/bill_text_extractor.py` + `BillText` model + `extract_bill_text` management command. Downloads each bill's "Summary and Fiscal Note" (.docx) and "Signed Ordinance/Resolution" (.pdf) attachments, concatenates with section markers, persists to `BillText`. Audit trail in `source_documents` JSON.~~ *(shipped this PR.)*
      - 4b. ~~**Bills summarizer** `summarize_legislation` — reads `BillText.text`, submits to Anthropic Batch API with Opus, persists to `LegislationSummary` (already exists). Adds `summary_batch_id` for parity with the SMC pattern. `affected_sections` discovered from the LLM's `key_changes[].affected_section` strings (resolved to `MunicipalCodeSection` rows post-response).~~ *(shipped this PR.)*
-     - 4c. **API**: extend `/api/legislation/<slug>/` to include `llm_summary` block.
-     - 4d. **Frontend**: render summary in `LegislationDetail` with the same plain-prose paragraph treatment as `MuniCodeSection`.
+     - 4c. ~~**API**: extend `/api/legislation/<slug>/` to include `llm_summary` block.~~ *(shipped this PR.)*
+     - 4d. ~~**Frontend**: render summary in `LegislationDetail` with the same plain-prose paragraph treatment as `MuniCodeSection`.~~ *(shipped this PR.)*
   5. **API**: ~~add section summary to `/api/smc/sections/<n>/` — already exposed `plain_summary` / `summary_model` / `summary_generated_at` (this PR uses them).~~ Still pending: extend `/api/legislation/<slug>/` to include `llm_summary` once the bills command runs.
   6. ~~**Frontend (SMC)**: render summary in `MuniCodeSection` alongside the full text in a 2-column layout at desktop widths.~~ *(shipped this PR.)* Still pending: render summary in `LegislationDetail` once bills are summarized.
 
@@ -57,6 +57,17 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### LLM — render legislation summaries in API + frontend (Stage 3 of bills pipeline) — committed 2026-04-30
+Final stage of the bills LLM pipeline — surfaces the summaries to users.
+
+**API** — `/api/legislation/<slug>/` gets a new `llm_summary` block. Contains `summary` (prose), `impact_analysis` (prose), `key_changes` (the JSON list with title/description/affected_section per item), `affected_sections` (resolved M2M list of `{section_number, title}` for resolvable references), `model_version`, `generated_at`, `summary_batch_id`. Returns `null` when the bill hasn't been summarized yet, so the frontend can render the page either way.
+
+**Frontend** — two-card layout above the existing sidebar/timeline grid in `LegislationDetail`:
+- Card 1, "Plain-language summary": holds Summary + Impact prose, distinguished by small uppercase `SUMMARY` / `IMPACT` eyebrows. Both prose blocks split on `\n\n` and emit one `<p>` per chunk (same treatment as the SMC summary panel).
+- Card 2, "Key changes": numbered list (`<ol>` with CSS counter) where each item has a title, description, and a "Affected: SMC X.Y.Z →" footer. The footer is a real `<Link>` when the section number resolves to a `MunicipalCodeSection` row (we use the API's `affected_sections` list as the validation set); for unresolved references (chapters like `23.32`, deprecated sections, typos), it falls back to plain monospace text in muted color.
+
+Container `max-width` bumped from 1100px → 80rem to match the SMC pattern. Existing `.leg-detail-section` card chrome is reused for the new cards via a shared `.leg-summary-card` marker class. Bills without an `llm_summary` (operational bills the LLM correctly identified as code-touch-free, or anything not yet processed by the batch) skip the cards entirely and render the original layout.
 
 ### LLM — `summarize_legislation` command (Stage 2 of bills pipeline) — committed 2026-04-30
 Reads `BillText.text` (populated by Stage 1's `extract_bill_text`), submits each bill to Sonnet 4.6 via the Anthropic Message Batches API, and persists structured results to the existing `LegislationSummary` model. Two-phase like `summarize_smc_sections`: first invocation submits, subsequent invocations poll + process. State at `data/summarize_legislation_state.json` (gitignored).
