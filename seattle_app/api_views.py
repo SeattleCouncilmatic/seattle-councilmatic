@@ -1138,6 +1138,7 @@ def smc_section_detail(request, section_number):
         'plain_summary':        s.plain_summary or None,
         'summary_model':        s.summary_model or None,
         'summary_generated_at': s.summary_generated_at.isoformat() if s.summary_generated_at else None,
+        'summary_batch_id':     s.summary_batch_id or None,
         'source_pdf_page':      s.source_pdf_page,
         'neighbors':            _section_neighbors_pair(s.section_number),
     })

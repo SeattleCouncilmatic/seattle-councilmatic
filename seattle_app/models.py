@@ -60,6 +60,15 @@ class MunicipalCodeSection(models.Model):
         blank=True,
         help_text="When the summary was generated"
     )
+    summary_batch_id = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text=(
+            "Anthropic Message Batches ID this summary came from "
+            "(e.g., 'msgbatch_01PCxUY7AHperTdVueAxmYr7'). Empty for "
+            "synchronous one-off generations or legacy rows."
+        ),
+    )
     source_pdf_page = models.IntegerField(
         null=True,
         blank=True,
