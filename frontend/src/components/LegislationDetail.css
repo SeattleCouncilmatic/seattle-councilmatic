@@ -126,6 +126,32 @@
   min-width: 0;
 }
 
+/* When the bill has BOTH a Plain-language summary AND Key changes,
+   switch the right column to a 2-column sub-grid at ≥1024px:
+   summary spans the top row, Action history sits bottom-left and
+   Key changes bottom-right. Falls back to the flex stack on narrower
+   viewports or when only one of the two cards is present (e.g.
+   operational bills with summary but no key_changes). */
+@media (min-width: 1024px) {
+  .leg-detail-main-column--has-summary.leg-detail-main-column--has-changes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "summary summary"
+      "history changes";
+    align-items: start;
+  }
+  .leg-detail-main-column--has-summary.leg-detail-main-column--has-changes .leg-card-summary {
+    grid-area: summary;
+  }
+  .leg-detail-main-column--has-summary.leg-detail-main-column--has-changes .leg-card-changes {
+    grid-area: changes;
+  }
+  .leg-detail-main-column--has-summary.leg-detail-main-column--has-changes .leg-detail-main {
+    grid-area: history;
+  }
+}
+
 /* Backwards-compat shim — earlier markup used .leg-summary-stack as
    the wrapper before the layout flip. Keep it as an alias so any
    stragglers still get the same flex stack. */

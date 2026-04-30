@@ -95,6 +95,8 @@ export default function LegislationDetail() {
 
   const primarySponsors = bill.sponsors.filter(s => s.primary)
   const coSponsors      = bill.sponsors.filter(s => !s.primary)
+  const hasSummary = !!bill.llm_summary
+  const hasKeyChanges = (bill.llm_summary?.key_changes?.length || 0) > 0
 
   return (
     <main className="leg-detail-page">
@@ -207,11 +209,18 @@ export default function LegislationDetail() {
             )}
           </aside>
 
-          {/* Right column: LLM summary cards (when available), then action history */}
-          <div className="leg-detail-main-column">
+          {/* Right column: LLM summary spans the top, then Action history sits
+              to the LEFT of Key changes when both are present (sub-grid). When
+              only one of those exists, the column collapses back to a stacked
+              flex layout — see the matching CSS for the conditional grid. */}
+          <div className={`leg-detail-main-column${
+            hasSummary ? ' leg-detail-main-column--has-summary' : ''
+          }${
+            hasKeyChanges ? ' leg-detail-main-column--has-changes' : ''
+          }`}>
 
             {bill.llm_summary && (
-              <article className="leg-detail-section leg-summary-card">
+              <article className="leg-detail-section leg-summary-card leg-card-summary">
                 <h2 className="leg-detail-section-title">Plain-language summary</h2>
                 {bill.llm_summary.summary && (
                   <>
@@ -240,7 +249,7 @@ export default function LegislationDetail() {
                 (bill.llm_summary.affected_sections || []).map(s => s.section_number)
               )
               return (
-                <article className="leg-detail-section leg-summary-card">
+                <article className="leg-detail-section leg-summary-card leg-card-changes">
                   <h2 className="leg-detail-section-title">Key changes</h2>
                   <ol className="leg-key-changes">
                     {bill.llm_summary.key_changes.map((kc, i) => (
