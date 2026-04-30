@@ -7,7 +7,10 @@
 }
 
 .leg-detail-container {
-  max-width: 80rem;
+  /* Wider than the SMC pages — legislation detail puts up to three
+     content columns side-by-side at desktop (sidebar / summary /
+     key-changes), and 80rem cramped each column too tightly. */
+  max-width: 90rem;
   margin: 0 auto;
 }
 
@@ -94,45 +97,60 @@
 }
 
 /* ── Body layout ──────────────────────────────────────────────── */
+/* Up to three columns side-by-side at desktop:
+     1. Sidebar (Details / Sponsors / Documents / Action history)
+     2. Plain-language summary card        (only when present)
+     3. Key changes card                   (only when present)
+   Cards are direct grid children — no wrapper. The grid template
+   adapts to which cards exist so we never leave empty/orphan
+   columns when a bill is operational (no key changes) or hasn't
+   been summarized yet. */
 
 .leg-detail-body {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 1fr;       /* mobile default — single column */
   gap: 1.5rem;
   align-items: start;
 }
 
-@media (max-width: 768px) {
-  .leg-detail-body {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ── Right column ─────────────────────────────────────────────── */
-/* Vertical stack of cards in the right column of .leg-detail-body:
-   LLM summary (when available) → Key changes (when key_changes is
-   non-empty) → Action history. The sidebar (Details / Sponsors /
-   Documents) sits to the LEFT in the same grid so the summary
-   prose has the wider column to fill rather than wrapping at half
-   the page width. */
-
-.leg-detail-main-column {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  /* min-width: 0 so the right column can actually shrink to fit
-     its grid track when prose is narrow; without this a single
-     long unbroken token in the prose would blow out the column. */
+/* `min-width: 0` on each grid child so cards can shrink to their
+   track width without long unbroken tokens (URLs, monospace
+   identifiers) blowing out their column. */
+.leg-detail-body > * {
   min-width: 0;
 }
 
-/* Backwards-compat shim — earlier markup used .leg-summary-stack as
-   the wrapper before the layout flip. Keep it as an alias so any
-   stragglers still get the same flex stack. */
-.leg-summary-stack {
+@media (min-width: 1024px) {
+  /* Default desktop: sidebar + one content column. Active when
+     a bill has neither summary nor right-column content (rare —
+     sidebar fills track 1 and track 2 stays empty until the
+     batch fills in a summary). */
+  .leg-detail-body {
+    grid-template-columns: 280px 1fr;
+  }
+  /* Single content column on the right — either summary alone
+     (no sponsors, no key_changes) or right-col alone (no
+     summary). Both render in track 2. */
+  .leg-detail-body--has-summary,
+  .leg-detail-body--has-rightcol {
+    grid-template-columns: 280px 1fr;
+  }
+  /* Full 3-column: sidebar + summary + right column (Sponsors
+     stacked above Key changes). Activated whenever there's a
+     summary AND something for the right column. */
+  .leg-detail-body--has-summary.leg-detail-body--has-rightcol {
+    grid-template-columns: 280px 1fr 1fr;
+  }
+}
+
+/* Right column wrapper: Sponsors (when present) on top, Key
+   changes (when present) below. The wrapper itself is one grid
+   item; its children stack vertically. */
+.leg-detail-right-col {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-width: 0;
 }
 
 .leg-summary-card {
@@ -323,6 +341,21 @@
 
 .leg-detail-sponsor--primary {
   font-weight: 700;
+}
+
+/* Inline variant — used when the sponsor list lives inside the
+   Details dl rather than its own card. The standalone-card
+   styling (border separators, larger padding) reads as visually
+   heavy in the dl context, so we drop the borders and tighten
+   spacing. */
+.leg-detail-sponsor-list--inline {
+  margin: 0;
+}
+.leg-detail-sponsor-list--inline .leg-detail-sponsor {
+  padding: 0;
+  border-bottom: none;
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 .leg-detail-cosponsor-label {

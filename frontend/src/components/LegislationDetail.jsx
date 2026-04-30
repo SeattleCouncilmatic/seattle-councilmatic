@@ -95,6 +95,10 @@ export default function LegislationDetail() {
 
   const primarySponsors = bill.sponsors.filter(s => s.primary)
   const coSponsors      = bill.sponsors.filter(s => !s.primary)
+  const hasSummary = !!bill.llm_summary
+  const hasKeyChanges = (bill.llm_summary?.key_changes?.length || 0) > 0
+  const hasDocuments = bill.documents.length > 0
+  const showRightCol = hasKeyChanges || hasDocuments
 
   return (
     <main className="leg-detail-page">
@@ -124,9 +128,15 @@ export default function LegislationDetail() {
           </div>
         </header>
 
-        <div className="leg-detail-body">
+        <div className={`leg-detail-body${
+          hasSummary ? ' leg-detail-body--has-summary' : ''
+        }${
+          showRightCol ? ' leg-detail-body--has-rightcol' : ''
+        }`}>
 
-          {/* Left column: key facts + sponsors + documents */}
+          {/* Left column: reference info — Details, Sponsors, Documents,
+              and Action history. The right column(s) carry the LLM
+              summary cards. */}
           <aside className="leg-detail-sidebar">
 
             <section className="leg-detail-section">
@@ -140,6 +150,34 @@ export default function LegislationDetail() {
                 <dd>{bill.bill_type || '—'}</dd>
                 <dt>Last updated</dt>
                 <dd>{bill.last_modified ? new Date(bill.last_modified).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</dd>
+                {primarySponsors.length > 0 && (
+                  <>
+                    <dt>{primarySponsors.length === 1 ? 'Sponsor' : 'Sponsors'}</dt>
+                    <dd>
+                      <ul className="leg-detail-sponsor-list leg-detail-sponsor-list--inline">
+                        {primarySponsors.map(s => (
+                          <li key={s.name} className="leg-detail-sponsor leg-detail-sponsor--primary">
+                            {s.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </>
+                )}
+                {coSponsors.length > 0 && (
+                  <>
+                    <dt>Co-sponsors</dt>
+                    <dd>
+                      <ul className="leg-detail-sponsor-list leg-detail-sponsor-list--inline">
+                        {coSponsors.map(s => (
+                          <li key={s.name} className="leg-detail-sponsor">
+                            {s.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </>
+                )}
                 {bill.legistar_id && (
                   <>
                     <dt>Legistar</dt>
@@ -158,111 +196,8 @@ export default function LegislationDetail() {
               </dl>
             </section>
 
-            {bill.sponsors.length > 0 && (
-              <section className="leg-detail-section">
-                <h2 className="leg-detail-section-title">Sponsors</h2>
-                {primarySponsors.length > 0 && (
-                  <ul className="leg-detail-sponsor-list">
-                    {primarySponsors.map(s => (
-                      <li key={s.name} className="leg-detail-sponsor leg-detail-sponsor--primary">
-                        {s.name}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {coSponsors.length > 0 && (
-                  <>
-                    <p className="leg-detail-cosponsor-label">Co-sponsors</p>
-                    <ul className="leg-detail-sponsor-list">
-                      {coSponsors.map(s => (
-                        <li key={s.name} className="leg-detail-sponsor">
-                          {s.name}
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </section>
-            )}
-
-            {bill.documents.length > 0 && (
-              <section className="leg-detail-section">
-                <h2 className="leg-detail-section-title">Documents</h2>
-                <ul className="leg-detail-doc-list">
-                  {bill.documents.map((doc, i) => (
-                    <li key={i} className="leg-detail-doc-item">
-                      <MediaIcon mediaType={doc.media_type} />
-                      <a
-                        href={doc.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="leg-detail-doc-link"
-                      >
-                        {doc.name}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-          </aside>
-
-          {/* Right column: LLM summary cards (when available), then action history */}
-          <div className="leg-detail-main-column">
-
-            {bill.llm_summary && (
-              <article className="leg-detail-section leg-summary-card">
-                <h2 className="leg-detail-section-title">Plain-language summary</h2>
-                {bill.llm_summary.summary && (
-                  <>
-                    <p className="leg-summary-eyebrow">Summary</p>
-                    {bill.llm_summary.summary.split('\n\n').map((para, i) => (
-                      <p key={i} className="leg-summary-prose">{para}</p>
-                    ))}
-                  </>
-                )}
-                {bill.llm_summary.impact_analysis && (
-                  <>
-                    <p className="leg-summary-eyebrow">Impact</p>
-                    {bill.llm_summary.impact_analysis.split('\n\n').map((para, i) => (
-                      <p key={i} className="leg-summary-prose">{para}</p>
-                    ))}
-                  </>
-                )}
-                {bill.llm_summary.model_version && (
-                  <p className="leg-summary-meta">Generated by {bill.llm_summary.model_version}</p>
-                )}
-              </article>
-            )}
-
-            {bill.llm_summary?.key_changes?.length > 0 && (() => {
-              const validSet = new Set(
-                (bill.llm_summary.affected_sections || []).map(s => s.section_number)
-              )
-              return (
-                <article className="leg-detail-section leg-summary-card">
-                  <h2 className="leg-detail-section-title">Key changes</h2>
-                  <ol className="leg-key-changes">
-                    {bill.llm_summary.key_changes.map((kc, i) => (
-                      <li key={i} className="leg-key-change">
-                        <h3 className="leg-key-change-title">{kc.title}</h3>
-                        {kc.description && (
-                          <p className="leg-key-change-desc">{kc.description}</p>
-                        )}
-                        {kc.affected_section && (
-                          <p className="leg-key-change-section">
-                            Affected: <SmcSectionRef number={kc.affected_section} validSet={validSet} />
-                          </p>
-                        )}
-                      </li>
-                    ))}
-                  </ol>
-                </article>
-              )
-            })()}
-
             <section className="leg-detail-section leg-detail-main">
-              <h2 className="leg-detail-section-title">Action History</h2>
+              <h2 className="leg-detail-section-title">Action history</h2>
               {bill.actions.length === 0 ? (
                 <p className="leg-detail-empty">No recorded actions.</p>
               ) : (
@@ -279,8 +214,89 @@ export default function LegislationDetail() {
                 </ol>
               )}
             </section>
+          </aside>
 
-          </div>
+          {/* Middle column: Plain-language summary */}
+          {bill.llm_summary && (
+            <article className="leg-detail-section leg-summary-card leg-card-summary">
+              <h2 className="leg-detail-section-title">Plain-language summary</h2>
+              {bill.llm_summary.summary && (
+                <>
+                  <p className="leg-summary-eyebrow">Summary</p>
+                  {bill.llm_summary.summary.split('\n\n').map((para, i) => (
+                    <p key={i} className="leg-summary-prose">{para}</p>
+                  ))}
+                </>
+              )}
+              {bill.llm_summary.impact_analysis && (
+                <>
+                  <p className="leg-summary-eyebrow">Impact</p>
+                  {bill.llm_summary.impact_analysis.split('\n\n').map((para, i) => (
+                    <p key={i} className="leg-summary-prose">{para}</p>
+                  ))}
+                </>
+              )}
+              {bill.llm_summary.model_version && (
+                <p className="leg-summary-meta">Generated by {bill.llm_summary.model_version}</p>
+              )}
+            </article>
+          )}
+
+          {/* Right column: Key changes on top, Documents below. The
+              wrapper itself is one grid child; renders only when there's
+              content for it (key_changes or documents). */}
+          {showRightCol && (
+            <div className="leg-detail-right-col">
+
+              {hasKeyChanges && (() => {
+                const validSet = new Set(
+                  (bill.llm_summary.affected_sections || []).map(s => s.section_number)
+                )
+                return (
+                  <article className="leg-detail-section leg-summary-card leg-card-changes">
+                    <h2 className="leg-detail-section-title">Key changes</h2>
+                    <ol className="leg-key-changes">
+                      {bill.llm_summary.key_changes.map((kc, i) => (
+                        <li key={i} className="leg-key-change">
+                          <h3 className="leg-key-change-title">{kc.title}</h3>
+                          {kc.description && (
+                            <p className="leg-key-change-desc">{kc.description}</p>
+                          )}
+                          {kc.affected_section && (
+                            <p className="leg-key-change-section">
+                              Affected: <SmcSectionRef number={kc.affected_section} validSet={validSet} />
+                            </p>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  </article>
+                )
+              })()}
+
+              {hasDocuments && (
+                <section className="leg-detail-section">
+                  <h2 className="leg-detail-section-title">Documents</h2>
+                  <ul className="leg-detail-doc-list">
+                    {bill.documents.map((doc, i) => (
+                      <li key={i} className="leg-detail-doc-item">
+                        <MediaIcon mediaType={doc.media_type} />
+                        <a
+                          href={doc.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="leg-detail-doc-link"
+                        >
+                          {doc.name}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+            </div>
+          )}
 
         </div>
       </div>
