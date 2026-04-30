@@ -120,7 +120,7 @@ export default function LegislationDetail() {
                     <dt>Legistar</dt>
                     <dd>
                       <a
-                        href={`https://legistar.council.seattle.gov/LegislationDetail.aspx?ID=${bill.legistar_id}`}
+                        href={`https://seattle.legistar.com/LegislationDetail.aspx?ID=${bill.legistar_id}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="leg-detail-external-link"
