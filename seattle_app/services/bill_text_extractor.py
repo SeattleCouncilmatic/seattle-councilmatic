@@ -63,7 +63,7 @@ _DOWNLOAD_CHUNK_BYTES = 64 * 1024
 # per-page cache flush releases memory, so we hard-skip past this
 # threshold rather than spending minutes (and gigabytes of RSS) on
 # what's almost never the canonical bill body anyway.
-_MAX_PDF_PAGES = 300
+_MAX_PDF_PAGES = 500
 
 # Wall-clock cap on a single PDF parse. SIGALRM-based, so it works
 # inside the Linux Docker container (manage.py runs in the main
