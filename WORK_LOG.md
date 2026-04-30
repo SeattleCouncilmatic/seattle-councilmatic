@@ -22,7 +22,11 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
   1. ~~**Bootstrap command** to generate gold-standard summaries for the curated 5 archetypes via Opus, output to JSON for human review and curation.~~ *(shipped PR #60.)*
   2. ~~**Curate** Opus output → final 5 few-shot examples in `data/few_shot_section_summaries.json` (no timestamp; checked in).~~ *(shipped this PR. Three Opus iterations: v1 had unwanted markdown + 2-3x length, v2 fixed both but admin rule produced a 1-sentence dead-end, v3 relaxed admin rule but prompt didn't match the categorize-and-map output we wanted, v4 aligned the prompt to the categorized shape. Final 5: 8.37.020, 22.170.170, 23.50.012, 23.76.012, 25.05.675.)*
   3. ~~**Bulk command** `summarize_smc_sections` — reads `data/few_shot_section_summaries.json` to build cached few-shot system prompt; submits Batch API jobs over sections without `plain_summary`; resumable via persisted batch IDs; idempotent on re-run.~~ *(shipped this PR.)*
-  4. **Bills command** `summarize_legislation` — Opus on each bill, structured JSON via existing `output_config`. Smaller volume; streaming or batched is fine.
+  4. **Bills text extraction → summarization → API → frontend**, staged because the scraper only stores attachment URLs (not text):
+     - 4a. ~~**Bill text extractor** — `seattle_app/services/bill_text_extractor.py` + `BillText` model + `extract_bill_text` management command. Downloads each bill's "Summary and Fiscal Note" (.docx) and "Signed Ordinance/Resolution" (.pdf) attachments, concatenates with section markers, persists to `BillText`. Audit trail in `source_documents` JSON.~~ *(shipped this PR.)*
+     - 4b. **Bills summarizer** `summarize_legislation` — reads `BillText.text`, submits to Anthropic Batch API with Opus, persists to `LegislationSummary` (already exists). Adds `summary_batch_id` for parity with the SMC pattern. `affected_sections` discovered via `extract_ordinance_refs` over the extracted text.
+     - 4c. **API**: extend `/api/legislation/<slug>/` to include `llm_summary` block.
+     - 4d. **Frontend**: render summary in `LegislationDetail` with the same plain-prose paragraph treatment as `MuniCodeSection`.
   5. **API**: ~~add section summary to `/api/smc/sections/<n>/` — already exposed `plain_summary` / `summary_model` / `summary_generated_at` (this PR uses them).~~ Still pending: extend `/api/legislation/<slug>/` to include `llm_summary` once the bills command runs.
   6. ~~**Frontend (SMC)**: render summary in `MuniCodeSection` alongside the full text in a 2-column layout at desktop widths.~~ *(shipped this PR.)* Still pending: render summary in `LegislationDetail` once bills are summarized.
 
@@ -53,6 +57,17 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### LLM — bill text extractor (Stage 1 of bills pipeline) — committed 2026-04-29
+First piece of the bills LLM pipeline. The OCD/pupa scraper only stores attachment URLs (not text), so this stage adds the download + extract layer that the bills summarizer (Stage 2) will read from.
+
+**`seattle_app/services/bill_text_extractor.py`** — pure helper. `extract_text(url, media_type)` downloads and returns plain text; PDF via `pdfplumber.extract_text()`, .docx via `python-docx` (paragraphs + tables in document order). Legacy `.doc` binary is logged + skipped. `combine_bill_documents(documents)` is the picker: categorizes each attachment by its note (`summary` / `signed` / `affidavit` / `other`), extracts the staff summary and signed canonical text, concatenates with `[STAFF SUMMARY AND FISCAL NOTE — …]` and `[SIGNED CANONICAL TEXT — …]` section markers so the LLM can tell staff framing apart from canonical text.
+
+**`seattle_app.BillText` model** — 1:1 with `councilmatic_core.Bill`. Fields: `text` (concatenated extraction), `source_documents` (per-document audit JSON: note/url/media_type/category/char_count/error), `extracted_at` / `last_regenerated`. Migration `0018_billtext`.
+
+**`extract_bill_text` management command** — iterates bills missing `BillText`, prefetches `documents__links`, hands them to the extractor, persists. Idempotent on `BillText` existence; `--force` to re-extract; `--bill <identifier>` for one-off; `--limit N` for smoke runs; `--include-other` to opt non-summary/non-signed docs into the extraction (off by default to keep noise out).
+
+Why staged separately from the summarizer: extractor quality is the riskier unknown. Iterating on the extractor (table-aware, header-aware, OCR fallback if needed) shouldn't force re-running summaries; iterating on prompts shouldn't force re-downloading PDFs. `BillText` is the cache between them.
 
 ### Frontend — render SMC section summaries in a wide 2-column layout — committed 2026-04-29
 First user-visible piece of the LLM-summaries feature. `MuniCodeSection.jsx` now displays the `plain_summary` (already exposed by the API) alongside the full text. At ≥1024px viewports the page splits into a 2-column grid (`minmax(20rem, 1fr)` summary / `minmax(0, 1.4fr)` body); below that, the summary stacks above the body. Sections that don't yet have a summary fall back to the body filling the row — no phantom empty column.
