@@ -7,7 +7,7 @@
 }
 
 .leg-detail-container {
-  max-width: 1100px;
+  max-width: 80rem;
   margin: 0 auto;
 }
 
@@ -106,6 +106,133 @@
   .leg-detail-body {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── LLM summary stack (above the body grid) ──────────────────── */
+/* Two stacked cards: "Plain-language summary" (Summary + Impact
+   prose) and "Key changes" (structured list). Render before the
+   sidebar/timeline grid so users see the summary first. Hidden
+   entirely when the bill has no llm_summary. */
+
+.leg-summary-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.leg-summary-card {
+  /* Inherits .leg-detail-section card chrome (white bg, border,
+     rounded, padded) — no override needed beyond internal layout. */
+}
+
+/* Small uppercase eyebrow above each prose chunk (Summary / Impact)
+   — internal section labels within the single "Plain-language
+   summary" card without adding more h-level chrome. */
+.leg-summary-eyebrow {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+}
+.leg-summary-eyebrow:first-of-type {
+  margin-top: 0.25rem;
+}
+
+.leg-summary-prose {
+  margin: 0 0 0.75rem;
+  /* Constrain prose line length for readability even though the card
+     can stretch wide on desktop. ~70 characters per line is the
+     sweet spot for body text. */
+  max-width: 70ch;
+  color: #1f2937;
+  line-height: 1.65;
+  font-size: 0.9375rem;
+}
+.leg-summary-prose:last-of-type {
+  margin-bottom: 0;
+}
+
+.leg-summary-meta {
+  margin: 1rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+/* ── Key changes list ─────────────────────────────────────────── */
+
+.leg-key-changes {
+  list-style: none;
+  counter-reset: keychange;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.leg-key-change {
+  counter-increment: keychange;
+  position: relative;
+  padding-left: 2.25rem;
+}
+.leg-key-change::before {
+  content: counter(keychange);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ede9fe;
+  color: #5b21b6;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  border-radius: 9999px;
+}
+
+.leg-key-change-title {
+  margin: 0 0 0.375rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.4;
+}
+
+.leg-key-change-desc {
+  margin: 0 0 0.5rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: #374151;
+  max-width: 70ch;
+}
+
+.leg-key-change-section {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+.leg-key-change-section-link {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color: #2E3D5B;
+  font-weight: 600;
+  text-decoration: none;
+}
+.leg-key-change-section-link:hover {
+  text-decoration: underline;
+}
+
+.leg-key-change-section-text {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color: #9ca3af;
+  font-weight: 600;
 }
 
 /* ── Shared section card ──────────────────────────────────────── */
