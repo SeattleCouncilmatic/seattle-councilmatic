@@ -192,8 +192,12 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 # Cached few-shot system prompt + Anthropic Batch API keep cost reasonable;
 # Haiku 4.5 was tried and is too inconsistent for legal-summary work.
 CLAUDE_CODE_SECTION_MODEL = os.getenv("CLAUDE_CODE_SECTION_MODEL", "claude-sonnet-4-6")
-# Opus: top-tier analysis of new legislation with structured output.
-CLAUDE_LEGISLATION_MODEL = os.getenv("CLAUDE_LEGISLATION_MODEL", "claude-opus-4-7")
+# Sonnet: balanced cost/quality for legislation summarization. The
+# task is mostly reformatting the staff Summary and Fiscal Note into
+# the structured JSON schema (output_config enforces format), so
+# Sonnet is sufficient. Set CLAUDE_LEGISLATION_MODEL=claude-opus-4-7
+# in the environment for higher-quality runs (~5x cost).
+CLAUDE_LEGISLATION_MODEL = os.getenv("CLAUDE_LEGISLATION_MODEL", "claude-sonnet-4-6")
 # Opus: gold-standard summaries of a curated section set; the outputs become
 # few-shot examples for the bulk Sonnet run. Calibration only — not bulk.
 CLAUDE_BOOTSTRAP_MODEL = os.getenv("CLAUDE_BOOTSTRAP_MODEL", "claude-opus-4-7")

@@ -240,6 +240,15 @@ class LegislationSummary(models.Model):
         max_length=50,
         help_text="Model used (e.g., 'claude-sonnet-4-20250514')"
     )
+    summary_batch_id = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text=(
+            "Anthropic Message Batches ID this summary came from "
+            "(e.g., 'msgbatch_01PCxUY7AHperTdVueAxmYr7'). Empty for "
+            "synchronous one-off generations."
+        ),
+    )
     generated_at = models.DateTimeField(
         auto_now_add=True
     )
