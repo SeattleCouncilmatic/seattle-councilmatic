@@ -9,6 +9,13 @@ dj-database-url>=2.1.0
 # Councilmatic core
 django-councilmatic @ https://github.com/datamade/django-councilmatic/archive/refs/heads/5.x.zip
 
+# Wagtail CMS (used by INSTALLED_APPS for the /cms/ admin). Pinned to
+# the 6.x line for Django 4.2 compatibility — Wagtail 7+ requires
+# Django 5+. Was previously satisfied transitively by an older
+# django-councilmatic; making it explicit so fresh image builds don't
+# fail with ModuleNotFoundError: No module named 'wagtail'.
+wagtail>=6.0,<7
+
 # Legislative data scraping
 pupa>=0.11.0
 scraper-legistar>=0.0.2
