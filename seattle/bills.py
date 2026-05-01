@@ -135,15 +135,13 @@ class SeattleBillScraper(Scraper):
 
         bill.add_source(f"{BASE_URL}/{ENDPOINT}/{matter_id}")
 
-        # Public-facing Legistar URL (used by the frontend bill detail
-        # page for the "View on Legistar" link). The constructed URL
-        # `seattle.legistar.com/LegislationDetail.aspx?ID=<MatterId>` is
-        # unreliable — Legistar's Detail page expects both ID and a GUID
-        # param to render correctly. The API exposes the canonical URL
-        # as `MatterInSiteURL`; capture and store it as a second source.
-        in_site_url = matter.get("MatterInSiteURL")
-        if in_site_url:
-            bill.add_source(in_site_url)
+        # Public-facing Legistar URL is constructed at API-response
+        # time from `MatterId` (see seattle_app.api_views.legislation_detail).
+        # The Legistar matters endpoint doesn't expose a `MatterInSiteURL`
+        # field — only events have `EventInSiteURL` — but
+        # `https://seattle.legistar.com/Gateway.aspx?M=L&ID=<MatterId>`
+        # resolves to the matter detail page, so we don't need to store
+        # the public URL on the bill.
 
         bill.extras = {
             "MatterId": matter_id,
