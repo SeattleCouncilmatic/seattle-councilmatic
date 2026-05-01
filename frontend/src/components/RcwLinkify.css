@@ -1,0 +1,22 @@
+/* External link to apps.leg.wa.gov for RCW citations. Same
+   Councilmatic blue + monospace family used on other internal
+   code-reference links (.leg-key-change-section-link,
+   .leg-detail-external-link) so the visual treatment is
+   consistent across surfaces — only the trailing ↗ arrow
+   distinguishes external from internal. */
+.rcw-ref {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color: #2E3D5B;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.rcw-ref:hover {
+  text-decoration: underline;
+}
+
+.rcw-ref-arrow {
+  margin-left: 0.15em;
+  font-size: 0.85em;
+}
