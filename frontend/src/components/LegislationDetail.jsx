@@ -282,11 +282,27 @@ export default function LegislationDetail() {
                           {kc.description && (
                             <p className="leg-key-change-desc"><BillLinkify text={kc.description} refs={bill.bill_refs} /></p>
                           )}
-                          {kc.affected_section && (
-                            <p className="leg-key-change-section">
-                              Affected: <SmcSectionRef number={kc.affected_section} validSet={validSet} />
-                            </p>
-                          )}
+                          {(() => {
+                            // affected_section may be a single cite ("1.04.020"),
+                            // a comma-separated list ("1.04.020, 1.04.070"), or
+                            // a list with "and" connectors. Pull every 2- or
+                            // 3-part SMC cite via regex and render each one
+                            // separately, joined by ", ".
+                            const cites = (kc.affected_section || '')
+                              .match(/\d+[A-Z]?\.\d+[A-Z]?(?:\.\d+[A-Z]?)?/g) || []
+                            if (cites.length === 0) return null
+                            return (
+                              <p className="leg-key-change-section">
+                                Affected:{' '}
+                                {cites.map((n, j) => (
+                                  <span key={j}>
+                                    <SmcSectionRef number={n} validSet={validSet} />
+                                    {j < cites.length - 1 && ', '}
+                                  </span>
+                                ))}
+                              </p>
+                            )
+                          })()}
                         </li>
                       ))}
                     </ol>

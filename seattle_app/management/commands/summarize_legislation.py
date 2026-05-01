@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone as dt_timezone
 from pathlib import Path
 from typing import Iterable, Optional
@@ -66,6 +67,12 @@ THINKING_BUDGET_TOKENS = 8192
 # tail of BillText.text past 600k chars — the staff Summary is
 # concatenated first, so any oversized bill keeps the most useful part.
 MAX_INPUT_CHARS = 600_000
+
+# Pull every 2- or 3-part SMC-shaped section number out of a free-form
+# affected_section field. Used so multi-cite values like "1.04.020,
+# 1.04.070" or "23.32.040 and 23.32.060" each resolve to their own
+# MunicipalCodeSection row in the affected_sections M2M.
+_SMC_CITE_RE = re.compile(r"\d+[A-Z]?\.\d+[A-Z]?(?:\.\d+[A-Z]?)?")
 
 
 def _encode_custom_id(identifier: str) -> str:
@@ -301,15 +308,16 @@ class Command(BaseCommand):
             },
         )
         # Resolve `key_changes[].affected_section` to MunicipalCodeSection
-        # rows. The LLM output has section numbers as strings; some may
-        # not match any row in our SMC table (typo, deprecated section,
-        # or referencing a non-SMC code), in which case we silently drop
-        # them — the JSON still records what the LLM thought.
-        section_numbers = {
-            (kc.get("affected_section") or "").strip()
-            for kc in (data.get("key_changes") or [])
-        }
-        section_numbers.discard("")
+        # rows. The LLM sometimes emits a single cite ("1.04.020"), a
+        # comma-separated list ("1.04.020, 1.04.070"), or a list with
+        # an "and" connector — pull every 2- or 3-part SMC-shaped cite
+        # via regex so each one is resolved individually. Section
+        # numbers that don't match any row (typos, deprecated, or
+        # non-SMC) are silently dropped; the JSON still records what
+        # the LLM thought.
+        section_numbers: set[str] = set()
+        for kc in (data.get("key_changes") or []):
+            section_numbers.update(_SMC_CITE_RE.findall(kc.get("affected_section") or ""))
         if section_numbers:
             sections = MunicipalCodeSection.objects.filter(
                 section_number__in=section_numbers
