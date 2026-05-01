@@ -618,11 +618,34 @@ def legislation_detail(request, slug):
     raw_status = bill.extras.get('MatterStatusName', '')
     status_label, status_variant = _normalise_status(raw_status)
 
-    # Sponsors ordered by primary first
+    # Resolve sponsor names to councilmatic_core_person.slug (where the
+    # name matches a real person in our DB) so the frontend can link
+    # each sponsor to their /reps/<slug>/ profile. Slug lives on the
+    # councilmatic_core_person table while the sponsorship's name comes
+    # from opencivicdata_person — raw SQL JOIN is the same pattern as
+    # the reps service. Names that don't match (typos, alternate
+    # spellings, no-longer-in-DB) get None and render as plain text.
+    sponsor_names = list({
+        (s.entity_name or '').strip()
+        for s in bill.sponsorships.all()
+        if s.entity_name
+    })
+    sponsor_slugs: dict[str, str] = {}
+    if sponsor_names:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT p.name, cp.slug
+                FROM opencivicdata_person p
+                INNER JOIN councilmatic_core_person cp ON cp.person_id = p.id
+                WHERE p.name = ANY(%s)
+            """, [sponsor_names])
+            sponsor_slugs = dict(cursor.fetchall())
+
     sponsors = [
         {
             'name':    s.entity_name,
             'primary': s.primary,
+            'slug':    sponsor_slugs.get((s.entity_name or '').strip()),
         }
         for s in bill.sponsorships.order_by('-primary', 'name')
     ]

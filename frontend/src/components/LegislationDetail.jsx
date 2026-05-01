@@ -157,7 +157,9 @@ export default function LegislationDetail() {
                       <ul className="leg-detail-sponsor-list leg-detail-sponsor-list--inline">
                         {primarySponsors.map(s => (
                           <li key={s.name} className="leg-detail-sponsor leg-detail-sponsor--primary">
-                            {s.name}
+                            {s.slug
+                              ? <Link to={`/reps/${s.slug}`} className="leg-detail-sponsor-link">{s.name}</Link>
+                              : s.name}
                           </li>
                         ))}
                       </ul>
@@ -171,7 +173,9 @@ export default function LegislationDetail() {
                       <ul className="leg-detail-sponsor-list leg-detail-sponsor-list--inline">
                         {coSponsors.map(s => (
                           <li key={s.name} className="leg-detail-sponsor">
-                            {s.name}
+                            {s.slug
+                              ? <Link to={`/reps/${s.slug}`} className="leg-detail-sponsor-link">{s.name}</Link>
+                              : s.name}
                           </li>
                         ))}
                       </ul>
