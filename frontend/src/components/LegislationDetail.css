@@ -153,19 +153,20 @@
   min-width: 0;
 }
 
-.leg-summary-card {
-  /* Indigo tint to match the SMC plain-language summary panel
-     so the LLM-generated content reads consistently across the
-     two surfaces. Background and border override the default
-     .leg-detail-section card chrome (white / gray-200). */
+/* Indigo tint on both LLM-output cards (Plain-language summary
+   and Key changes) — matches the SMC plain-language summary
+   panel for cross-surface visual consistency and ties the two
+   cards together as one coordinated indigo system. Double-class
+   form beats the later-declared `.leg-detail-section { background:
+   #ffffff }` at the same single-class specificity. */
+.leg-detail-section.leg-summary-card {
   background: #eef2ff;
   border-color: #c7d2fe;
 }
 
-/* The card title ("Plain-language summary" / "Key changes") on
-   the indigo card picks up matching indigo for stronger visual
-   weight on the tinted background. The default card-title color
-   (#111827) reads fine on white but is slightly heavy here. */
+/* Indigo card title on both LLM-output cards. The default
+   #111827 title reads fine on white, but on the indigo bg the
+   matching #3730a3 carries more visual weight. */
 .leg-summary-card .leg-detail-section-title {
   color: #3730a3;
 }
@@ -242,8 +243,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #ede9fe;
-  color: #5b21b6;
+  /* Filled indigo + white instead of pale-purple-on-pale-purple.
+     Against the indigo card background (#eef2ff) the previous
+     #ede9fe / #5b21b6 combination nearly disappeared. White on
+     #3730a3 hits ~10:1 contrast and matches the card heading +
+     SUMMARY/IMPACT eyebrow color so the page reads as one
+     coordinated indigo system. */
+  background: #3730a3;
+  color: #ffffff;
   font-size: 0.8125rem;
   font-weight: 700;
   border-radius: 9999px;
@@ -253,7 +260,7 @@
   margin: 0 0 0.375rem;
   font-size: 1rem;
   font-weight: 700;
-  color: #111827;
+  color: #3730a3;
   line-height: 1.4;
 }
 
@@ -283,7 +290,7 @@
 
 .leg-key-change-section-text {
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
-  color: #9ca3af;
+  color: #3730a3;
   font-weight: 600;
 }
 
