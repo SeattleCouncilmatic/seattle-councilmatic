@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Phone, Mail, ExternalLink, Clock } from 'lucide-react'
 import NotFound from './NotFound'
+import LegislationCard from './LegislationCard'
 import './RepDetail.css'
 
 export default function RepDetail() {
@@ -87,6 +88,30 @@ export default function RepDetail() {
             </a>
           )}
         </section>
+
+        {(data.sponsored_bills_total || 0) > 0 && (
+          <section className="rep-detail-bills" aria-label="Bills sponsored">
+            <h2 className="rep-detail-section-h2">
+              Bills sponsored
+              <span className="rep-detail-section-count">
+                {' '}({data.sponsored_bills_total})
+              </span>
+            </h2>
+            <div className="rep-detail-bill-list">
+              {data.sponsored_bills.map(bill => (
+                <LegislationCard key={bill.slug} bill={bill} />
+              ))}
+            </div>
+            {data.sponsored_bills_total > data.sponsored_bills.length && (
+              <Link
+                to={`/legislation?sponsor=${encodeURIComponent(data.name)}`}
+                className="rep-detail-bills-viewall"
+              >
+                View all {data.sponsored_bills_total} bills sponsored by {data.name} →
+              </Link>
+            )}
+          </section>
+        )}
       </div>
     </main>
   )
