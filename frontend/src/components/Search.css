@@ -19,8 +19,7 @@
   margin-bottom: 1.5rem;
   color: #6b7280;
 }
-.search-breadcrumb a { color: #2E3D5B; text-decoration: none; }
-.search-breadcrumb a:hover { text-decoration: underline; }
+.search-breadcrumb a { color: #2E3D5B; text-decoration: underline; }
 .search-breadcrumb-sep { color: #9ca3af; font-weight: 400; }
 .search-breadcrumb-current { color: #6b7280; font-weight: 500; }
 
@@ -113,9 +112,8 @@
   font-size: 0.875rem;
   font-weight: 600;
   color: #2E3D5B;
-  text-decoration: none;
+  text-decoration: underline;
 }
-.search-section-view-all:hover { text-decoration: underline; }
 
 .search-section-status {
   color: #6b7280;

@@ -19,8 +19,7 @@
   margin-bottom: 1.5rem;
   color: #6b7280;
 }
-.about-breadcrumb a { color: #2E3D5B; text-decoration: none; }
-.about-breadcrumb a:hover { text-decoration: underline; }
+.about-breadcrumb a { color: #2E3D5B; text-decoration: underline; }
 .about-breadcrumb-sep { color: #9ca3af; font-weight: 400; }
 .about-breadcrumb-current { color: #6b7280; font-weight: 500; }
 

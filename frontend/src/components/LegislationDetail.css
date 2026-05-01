@@ -28,10 +28,6 @@
 
 .leg-detail-breadcrumb a {
   color: #2E3D5B;
-  text-decoration: none;
-}
-
-.leg-detail-breadcrumb a:hover {
   text-decoration: underline;
 }
 
@@ -282,9 +278,6 @@
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
   color: #2E3D5B;
   font-weight: 600;
-  text-decoration: none;
-}
-.leg-key-change-section-link:hover {
   text-decoration: underline;
 }
 
@@ -340,10 +333,6 @@
 .leg-detail-external-link {
   color: #2E3D5B;
   font-weight: 600;
-  text-decoration: none;
-}
-
-.leg-detail-external-link:hover {
   text-decoration: underline;
 }
 
@@ -391,9 +380,6 @@
    external links for consistency. */
 .leg-detail-sponsor-link {
   color: #2E3D5B;
-  text-decoration: none;
-}
-.leg-detail-sponsor-link:hover {
   text-decoration: underline;
 }
 
@@ -451,12 +437,8 @@
   font-size: 0.875rem;
   color: #2E3D5B;
   font-weight: 600;
-  text-decoration: none;
-  line-height: 1.4;
-}
-
-.leg-detail-doc-link:hover {
   text-decoration: underline;
+  line-height: 1.4;
 }
 
 /* ── Action history timeline ──────────────────────────────────── */

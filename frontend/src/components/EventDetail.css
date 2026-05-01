@@ -25,10 +25,6 @@
 
 .evt-detail-breadcrumb a {
   color: #2E3D5B;
-  text-decoration: none;
-}
-
-.evt-detail-breadcrumb a:hover {
   text-decoration: underline;
 }
 
@@ -160,10 +156,6 @@
 .evt-detail-external-link {
   color: #2E3D5B;
   font-weight: 600;
-  text-decoration: none;
-}
-
-.evt-detail-external-link:hover {
   text-decoration: underline;
 }
 
@@ -315,12 +307,8 @@
 
 .evt-agenda-link {
   color: #2E3D5B;
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.evt-agenda-link:hover {
   text-decoration: underline;
+  font-weight: 600;
 }
 
 .evt-agenda-meta {
@@ -430,9 +418,5 @@
   font-size: 0.8125rem;
   color: #2E3D5B;
   font-weight: 600;
-  text-decoration: none;
-}
-
-.evt-att-link:hover {
   text-decoration: underline;
 }
