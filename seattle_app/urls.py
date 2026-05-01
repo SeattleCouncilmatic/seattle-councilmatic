@@ -16,11 +16,14 @@ urlpatterns = [
     # the root regardless of the <link rel="icon"> in the SPA shell.
     # Without these explicit routes the requests hit the SPA catch-all
     # and return index.html, which Chrome can cache as "no valid icon"
-    # and then ignore the <link> tag on subsequent loads. Redirecting to
-    # the real /static/favicon.png lets browsers cache a working icon
-    # for the origin.
-    path("favicon.ico", RedirectView.as_view(url="/static/favicon.png", permanent=True)),
-    path("favicon.png", RedirectView.as_view(url="/static/favicon.png", permanent=True)),
+    # and then ignore the <link> tag on subsequent loads. We redirect
+    # to /static/favicon.svg (Landmark glyph on navy, matches the
+    # header brand mark); .png stays as a fallback for older browsers
+    # that don't support SVG favicons. 302 (temporary) so a future
+    # icon swap doesn't get stuck in browser caches the way a 301
+    # would.
+    path("favicon.ico", RedirectView.as_view(url="/static/favicon.svg", permanent=False)),
+    path("favicon.png", RedirectView.as_view(url="/static/favicon.png", permanent=False)),
     path("admin/", admin.site.urls),
     path("api/reps/", include("reps.urls")),
     path("api/legislation/recent/", api_views.recent_legislation, name="api_legislation_recent"),
