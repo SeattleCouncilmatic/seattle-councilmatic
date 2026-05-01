@@ -610,7 +610,6 @@ def legislation_detail(request, slug):
             'actions',
             'sponsorships',
             'documents__links',
-            'sources',
             'llm_summary__affected_sections',
         ),
         slug=slug,
@@ -678,19 +677,17 @@ def legislation_detail(request, slug):
     earliest = bill.actions.order_by('date').first()
     date_introduced = earliest.date[:10] if earliest and earliest.date else None
 
-    # Public-facing Legistar URL — captured into bill.sources by the
-    # bill scraper as MatterInSiteURL alongside the API source. Filter
-    # out the API source (which lives on webapi.legistar.com) to find
-    # the public seattle.legistar.com URL. None until the bill has been
-    # re-scraped after the scraper update; the frontend hides the
-    # "View on Legistar" link in that case rather than serving the
-    # known-broken constructed URL.
-    legistar_url = next(
-        (
-            s.url for s in bill.sources.all()
-            if s.url and 'webapi.legistar.com' not in s.url
-        ),
-        None,
+    # Public-facing Legistar URL. The matters API doesn't expose
+    # `MatterInSiteURL` (only the events API has the equivalent
+    # `EventInSiteURL`), so we construct the URL from `MatterId`.
+    # `Gateway.aspx?M=L&ID=<MatterId>` is the canonical entry point
+    # on seattle.legistar.com — Legistar's `LegislationDetail.aspx`
+    # path rejects ID+GUID with "Invalid parameters!" but the
+    # gateway with `M=L` resolves to the same matter detail page.
+    matter_id = bill.extras.get('MatterId')
+    legistar_url = (
+        f'https://seattle.legistar.com/Gateway.aspx?M=L&ID={matter_id}'
+        if matter_id else None
     )
 
     # LLM summary block — null when the summarize_legislation pipeline hasn't
