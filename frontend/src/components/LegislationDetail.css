@@ -244,12 +244,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* Filled indigo + white instead of pale-purple-on-pale-purple.
-     Against the indigo card background (#eef2ff) the previous
-     #ede9fe / #5b21b6 combination nearly disappeared. White on
-     #3730a3 hits ~10:1 contrast and matches the card heading +
-     SUMMARY/IMPACT eyebrow color so the page reads as one
-     coordinated indigo system. */
+  /* Filled indigo + white. Previous #ede9fe / #5b21b6 was a faded
+     pale-purple-on-pale-purple — readable on white but visually
+     limp. White on #3730a3 hits ~12:1 contrast on the white Key
+     changes card and ties the bullets to the matching #3730a3
+     used on the summary card title + SUMMARY/IMPACT eyebrows, so
+     the page reads as one coordinated indigo system. */
   background: #3730a3;
   color: #ffffff;
   font-size: 0.8125rem;
