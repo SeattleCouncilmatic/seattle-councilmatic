@@ -29,18 +29,33 @@ function MediaIcon({ mediaType }) {
   return <span className="doc-icon doc-icon--generic">FILE</span>
 }
 
-// Render a section reference as either a Link (if the LLM-emitted number
-// resolves to a real MunicipalCodeSection in the affected_sections list)
-// or plain text (e.g. when the LLM emits a chapter like "23.32" or a
-// section that doesn't exist in our DB).
+// Render a section reference as a Link when possible, plain text otherwise.
+//
+// 3-part numbers (title.chapter.section) link to /municode/<t>/<c>/<s>
+// only when the cite resolves to a real MunicipalCodeSection in the
+// affected_sections list — keeps us from emitting links to sections the
+// LLM hallucinated or that have been repealed.
+//
+// 2-part numbers (title.chapter) link to the chapter page unconditionally.
+// We don't have a "valid chapters" set exposed on the API, and the
+// chapter page renders NotFound gracefully for missing chapters, so the
+// risk of a bad link is minor.
 function SmcSectionRef({ number, validSet }) {
   const trimmed = (number || '').trim()
   if (!trimmed) return null
-  if (!validSet.has(trimmed)) {
-    return <span className="leg-key-change-section-text">SMC {trimmed}</span>
-  }
   const parts = trimmed.split('.')
-  if (parts.length !== 3) {
+  if (parts.length === 2) {
+    const [title, chapter] = parts
+    return (
+      <Link
+        to={`/municode/${title}/${chapter}`}
+        className="leg-key-change-section-link"
+      >
+        SMC {trimmed} →
+      </Link>
+    )
+  }
+  if (parts.length !== 3 || !validSet.has(trimmed)) {
     return <span className="leg-key-change-section-text">SMC {trimmed}</span>
   }
   const [title, chapter, section] = parts

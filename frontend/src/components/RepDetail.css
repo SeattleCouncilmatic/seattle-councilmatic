@@ -19,8 +19,7 @@
   margin-bottom: 1.5rem;
   color: #6b7280;
 }
-.rep-detail-breadcrumb a { color: #2E3D5B; text-decoration: none; }
-.rep-detail-breadcrumb a:hover { text-decoration: underline; }
+.rep-detail-breadcrumb a { color: #2E3D5B; text-decoration: underline; }
 .rep-detail-breadcrumb-sep { color: #9ca3af; font-weight: 400; }
 .rep-detail-breadcrumb-current { color: #6b7280; font-weight: 500; }
 
@@ -77,10 +76,10 @@
 
 .rep-detail-contact-value {
   color: #1f2937;
-  text-decoration: none;
+  text-decoration: underline;
   font-size: 0.95rem;
 }
-.rep-detail-contact-value:hover { text-decoration: underline; color: #2E3D5B; }
+.rep-detail-contact-value:hover { color: #2E3D5B; }
 
 .rep-detail-actions {
   display: flex;

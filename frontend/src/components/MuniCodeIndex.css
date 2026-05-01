@@ -21,8 +21,7 @@
   margin-bottom: 1.5rem;
   color: #6b7280;
 }
-.smc-breadcrumb a { color: #2E3D5B; text-decoration: none; }
-.smc-breadcrumb a:hover { text-decoration: underline; }
+.smc-breadcrumb a { color: #2E3D5B; text-decoration: underline; }
 .smc-breadcrumb-sep { color: #9ca3af; font-weight: 400; }
 .smc-breadcrumb-current { color: #6b7280; font-weight: 500; }
 

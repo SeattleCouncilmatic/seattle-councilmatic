@@ -21,10 +21,6 @@
 
 .evt-index-breadcrumb a {
   color: #2E3D5B;
-  text-decoration: none;
-}
-
-.evt-index-breadcrumb a:hover {
   text-decoration: underline;
 }
 

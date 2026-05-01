@@ -21,10 +21,6 @@
 
 .leg-index-breadcrumb a {
   color: #2E3D5B;
-  text-decoration: none;
-}
-
-.leg-index-breadcrumb a:hover {
   text-decoration: underline;
 }
 

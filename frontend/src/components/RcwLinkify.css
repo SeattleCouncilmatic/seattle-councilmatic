@@ -8,12 +8,8 @@
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
   color: #2E3D5B;
   font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.rcw-ref:hover {
   text-decoration: underline;
+  white-space: nowrap;
 }
 
 .rcw-ref-arrow {

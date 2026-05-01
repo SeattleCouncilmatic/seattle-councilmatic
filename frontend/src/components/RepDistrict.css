@@ -19,8 +19,7 @@
   margin-bottom: 1.5rem;
   color: #6b7280;
 }
-.rep-district-breadcrumb a { color: #2E3D5B; text-decoration: none; }
-.rep-district-breadcrumb a:hover { text-decoration: underline; }
+.rep-district-breadcrumb a { color: #2E3D5B; text-decoration: underline; }
 .rep-district-breadcrumb-sep { color: #9ca3af; font-weight: 400; }
 .rep-district-breadcrumb-current { color: #6b7280; font-weight: 500; }
 
