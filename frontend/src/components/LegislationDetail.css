@@ -153,19 +153,22 @@
   min-width: 0;
 }
 
-.leg-summary-card {
-  /* Indigo tint to match the SMC plain-language summary panel
-     so the LLM-generated content reads consistently across the
-     two surfaces. Background and border override the default
-     .leg-detail-section card chrome (white / gray-200). */
+/* Indigo tint to match the SMC plain-language summary panel so the
+   LLM-generated content reads consistently across both surfaces.
+   The double-class selector .leg-detail-section.leg-summary-card
+   is intentional: .leg-detail-section is declared later in the
+   file with `background: #ffffff` and an opaque gray border, so
+   a single-class .leg-summary-card rule loses the source-order
+   tiebreak. The double-class form (specificity 0,2,0) wins
+   regardless of where either block lives. */
+.leg-detail-section.leg-summary-card {
   background: #eef2ff;
   border-color: #c7d2fe;
 }
 
 /* The card title ("Plain-language summary" / "Key changes") on
    the indigo card picks up matching indigo for stronger visual
-   weight on the tinted background. The default card-title color
-   (#111827) reads fine on white but is slightly heavy here. */
+   weight on the tinted background. */
 .leg-summary-card .leg-detail-section-title {
   color: #3730a3;
 }
