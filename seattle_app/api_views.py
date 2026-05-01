@@ -609,6 +609,7 @@ def legislation_detail(request, slug):
             'actions',
             'sponsorships',
             'documents__links',
+            'sources',
             'llm_summary__affected_sections',
         ),
         slug=slug,
@@ -653,6 +654,21 @@ def legislation_detail(request, slug):
     earliest = bill.actions.order_by('date').first()
     date_introduced = earliest.date[:10] if earliest and earliest.date else None
 
+    # Public-facing Legistar URL — captured into bill.sources by the
+    # bill scraper as MatterInSiteURL alongside the API source. Filter
+    # out the API source (which lives on webapi.legistar.com) to find
+    # the public seattle.legistar.com URL. None until the bill has been
+    # re-scraped after the scraper update; the frontend hides the
+    # "View on Legistar" link in that case rather than serving the
+    # known-broken constructed URL.
+    legistar_url = next(
+        (
+            s.url for s in bill.sources.all()
+            if s.url and 'webapi.legistar.com' not in s.url
+        ),
+        None,
+    )
+
     # LLM summary block — null when the summarize_legislation pipeline hasn't
     # touched this bill yet (or when summarization failed for it). Frontend
     # renders the cards conditionally so a missing summary degrades to the
@@ -687,6 +703,7 @@ def legislation_detail(request, slug):
         'last_modified':   bill.extras.get('MatterLastModifiedUtc', ''),
         'date_introduced': date_introduced,
         'legistar_id':     bill.extras.get('MatterId'),
+        'legistar_url':    legistar_url,
         'sponsors':        sponsors,
         'actions':         actions,
         'documents':       documents,
