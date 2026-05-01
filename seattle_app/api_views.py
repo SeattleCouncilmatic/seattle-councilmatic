@@ -18,6 +18,7 @@ from councilmatic_core.models import Bill, Event
 from django.shortcuts import get_object_or_404
 
 from .models import CodeChapter, CodeTitle, MunicipalCodeSection, Subchapter, TitleAppendix
+from .services.prose_refs import build_prose_ref_map
 
 
 # Status label mapping from Legistar's MatterStatusName values (case-insensitive keys)
@@ -715,6 +716,23 @@ def legislation_detail(request, slug):
             'summary_batch_id':  summary.summary_batch_id or None,
         }
 
+    # Page-scoped lookup of in-prose bill citations (e.g. "CB 121185"
+    # or "Resolution 32195") to councilmatic slugs. Empty when there's
+    # no LLM summary on this bill or no cites in the prose. Frontend
+    # uses this to render <Link> elements for resolvable cites and
+    # plain text for the rest. See seattle_app.services.prose_refs.
+    bill_refs: dict[str, str] = {}
+    if llm_summary is not None:
+        prose_texts = [
+            llm_summary.get('summary'),
+            llm_summary.get('impact_analysis'),
+        ]
+        for kc in (llm_summary.get('key_changes') or []):
+            prose_texts.append(kc.get('description'))
+        bill_refs = build_prose_ref_map(prose_texts)
+        # Don't link a bill's identifier to itself.
+        bill_refs = {k: v for k, v in bill_refs.items() if v != bill.slug}
+
     return JsonResponse({
         'identifier':      bill.identifier,
         'title':           bill.title,
@@ -732,6 +750,7 @@ def legislation_detail(request, slug):
         'documents':       documents,
         'slug':            bill.slug,
         'llm_summary':     llm_summary,
+        'bill_refs':       bill_refs,
     })
 
 
@@ -1194,6 +1213,12 @@ def smc_section_detail(request, section_number):
     sub = s.subchapter
     title_name = CodeTitle.objects.filter(title_number=s.title_number).values_list('name', flat=True).first()
     chapter_name = CodeChapter.objects.filter(chapter_number=s.chapter_number).values_list('name', flat=True).first()
+    # Resolve in-prose CB / Resolution cites in the section body and
+    # plain-language summary so the frontend can link them. SMC
+    # revision-history parens often cite "Ord. NNNNN" too — these
+    # don't resolve (we don't store ordinance-numbered records) and
+    # fall through to plain text.
+    bill_refs = build_prose_ref_map([s.full_text, s.plain_summary])
     return JsonResponse({
         'section_number':       s.section_number,
         'title':                s.title,
@@ -1210,6 +1235,7 @@ def smc_section_detail(request, section_number):
         'summary_batch_id':     s.summary_batch_id or None,
         'source_pdf_page':      s.source_pdf_page,
         'neighbors':            _section_neighbors_pair(s.section_number),
+        'bill_refs':            bill_refs,
     })
 
 

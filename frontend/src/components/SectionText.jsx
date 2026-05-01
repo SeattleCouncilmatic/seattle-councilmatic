@@ -1,4 +1,4 @@
-import RcwLinkify from './RcwLinkify'
+import BillLinkify from './BillLinkify'
 import './SectionText.css'
 
 // SMC body text comes out of the parser hard-wrapped at PDF column width
@@ -48,7 +48,7 @@ function reflow(text) {
   })
 }
 
-export default function SectionText({ text }) {
+export default function SectionText({ text, billRefs }) {
   const paragraphs = reflow(text)
   if (paragraphs.length === 0) {
     return <p className="smc-text-empty">No body text available for this section.</p>
@@ -59,7 +59,7 @@ export default function SectionText({ text }) {
         <p key={i} className={`smc-text-p smc-text-l${p.level}`}>
           {p.marker && <span className="smc-text-marker">{p.marker}</span>}
           {p.marker ? ' ' : null}
-          <RcwLinkify text={p.rest} />
+          <BillLinkify text={p.rest} refs={billRefs} />
         </p>
       ))}
     </div>
