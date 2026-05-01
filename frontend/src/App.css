@@ -50,22 +50,13 @@
     outline-offset: 2px;
   }
   
-  .logo-icon {
+  .logo-icon-img {
     width: 2rem;
     height: 2rem;
-    background-color: #2E3D5B;
-    border-radius: 0.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-shrink: 0;
+    object-fit: contain;
   }
-  
-  .icon {
-    width: 1rem;
-    height: 1rem;
-    color: white;
-  }
-  
+
   .title {
     font-size: 1rem;
     font-weight: 800;
@@ -114,17 +105,11 @@
       gap: 1rem;
     }
     
-    .logo-icon {
+    .logo-icon-img {
       width: 2.5rem;
       height: 2.5rem;
-      border-radius: 0.75rem;
     }
-    
-    .icon {
-      width: 1.25rem;
-      height: 1.25rem;
-    }
-    
+
     .title {
       font-size: 1.25rem;
     }
