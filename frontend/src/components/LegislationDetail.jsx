@@ -222,7 +222,7 @@ export default function LegislationDetail() {
 
           {/* Middle column: Plain-language summary */}
           {bill.llm_summary && (
-            <article className="leg-detail-section leg-summary-card leg-card-summary">
+            <article className="leg-detail-section leg-card-summary">
               <h2 className="leg-detail-section-title">Plain-language summary</h2>
               {bill.llm_summary.summary && (
                 <>
@@ -257,7 +257,7 @@ export default function LegislationDetail() {
                   (bill.llm_summary.affected_sections || []).map(s => s.section_number)
                 )
                 return (
-                  <article className="leg-detail-section leg-summary-card leg-card-changes">
+                  <article className="leg-detail-section leg-card-changes">
                     <h2 className="leg-detail-section-title">Key changes</h2>
                     <ol className="leg-key-changes">
                       {bill.llm_summary.key_changes.map((kc, i) => (

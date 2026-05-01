@@ -153,20 +153,22 @@
   min-width: 0;
 }
 
-.leg-summary-card {
-  /* Indigo tint to match the SMC plain-language summary panel
-     so the LLM-generated content reads consistently across the
-     two surfaces. Background and border override the default
-     .leg-detail-section card chrome (white / gray-200). */
+/* Indigo tint on the Plain-language summary card only — matches
+   the SMC plain-language summary panel for cross-surface visual
+   consistency. The Key changes card stays on the default white
+   .leg-detail-section chrome so it reads as a separate, neutral
+   list rather than another tinted prose block. Double-class form
+   beats the later-declared `.leg-detail-section { background:
+   #ffffff }` at the same single-class specificity. */
+.leg-detail-section.leg-card-summary {
   background: #eef2ff;
   border-color: #c7d2fe;
 }
 
-/* The card title ("Plain-language summary" / "Key changes") on
-   the indigo card picks up matching indigo for stronger visual
-   weight on the tinted background. The default card-title color
-   (#111827) reads fine on white but is slightly heavy here. */
-.leg-summary-card .leg-detail-section-title {
+/* Indigo card title only on the summary card. The default
+   #111827 title reads fine on white, but on the indigo bg the
+   matching #3730a3 carries more visual weight. */
+.leg-card-summary .leg-detail-section-title {
   color: #3730a3;
 }
 
