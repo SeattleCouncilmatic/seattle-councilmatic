@@ -1,3 +1,4 @@
+import RcwLinkify from './RcwLinkify'
 import './SectionText.css'
 
 // SMC body text comes out of the parser hard-wrapped at PDF column width
@@ -58,7 +59,7 @@ export default function SectionText({ text }) {
         <p key={i} className={`smc-text-p smc-text-l${p.level}`}>
           {p.marker && <span className="smc-text-marker">{p.marker}</span>}
           {p.marker ? ' ' : null}
-          {p.rest}
+          <RcwLinkify text={p.rest} />
         </p>
       ))}
     </div>
