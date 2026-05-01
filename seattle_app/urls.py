@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import path, include
 from django.conf.urls.static import static
+from django.views.generic import RedirectView
 
 from wagtail.admin import urls as wagtailadmin_urls
 from wagtail.documents import urls as wagtaildocs_urls
@@ -11,6 +12,15 @@ from . import api_views
 
 urlpatterns = [
     path("robots.txt", views.robots_txt, name="robots_txt"),
+    # Browsers auto-request /favicon.ico (and sometimes /favicon.png) at
+    # the root regardless of the <link rel="icon"> in the SPA shell.
+    # Without these explicit routes the requests hit the SPA catch-all
+    # and return index.html, which Chrome can cache as "no valid icon"
+    # and then ignore the <link> tag on subsequent loads. Redirecting to
+    # the real /static/favicon.png lets browsers cache a working icon
+    # for the origin.
+    path("favicon.ico", RedirectView.as_view(url="/static/favicon.png", permanent=True)),
+    path("favicon.png", RedirectView.as_view(url="/static/favicon.png", permanent=True)),
     path("admin/", admin.site.urls),
     path("api/reps/", include("reps.urls")),
     path("api/legislation/recent/", api_views.recent_legislation, name="api_legislation_recent"),
