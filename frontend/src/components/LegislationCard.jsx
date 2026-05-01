@@ -30,6 +30,7 @@ export default function LegislationCard({ bill, backToSearch }) {
     status_variant,
     date_introduced,
     slug,
+    is_primary,
   } = bill;
 
   // When the card is rendered inside the legislation index, the parent passes
@@ -48,7 +49,14 @@ export default function LegislationCard({ bill, backToSearch }) {
 
   return (
     <article className="leg-card">
-      <p className="leg-card-identifier">{identifier}</p>
+      <div className="leg-card-identifier-row">
+        <p className="leg-card-identifier">{identifier}</p>
+        {is_primary !== undefined && (
+          <span className={`leg-card-role-tag${is_primary ? ' leg-card-role-tag--primary' : ''}`}>
+            {is_primary ? 'Primary' : 'Co-sponsor'}
+          </span>
+        )}
+      </div>
 
       <h4 className="leg-card-title">
         {slug ? (
