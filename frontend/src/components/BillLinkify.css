@@ -1,0 +1,12 @@
+/* Internal link to /legislation/<slug>/ for in-prose CB / Resolution
+   citations that resolve to a bill we carry. Same Councilmatic blue
+   + monospace family used on other code-reference links (.rcw-ref,
+   .leg-key-change-section-link) for visual consistency. No trailing
+   ↗ — internal links don't need the external indicator. */
+.bill-ref {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color: #2E3D5B;
+  font-weight: 600;
+  text-decoration: underline;
+  white-space: nowrap;
+}

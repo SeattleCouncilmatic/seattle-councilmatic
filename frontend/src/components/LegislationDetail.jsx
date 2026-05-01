@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useLocation, Link } from 'react-router-dom'
 import NotFound from './NotFound'
-import RcwLinkify from './RcwLinkify'
+import BillLinkify from './BillLinkify'
 import './LegislationDetail.css'
 
 const VARIANT_CLASSES = {
@@ -244,7 +244,7 @@ export default function LegislationDetail() {
                 <>
                   <p className="leg-summary-eyebrow">Summary</p>
                   {bill.llm_summary.summary.split('\n\n').map((para, i) => (
-                    <p key={i} className="leg-summary-prose"><RcwLinkify text={para} /></p>
+                    <p key={i} className="leg-summary-prose"><BillLinkify text={para} refs={bill.bill_refs} /></p>
                   ))}
                 </>
               )}
@@ -252,7 +252,7 @@ export default function LegislationDetail() {
                 <>
                   <p className="leg-summary-eyebrow">Impact</p>
                   {bill.llm_summary.impact_analysis.split('\n\n').map((para, i) => (
-                    <p key={i} className="leg-summary-prose"><RcwLinkify text={para} /></p>
+                    <p key={i} className="leg-summary-prose"><BillLinkify text={para} refs={bill.bill_refs} /></p>
                   ))}
                 </>
               )}
@@ -280,7 +280,7 @@ export default function LegislationDetail() {
                         <li key={i} className="leg-key-change">
                           <h3 className="leg-key-change-title">{kc.title}</h3>
                           {kc.description && (
-                            <p className="leg-key-change-desc"><RcwLinkify text={kc.description} /></p>
+                            <p className="leg-key-change-desc"><BillLinkify text={kc.description} refs={bill.bill_refs} /></p>
                           )}
                           {kc.affected_section && (
                             <p className="leg-key-change-section">
