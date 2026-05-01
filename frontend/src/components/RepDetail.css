@@ -105,3 +105,40 @@
   background: #2E3D5B;
   color: #ffffff;
 }
+
+/* Bills sponsored — sits below the contact + external-link rows.
+   Renders the same LegislationCard chrome used on /legislation/ so
+   the card style stays consistent across the SPA. We cap the inline
+   list at 10 cards from the API; the "View all" link below falls
+   through to the existing legislation index sponsor filter when the
+   rep has more than that. */
+.rep-detail-bills {
+  margin-top: 2rem;
+}
+
+.rep-detail-section-h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 1rem;
+}
+
+.rep-detail-section-count {
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.rep-detail-bill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rep-detail-bills-viewall {
+  display: inline-block;
+  margin-top: 1rem;
+  color: #2E3D5B;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  text-decoration: underline;
+}

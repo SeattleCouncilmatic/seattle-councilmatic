@@ -16,7 +16,8 @@ from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 from django.contrib.gis.geos import Point
 from django.db import connection, models
 
-from councilmatic_core.models import Person, Membership
+from councilmatic_core.models import Bill, Person, Membership
+from django.db.models import Max
 from .models import District
 
 
@@ -431,7 +432,10 @@ def list_at_large_reps() -> List[Dict[str, Any]]:
 
 def get_rep_by_slug(slug: str) -> Optional[Dict[str, Any]]:
     """Single rep detail by councilmatic_core_person.slug. Returns None
-    for unknown slugs or for reps who aren't currently serving."""
+    for unknown slugs or for reps who aren't currently serving. Includes
+    a `sponsored_bills` list (most recent activity first, capped) and
+    `sponsored_bills_total` so the detail page can surface a "view all"
+    link when the rep has more bills than we ship inline."""
     rows = _query_current_council_members(
         extra_filter=" AND cp.slug = %s",
         params=[slug],
@@ -439,7 +443,73 @@ def get_rep_by_slug(slug: str) -> Optional[Dict[str, Any]]:
     if not rows:
         return None
     name, slug_back, label, person_id = rows[0]
-    return _rep_row_to_dict(name, slug_back, label, person_id)
+    rep = _rep_row_to_dict(name, slug_back, label, person_id)
+    bills, total = _get_sponsored_bills(name)
+    rep['sponsored_bills'] = bills
+    rep['sponsored_bills_total'] = total
+    return rep
+
+
+# Mirrors `_normalise_status` in seattle_app/api_views.py — same status
+# label + variant pair the legislation index uses on its cards. Imported
+# at call time so a circular `seattle_app -> reps -> seattle_app` import
+# during module init can't form (reps loads early; seattle_app builds
+# views that import from reps).
+def _normalise_status_lazy(raw: str) -> tuple[str, str]:
+    from seattle_app.api_views import _normalise_status
+    return _normalise_status(raw)
+
+
+def _get_sponsored_bills(rep_name: str, limit: int = 10
+                         ) -> tuple[List[Dict[str, Any]], int]:
+    """Return up to `limit` bills sponsored by `rep_name` (most recent
+    activity first), plus the total count of all sponsored bills. Each
+    row matches the shape `LegislationCard.jsx` expects so the existing
+    card component renders them on `/reps/<slug>/`; the total powers a
+    "View all" link to the legislation index when `limit` is exceeded.
+    `is_primary` flags bills where the rep is a primary sponsor (vs.
+    cosponsor)."""
+    if not rep_name:
+        return [], 0
+
+    base = (
+        Bill.objects
+        .filter(sponsorships__name__iexact=rep_name)
+        .distinct()
+    )
+    total = base.count()
+    bills = (
+        base
+        .annotate(latest_action_date=Max('actions__date'))
+        .order_by('-latest_action_date', '-identifier')
+        .prefetch_related('sponsorships', 'actions')
+        [:limit]
+    )
+
+    rep_name_lower = rep_name.lower()
+    results: List[Dict[str, Any]] = []
+    for bill in bills:
+        is_primary = any(
+            s.primary and (s.entity_name or '').lower() == rep_name_lower
+            for s in bill.sponsorships.all()
+        )
+        # Earliest action date doubles as introduced date — same heuristic
+        # as legislation_index. Action `date` strings are ISO 8601 with
+        # optional time; slice to the YYYY-MM-DD prefix for display.
+        dates = [a.date for a in bill.actions.all() if a.date]
+        intro_date = min(dates)[:10] if dates else None
+        raw_status = bill.extras.get('MatterStatusName', '')
+        status_label, status_variant = _normalise_status_lazy(raw_status)
+        results.append({
+            'identifier':      bill.identifier,
+            'title':           bill.title,
+            'slug':            bill.slug,
+            'status':          status_label,
+            'status_variant': status_variant,
+            'date_introduced': intro_date,
+            'is_primary':      is_primary,
+        })
+    return results, total
 
 
 def get_district_with_reps(number: str) -> Optional[Dict[str, Any]]:
