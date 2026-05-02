@@ -33,7 +33,7 @@ export default function MuniCodeSection() {
   if (!data) return <LoadingView />
 
   return (
-    <main className="smc-detail-page">
+    <div className="smc-detail-page">
       <div className="smc-detail-container">
         <Breadcrumb crumbs={[
           { to: '/', label: 'Home' },
@@ -86,6 +86,6 @@ export default function MuniCodeSection() {
 
         <NeighborNav neighbors={data.neighbors} ariaLabel="Section navigation" />
       </div>
-    </main>
+    </div>
   )
 }

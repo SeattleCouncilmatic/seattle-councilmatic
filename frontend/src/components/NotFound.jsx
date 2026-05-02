@@ -26,13 +26,13 @@ const DEFAULT_VARIANT = {
 export default function NotFound({ kind }) {
   const v = VARIANTS[kind] ?? DEFAULT_VARIANT
   return (
-    <main className="notfound-page">
+    <div className="notfound-page">
       <div className="notfound-container">
         <p className="notfound-code">404</p>
         <h1 className="notfound-title">{v.title}</h1>
         <p className="notfound-message">{v.message}</p>
         <Link to={v.linkTo} className="notfound-home-link">{v.linkLabel}</Link>
       </div>
-    </main>
+    </div>
   )
 }

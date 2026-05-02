@@ -26,16 +26,16 @@ export default function RepDistrict() {
 
   if (status === 404) return <NotFound />
   if (error) return (
-    <main className="rep-district-page"><div className="rep-district-container">Could not load: {error}</div></main>
+    <div className="rep-district-page"><div className="rep-district-container">Could not load: {error}</div></div>
   )
   if (!data) return (
-    <main className="rep-district-page"><div className="rep-district-container">Loading…</div></main>
+    <div className="rep-district-page"><div className="rep-district-container">Loading…</div></div>
   )
 
   const accent = DISTRICT_COLORS[data.district.number] || '#2E3D5B'
 
   return (
-    <main className="rep-district-page">
+    <div className="rep-district-page">
       <div className="rep-district-container">
         <nav className="rep-district-breadcrumb" aria-label="Breadcrumb">
           <Link to="/">Home</Link>
@@ -85,7 +85,7 @@ export default function RepDistrict() {
           </ul>
         </section>
       </div>
-    </main>
+    </div>
   )
 }
 

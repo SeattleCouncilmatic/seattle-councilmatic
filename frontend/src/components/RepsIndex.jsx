@@ -21,7 +21,7 @@ export default function RepsIndex() {
   }, [])
 
   return (
-    <main className="reps-page">
+    <div className="reps-page">
       <div className="reps-container">
         <nav className="reps-breadcrumb" aria-label="Breadcrumb">
           <Link to="/">Home</Link>
@@ -86,7 +86,7 @@ export default function RepsIndex() {
           </>
         )}
       </div>
-    </main>
+    </div>
   )
 }
 

@@ -80,7 +80,7 @@ function TitlePage({ titleNumber }) {
   if (!data) return <LoadingView />
 
   return (
-    <main className="smc-detail-page">
+    <div className="smc-detail-page">
       <div className="smc-detail-container">
         <Breadcrumb crumbs={[
           { to: '/', label: 'Home' },
@@ -156,7 +156,7 @@ function TitlePage({ titleNumber }) {
 
         <NeighborNav neighbors={data.neighbors} ariaLabel="Title navigation" />
       </div>
-    </main>
+    </div>
   )
 }
 
@@ -177,9 +177,9 @@ function Breadcrumb({ crumbs }) {
 export { Breadcrumb }
 
 function LoadingView() {
-  return <main className="smc-detail-page"><div className="smc-detail-container">Loading…</div></main>
+  return <div className="smc-detail-page"><div className="smc-detail-container">Loading…</div></div>
 }
 function ErrorView({ msg }) {
-  return <main className="smc-detail-page"><div className="smc-detail-container">Could not load: {msg}</div></main>
+  return <div className="smc-detail-page"><div className="smc-detail-container">Could not load: {msg}</div></div>
 }
 export { LoadingView, ErrorView }

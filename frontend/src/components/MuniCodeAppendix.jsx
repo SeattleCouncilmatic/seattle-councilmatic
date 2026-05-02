@@ -30,7 +30,7 @@ export default function MuniCodeAppendix() {
   if (!data) return <LoadingView />
 
   return (
-    <main className="smc-detail-page">
+    <div className="smc-detail-page">
       <div className="smc-detail-container">
         <Breadcrumb crumbs={[
           { to: '/', label: 'Home' },
@@ -52,6 +52,6 @@ export default function MuniCodeAppendix() {
           </p>
         )}
       </div>
-    </main>
+    </div>
   )
 }

@@ -26,14 +26,14 @@ export default function RepDetail() {
 
   if (status === 404) return <NotFound />
   if (error) return (
-    <main className="rep-detail-page"><div className="rep-detail-container">Could not load: {error}</div></main>
+    <div className="rep-detail-page"><div className="rep-detail-container">Could not load: {error}</div></div>
   )
   if (!data) return (
-    <main className="rep-detail-page"><div className="rep-detail-container">Loading…</div></main>
+    <div className="rep-detail-page"><div className="rep-detail-container">Loading…</div></div>
   )
 
   return (
-    <main className="rep-detail-page">
+    <div className="rep-detail-page">
       <div className="rep-detail-container">
         <nav className="rep-detail-breadcrumb" aria-label="Breadcrumb">
           <Link to="/">Home</Link>
@@ -113,6 +113,6 @@ export default function RepDetail() {
           </section>
         )}
       </div>
-    </main>
+    </div>
   )
 }

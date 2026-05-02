@@ -125,7 +125,7 @@ export default function EventsIndex() {
   const hasNext = offset + PAGE_SIZE < totalCount
 
   return (
-    <main className="evt-index-page">
+    <div className="evt-index-page">
       <div className="evt-index-container">
         <nav className="evt-index-breadcrumb" aria-label="Breadcrumb">
           <Link to="/">Home</Link>
@@ -255,6 +255,6 @@ export default function EventsIndex() {
           </nav>
         )}
       </div>
-    </main>
+    </div>
   )
 }

@@ -161,7 +161,7 @@ export default function EventDetail() {
   )
 
   return (
-    <main className="evt-detail-page">
+    <div className="evt-detail-page">
       <div className="evt-detail-container">
 
         {/* Breadcrumb */}
@@ -258,6 +258,6 @@ export default function EventDetail() {
 
         </div>
       </div>
-    </main>
+    </div>
   )
 }
