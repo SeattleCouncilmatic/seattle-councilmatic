@@ -92,7 +92,7 @@ export default function Search() {
           <p className="search-empty">Type a keyword or citation above to begin searching.</p>
         )}
 
-        {q && error && <div className="search-error">Could not load: {error}</div>}
+        {q && error && <div role="alert" className="search-error">Could not load: {error}</div>}
 
         {q && !error && (
           <>
@@ -173,10 +173,10 @@ function SearchSection({ title, total, loading, viewAllPath, empty, children }) 
         )}
       </div>
       {loading
-        ? <div className="search-section-status">Loading…</div>
+        ? <div role="status" className="search-section-status">Loading…</div>
         : hasResults
           ? children
-          : <div className="search-section-status">{empty}</div>}
+          : <div role="status" className="search-section-status">{empty}</div>}
     </section>
   )
 }

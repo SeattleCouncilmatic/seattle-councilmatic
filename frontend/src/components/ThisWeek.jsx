@@ -27,14 +27,14 @@ function ViewAllLink({ href, label }) {
 
 function LoadingSpinner() {
   return (
-    <div className="tw-loading" aria-label="Loading">
+    <div role="status" className="tw-loading" aria-label="Loading">
       <Loader2 className="tw-spinner" size={28} />
     </div>
   );
 }
 
 function ErrorMessage({ message }) {
-  return <p className="tw-error">{message}</p>;
+  return <p role="alert" className="tw-error">{message}</p>;
 }
 
 export default function ThisWeek() {

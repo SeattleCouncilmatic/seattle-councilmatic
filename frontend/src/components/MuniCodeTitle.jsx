@@ -177,9 +177,9 @@ function Breadcrumb({ crumbs }) {
 export { Breadcrumb }
 
 function LoadingView() {
-  return <div className="smc-detail-page"><div className="smc-detail-container">Loading…</div></div>
+  return <div className="smc-detail-page"><div role="status" className="smc-detail-container">Loading…</div></div>
 }
 function ErrorView({ msg }) {
-  return <div className="smc-detail-page"><div className="smc-detail-container">Could not load: {msg}</div></div>
+  return <div className="smc-detail-page"><div role="alert" className="smc-detail-container">Could not load: {msg}</div></div>
 }
 export { LoadingView, ErrorView }

@@ -239,7 +239,7 @@ export default function LegislationIndex() {
           </label>
         </div>
 
-        <div className="leg-index-summary">
+        <div role="status" className="leg-index-summary">
           {loading
             ? 'Loading…'
             : error

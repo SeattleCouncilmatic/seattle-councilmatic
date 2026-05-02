@@ -26,10 +26,10 @@ export default function RepDetail() {
 
   if (status === 404) return <NotFound />
   if (error) return (
-    <div className="rep-detail-page"><div className="rep-detail-container">Could not load: {error}</div></div>
+    <div className="rep-detail-page"><div role="alert" className="rep-detail-container">Could not load: {error}</div></div>
   )
   if (!data) return (
-    <div className="rep-detail-page"><div className="rep-detail-container">Loading…</div></div>
+    <div className="rep-detail-page"><div role="status" className="rep-detail-container">Loading…</div></div>
   )
 
   return (

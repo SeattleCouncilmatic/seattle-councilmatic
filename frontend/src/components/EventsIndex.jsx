@@ -209,7 +209,7 @@ export default function EventsIndex() {
           </label>
         </div>
 
-        <div className="evt-index-summary">
+        <div role="status" className="evt-index-summary">
           {loading
             ? 'Loading…'
             : error

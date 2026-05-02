@@ -105,9 +105,9 @@ export default function LegislationDetail() {
       .catch(e => { setError(e.message); setLoading(false) })
   }, [slug])
 
-  if (loading)  return <div className="leg-detail-loading">Loading…</div>
+  if (loading)  return <div role="status" className="leg-detail-loading">Loading…</div>
   if (notFound) return <NotFound kind="legislation" />
-  if (error)    return <div className="leg-detail-error">Could not load legislation: {error}</div>
+  if (error)    return <div role="alert" className="leg-detail-error">Could not load legislation: {error}</div>
 
   const primarySponsors = bill.sponsors.filter(s => s.primary)
   const coSponsors      = bill.sponsors.filter(s => !s.primary)

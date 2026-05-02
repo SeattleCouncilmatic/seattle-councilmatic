@@ -233,7 +233,7 @@ function SearchResults({ loading, error, results, totalCount, mode, currentPage,
                         totalPages, hasPrev, hasNext, goToOffset, offset }) {
   return (
     <>
-      <div className="smc-index-summary">
+      <div role="status" className="smc-index-summary">
         {loading
           ? 'Loading…'
           : error
@@ -298,8 +298,8 @@ function SearchResults({ loading, error, results, totalCount, mode, currentPage,
 }
 
 function BrowseTree({ tree, error }) {
-  if (error) return <div className="smc-index-summary">Could not load: {error}</div>
-  if (!tree) return <div className="smc-index-summary">Loading titles…</div>
+  if (error) return <div role="alert" className="smc-index-summary">Could not load: {error}</div>
+  if (!tree) return <div role="status" className="smc-index-summary">Loading titles…</div>
 
   return (
     <section className="smc-browse" aria-label="Browse by title">
