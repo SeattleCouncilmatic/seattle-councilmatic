@@ -102,8 +102,15 @@ export default function RepsIndex() {
 
 function RepMiniCard({ rep, districtName, description, districtNumber, highlighted, onActivate }) {
   const accent = districtNumber ? DISTRICT_COLORS[districtNumber] : null
+  // The accent color rides into CSS as a `--card-accent` custom
+  // property, consumed by `.rep-mini-card--accented` for the left
+  // bar and (when highlighted) by the boxShadow/border ring.
+  // Earlier we tried setting `borderLeftColor` directly inline,
+  // but the CSS shorthand cascade quietly clobbered it for the
+  // resting state; CSS variables sidestep all of that.
+  const accentVar = accent ? { '--card-accent': accent } : undefined
   // Inline style applied when the card is "active" — hovered or
-  // focused. Replaces the default gray border with the district
+  // focused. Replaces the gray rest-state border with the district
   // accent color and adds a soft matching ring, AND suppresses the
   // browser's :focus-visible outline (.rep-mini-card has one set
   // for at-large cards) so we don't draw a navy ring on top of
@@ -111,7 +118,6 @@ function RepMiniCard({ rep, districtName, description, districtNumber, highlight
   const highlightStyle = highlighted && accent
     ? { borderColor: accent, boxShadow: `0 0 0 2px ${accent}33`, outline: 'none' }
     : undefined
-  const accentBar = accent ? { borderLeftColor: accent } : undefined
 
   // District cards mirror map polygon click — navigate to the district
   // page (rep + at-large). At-large cards have no districtNumber, so they
@@ -137,7 +143,7 @@ function RepMiniCard({ rep, districtName, description, districtNumber, highlight
       <Link
         to={target}
         className={`rep-mini-card rep-mini-card--empty${accent ? ' rep-mini-card--accented' : ''}`}
-        style={{ ...accentBar, ...highlightStyle }}
+        style={{ ...accentVar, ...highlightStyle }}
         {...activateHandlers}
       >
         <div className="rep-mini-card-district">{districtName}</div>
