@@ -48,7 +48,7 @@ export default function RepDistrict() {
         </nav>
 
         <header className="rep-district-header" style={{ borderLeftColor: accent }}>
-          <div className="rep-district-eyebrow" style={{ color: accent }}>District</div>
+          <div className="rep-district-eyebrow">District</div>
           <h1 className="rep-district-h1">{data.district.name}</h1>
           {data.district.description && (
             <p className="rep-district-sub">{data.district.description}</p>
