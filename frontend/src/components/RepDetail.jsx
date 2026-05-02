@@ -122,6 +122,29 @@ export default function RepDetail() {
           )}
         </section>
 
+        {(data.committees || []).length > 0 && (
+          <section className="rep-detail-committees" aria-label="Committee assignments">
+            <h2 className="rep-detail-section-h2">Committees</h2>
+            <ul className="rep-detail-committee-list">
+              {data.committees.map(c => (
+                <li key={c.organization_id} className="rep-detail-committee-row">
+                  <span className={`rep-detail-committee-role rep-detail-committee-role--${c.role.toLowerCase().replace(/[^a-z]/g, '-')}`}>
+                    {c.role}
+                  </span>
+                  {c.source_url ? (
+                    <a href={c.source_url} target="_blank" rel="noopener noreferrer"
+                       className="rep-detail-committee-name">
+                      {c.name}
+                    </a>
+                  ) : (
+                    <span className="rep-detail-committee-name">{c.name}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {(data.sponsored_bills_total || 0) > 0 && (
           <section className="rep-detail-bills" aria-label="Bills sponsored">
             <h2 className="rep-detail-section-h2">

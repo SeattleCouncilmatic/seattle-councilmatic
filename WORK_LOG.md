@@ -64,6 +64,16 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Reps — scrape committee memberships → OCD Organization + Membership — committed 2026-05-02
+
+Each councilmember's `/council/members/<slug>/committees-and-calendar` page lists 4-6 committee assignments with role (Chair / Vice-Chair / Member). The pupa scraper now fetches that page during the people scrape, parses the committees ul, and yields one OCD `Organization` per unique committee plus one `Membership` per (person, committee) with the role.
+
+`extract_committee_assignments(html_str)` is the parser. The scrape collects all committees in a first pass, dedupes by URL slug (committee names vary in punctuation across reps' pages — `Seattle Center` vs `Seattle-Center` — so the slug is the stable identifier), then yields the Organizations followed by the Persons with their committee memberships. Canonical name = first-seen display text for that slug.
+
+API: `_rep_row_to_dict` now returns a `committees` array of `{name, role, organization_id, source_url}` sorted Chair → Vice-Chair → Member then alphabetically. Frontend: new `Committees` section between External Links and Bills sponsored, with role pills (filled navy / outlined navy / light gray) and committee names linked out to seattle.gov.
+
+Live data: 9 unique committees, 44 (person, committee) memberships across the 9 current councilmembers. Dropped naturally for former members — `/committees-and-calendar` 404s for `sara-nelson` and `mark-solomon` so the existing redirect-skip pattern protects us. One known data quirk: Rinck's page has a copy-paste href bug (her Libraries entry's href points at Transportation), so she shows two memberships to Transportation — when seattle.gov fixes their page, our next scrape clears it up.
+
 ### Events — clean up 91 stale midnight Event duplicates — committed 2026-05-02
 
 Pre-PR-#34 (committed 2026-04-28) the events scraper read only Legistar's `EventDate` field, which always carries midnight; the wall-clock time lives in a separate `EventTime` field. Every event scraped before that fix landed at midnight Pacific (07:00 UTC during PDT, 08:00 UTC during PST). When the fix shipped the next scrape created *new* event rows at the correct time — pupa upserts on (name + start_date), so a different start_date yielded a new row rather than updating the existing one. Result was 91 (name, date) groups in the DB with both a stale midnight row and a corrected row, double-displaying in `/events/`.
