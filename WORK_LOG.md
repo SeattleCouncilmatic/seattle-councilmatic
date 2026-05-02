@@ -64,6 +64,14 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Reps — switch profile link to per-member detail page — committed 2026-05-02
+
+Was linking to `https://www.seattle.gov/council/members#DeboraJuarez` (anchor on the index page). Now links to `https://www.seattle.gov/council/members/debora-juarez` — the per-member detail page that carries about/committees/staff/blog content we'll pull from in follow-on work.
+
+`seattle/people.py` gets a `profile_slug(name)` helper (lowercase + spaces→hyphens) plus a small `PROFILE_SLUG_OVERRIDES` dict for cases where seattle.gov uses a preferred name on the URL — currently just `Robert Kettle → bob-kettle`. Migration `0021_update_council_profile_urls` walks existing `core.PersonLink` rows with `note='City Council profile'` and rewrites the URL using the same rule (no re-scrape required). Verified all 11 stored profiles (9 current + Sara Nelson + Mark Solomon + Debora Juarez) update cleanly.
+
+Caveat: seattle.gov silently redirects former-member URLs to their successor (e.g. `sara-nelson` → Dionne Foster's page, `mark-solomon` → Eddie Lin's page) rather than serving an archived profile. Debora Juarez still has her own archived page. Acceptable for now — the link works and lands on the seat's current holder, which is at least informative.
+
 ### Frontend — NavBar reorder — committed 2026-05-02
 
 Tiny ergonomic reorder. New order: `Home · City Council · Legislation · Events · Municode · About`. Surfaces the human-facing pages (council members, bills, meetings) before the reference/utility ones (municipal code, about). About moves to the tail since it's a one-time read, not a recurring destination. No behavior changes; `NAV_ITEMS` array reorder in `NavBar.jsx` only.
