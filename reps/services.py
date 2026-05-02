@@ -357,6 +357,15 @@ def _rep_row_to_dict(name: str, slug: str, label: str, person_id: str) -> Dict[s
                 rep_data['email'] = contact.value
             elif contact.type == 'voice':
                 rep_data['phone'] = contact.value
+            elif contact.type == 'fax':
+                rep_data['fax'] = contact.value
+            elif contact.type == 'address':
+                # Two address rows per person (Office + Mailing) keyed by
+                # `note` — see seattle/people.py.
+                if contact.note == 'Office':
+                    rep_data['office_address'] = contact.value
+                elif contact.note == 'Mailing':
+                    rep_data['mailing_address'] = contact.value
         for link in person.links.all():
             if link.note == 'City Council profile':
                 rep_data['profile_url'] = link.url

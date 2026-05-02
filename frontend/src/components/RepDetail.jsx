@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Phone, Mail, ExternalLink, Clock } from 'lucide-react'
+import { Phone, Mail, Printer, MapPin, ExternalLink, Clock } from 'lucide-react'
 import NotFound from './NotFound'
 import LegislationCard from './LegislationCard'
 import useDocumentTitle from '../hooks/useDocumentTitle'
@@ -69,6 +69,37 @@ export default function RepDetail() {
               <div>
                 <div className="rep-detail-contact-label">Email</div>
                 <a href={`mailto:${data.email}`} className="rep-detail-contact-value">{data.email}</a>
+              </div>
+            </div>
+          )}
+          {data.fax && (
+            <div className="rep-detail-contact-row">
+              <Printer size={16} aria-hidden="true" />
+              <div>
+                <div className="rep-detail-contact-label">Fax</div>
+                <div className="rep-detail-contact-value rep-detail-contact-static">{data.fax}</div>
+              </div>
+            </div>
+          )}
+          {data.office_address && (
+            <div className="rep-detail-contact-row">
+              <MapPin size={16} aria-hidden="true" />
+              <div>
+                <div className="rep-detail-contact-label">Office address</div>
+                <div className="rep-detail-contact-value rep-detail-contact-static rep-detail-contact-address">
+                  {data.office_address}
+                </div>
+              </div>
+            </div>
+          )}
+          {data.mailing_address && (
+            <div className="rep-detail-contact-row">
+              <MapPin size={16} aria-hidden="true" />
+              <div>
+                <div className="rep-detail-contact-label">Mailing address</div>
+                <div className="rep-detail-contact-value rep-detail-contact-static rep-detail-contact-address">
+                  {data.mailing_address}
+                </div>
               </div>
             </div>
           )}
