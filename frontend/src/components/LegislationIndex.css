@@ -74,7 +74,7 @@
 .leg-index-search:focus {
   outline: none;
   border-color: #2E3D5B;
-  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.15);
+  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.4);
 }
 
 .leg-index-status {
@@ -92,7 +92,7 @@
 .leg-index-status:focus {
   outline: none;
   border-color: #2E3D5B;
-  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.15);
+  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.4);
 }
 
 .leg-index-summary {
@@ -133,7 +133,7 @@
 .leg-index-date-input:focus {
   outline: none;
   border-color: #2E3D5B;
-  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.15);
+  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.4);
 }
 
 /* ── Results list ─────────────────────────────────────────────── */
