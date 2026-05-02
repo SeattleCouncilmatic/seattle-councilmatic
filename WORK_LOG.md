@@ -64,6 +64,16 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Reps — scrape phone, fax, addresses from per-member contact tile — committed 2026-05-02
+
+The per-member seattle.gov detail pages each carry a Contact Us tile with phone, fax, email, office address, and mailing address. The pupa scraper only emitted a guessed `firstname.lastname@seattle.gov` email before. Now it also fetches the per-member page during scrape and pulls the rest of the tile into `core.PersonContactDetail` rows. Two address rows per person (`note='Office'` / `note='Mailing'`), one phone (`type='voice'`), one fax (`type='fax'`), and the canonical-capitalization email (which matters for `Alexis Mercedes Rinck` since the real mailbox is `AlexisMercedes.Rinck@seattle.gov`, not the guessed `alexis.mercedes.rinck@seattle.gov`).
+
+`extract_contact_details(html_str)` is the shared parser, used both inside `SeattlePersonScraper.scrape()` and from the new `backfill_council_contacts` management command that idempotently populates the existing 11 Person rows without requiring a full pupa rerun. Addresses are stored multi-line with `\n` separators (line breaks at `<br/>` in the source), and the frontend renders them via `white-space: pre-line` on `.rep-detail-contact-address`.
+
+`reps/services.py:_rep_row_to_dict` extends the contact-details loop to expose `fax`, `office_address`, and `mailing_address`. `RepDetail.jsx` adds Phone (already wired but never populated), Fax (display-only), Office address, and Mailing address rows using lucide `Printer` and `MapPin` icons.
+
+Both scraper and backfill use `requests.get(..., allow_redirects=False)` and skip non-200 responses — seattle.gov 301s former-member URLs to their successor's page (`sara-nelson` → Dionne Foster, `mark-solomon` → Eddie Lin), which would otherwise attribute the successor's contact info to the former member's record. Sara Nelson and Mark Solomon keep the old guessed-email contact only.
+
 ### Reps — switch profile link to per-member detail page — committed 2026-05-02
 
 Was linking to `https://www.seattle.gov/council/members#DeboraJuarez` (anchor on the index page). Now links to `https://www.seattle.gov/council/members/debora-juarez` — the per-member detail page that carries about/committees/staff/blog content we'll pull from in follow-on work.

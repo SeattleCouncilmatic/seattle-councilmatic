@@ -81,6 +81,22 @@
 }
 .rep-detail-contact-value:hover { color: #2E3D5B; }
 
+/* Display-only contact values (fax, addresses) — no underline, no
+   hover color shift. The `<a>` styling above is the link variant. */
+.rep-detail-contact-static {
+  text-decoration: none;
+}
+.rep-detail-contact-static:hover { color: #1f2937; }
+
+/* Multi-line address values — server stores them with `\n` between
+   lines (Seattle City Hall / 600 Fourth Avenue / 2nd Floor / …);
+   `pre-line` honors those breaks while still collapsing inline runs
+   of whitespace. */
+.rep-detail-contact-address {
+  white-space: pre-line;
+  line-height: 1.4;
+}
+
 .rep-detail-actions {
   display: flex;
   flex-wrap: wrap;
