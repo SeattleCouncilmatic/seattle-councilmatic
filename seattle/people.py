@@ -7,8 +7,24 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+# seattle.gov serves per-member profiles at
+# `/council/members/<lowercase-hyphenated-name>`. The slug is derived
+# from the member's display name except when seattle.gov uses a preferred
+# name on the URL — keep this dict in sync with the live site.
+PROFILE_SLUG_OVERRIDES = {
+    "Robert Kettle": "bob-kettle",
+}
+
+
+def profile_slug(name: str) -> str:
+    """Slug for the per-member seattle.gov profile page."""
+    if name in PROFILE_SLUG_OVERRIDES:
+        return PROFILE_SLUG_OVERRIDES[name]
+    return name.strip().lower().replace(" ", "-")
+
+
 class SeattlePersonScraper(Scraper):
-    
+
 
     def scrape(self):
         """
@@ -58,9 +74,8 @@ class SeattlePersonScraper(Scraper):
                     note="Official email"
                 )
                 
-                # Build profile link
-                name_anchor = name.replace(" ", "")
-                profile_url = f"{url}#{name_anchor}"
+                # Build profile link — per-member detail page on seattle.gov
+                profile_url = f"{url}/{profile_slug(name)}"
                 person.add_link(profile_url, note="City Council profile")
 
                 self.info(f"Scraped person: {name} ({district})")
