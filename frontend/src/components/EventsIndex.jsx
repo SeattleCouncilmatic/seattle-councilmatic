@@ -202,17 +202,15 @@ export default function EventsIndex() {
               className="evt-index-date-input"
               value={dateAfter}
               onChange={handleDateChange('date_after')}
-              aria-label="Date from"
             />
           </label>
           <label className="evt-index-date-field">
-            <span className="evt-index-date-label">to</span>
+            <span className="evt-index-date-label">Date to</span>
             <input
               type="date"
               className="evt-index-date-input"
               value={dateBefore}
               onChange={handleDateChange('date_before')}
-              aria-label="Date to"
             />
           </label>
         </div>

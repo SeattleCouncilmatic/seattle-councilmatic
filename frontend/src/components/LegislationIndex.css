@@ -193,8 +193,16 @@
   color: #ffffff;
 }
 
+/* Explicit disabled colors instead of opacity. Opacity composites
+   the button against whatever's behind it, which dropped the
+   computed contrast on the page bg below 4.5:1 even at 0.6.
+   #6b7280 (gray-500) on #ffffff hits ~4.83:1 — passes WCAG 1.4.3
+   AA with margin and is still clearly distinct from the
+   active-state navy. */
 .leg-index-page-btn:disabled {
-  opacity: 0.6;
+  color: #6b7280;
+  border-color: #6b7280;
+  background: #ffffff;
   cursor: not-allowed;
 }
 
