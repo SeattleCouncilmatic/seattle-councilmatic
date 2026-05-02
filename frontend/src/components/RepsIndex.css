@@ -81,22 +81,40 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .rep-mini-card--accented {
-  /* District cards: only the left accent bar should be visible at
-     rest. The other three borders go transparent (keeping their
-     1px width so the highlighted state can fade them in without
-     a layout shift). The inline `borderLeftColor: accent` from
-     RepMiniCard paints the actual district color on top of the
-     #2E3D5B placeholder; the inline `borderColor: accent` from
-     `highlightStyle` (set on hover/focus via activeDistrict)
-     expands to all four sides and reveals the full ring. */
+  /* District cards: only the left accent bar is visible at rest.
+     Top/right/bottom borders go transparent — the 1px width on
+     them is preserved so the highlighted state can fade them in
+     without a layout shift. */
   border-color: transparent;
-  border-left: 4px solid #2E3D5B;
+  /* Left bar uses LONGHAND properties — earlier we used the
+     shorthand `border-left: 4px solid #2E3D5B`, which set both
+     width AND color in one declaration; that made it look (in
+     the browser's resolved style panel) like the inline
+     `borderLeftColor` was being overridden, since a shorthand
+     declaration appears after the inline-applied longhand in
+     the cascade visualization. Splitting the width/style here
+     and leaving border-left-color to the inline style only —
+     `accentBar = { borderLeftColor: DISTRICT_COLORS[num] }` in
+     RepMiniCard — makes the source of truth obvious and removes
+     the resolved-style ambiguity. */
+  border-left-width: 4px;
+  border-left-style: solid;
+  /* No border-left-color here — set per-card via inline style. */
 }
-.rep-mini-card:hover {
+
+/* Hover/focus on at-large cards only — they have no district
+   accent to fall back to, so the navy hover/focus border + ring
+   acts as the "this is interactive" indicator. Accented (district)
+   cards drive their hover/focus visual entirely through the inline
+   `highlightStyle` (border-color + boxShadow) set from the
+   activeDistrict state in RepsIndex; including them here would
+   briefly flash a navy border between the CSS :hover firing and
+   React reconciling the state update. */
+.rep-mini-card:not(.rep-mini-card--accented):hover {
   border-color: #2E3D5B;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
-.rep-mini-card:focus-visible {
+.rep-mini-card:not(.rep-mini-card--accented):focus-visible {
   border-color: #2E3D5B;
   outline: 2px solid #2E3D5B;
   outline-offset: 2px;
@@ -142,14 +160,16 @@
   align-items: flex-end;
 }
 
-/* Visible-label field wrapping the address input. Same pattern as
-   the index-page filter fields. Capped at 32rem so the search bar
-   doesn't stretch to the container edge on wide screens — at full
-   width the input's focus ring crowded the "Look up" button even
-   with the form gap bumped to 1rem. */
+/* Visible-label field wrapping the address input. Sized at a
+   fixed 24rem (won't grow past it) so the input doesn't span
+   the full container width and crowd the "Look up" button. The
+   button picks up `margin-left: auto` below so it slides to the
+   right edge of the form, giving a clear visual gap between the
+   two on desktop. flex-shrink: 1 still applies, so on a narrow
+   mobile viewport the input shrinks down. */
 .reps-lookup-field {
-  flex: 1 1 16rem;
-  max-width: 32rem;
+  flex: 0 1 24rem;
+  max-width: 24rem;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -187,6 +207,10 @@
   border-radius: 0.5rem;
   cursor: pointer;
   transition: background 0.15s;
+  /* Push to the right edge of the form so a clear visual gap
+     opens up between the (now fixed-width) field and the button.
+     On mobile where the form wraps to two lines, this is a no-op. */
+  margin-left: auto;
 }
 .reps-lookup-btn:hover:not(:disabled) { background: #1c2638; }
 .reps-lookup-btn:disabled { opacity: 0.6; cursor: not-allowed; }
