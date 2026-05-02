@@ -5,9 +5,14 @@ import 'leaflet/dist/leaflet.css'
 import { DISTRICT_COLORS } from './districtColors'
 import './CouncilMap.css'
 
-export default function CouncilMap({ districts, onDistrictHover }) {
+export default function CouncilMap({ districts, activeDistrict, onDistrictActivate }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
+  // Polygon layer refs keyed by district number — populated as
+  // each feature is added in the build effect, consumed by the
+  // activeDistrict effect to programmatically apply the hover
+  // styling + open tooltip when the active district changes.
+  const layersByDistrictRef = useRef(new Map())
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -40,6 +45,7 @@ export default function CouncilMap({ districts, onDistrictHover }) {
         mapInstanceRef.current.removeLayer(layer)
       }
     })
+    layersByDistrictRef.current.clear()
 
     const allBounds = L.latLngBounds([])
 
@@ -55,19 +61,14 @@ export default function CouncilMap({ districts, onDistrictHover }) {
           fillOpacity: 0.3,
         },
         onEachFeature: (_feature, lyr) => {
+          layersByDistrictRef.current.set(d.number, lyr)
           const repName = d.rep?.name ?? 'Vacant'
           lyr.bindTooltip(
             `<strong>${d.name}</strong><br/>${repName}`,
             { sticky: true, direction: 'top' }
           )
-          lyr.on('mouseover', () => {
-            lyr.setStyle({ weight: 3, fillOpacity: 0.5 })
-            onDistrictHover?.(d.number)
-          })
-          lyr.on('mouseout', () => {
-            lyr.setStyle({ weight: 2, fillOpacity: 0.3 })
-            onDistrictHover?.(null)
-          })
+          lyr.on('mouseover', () => onDistrictActivate?.(d.number))
+          lyr.on('mouseout', () => onDistrictActivate?.(null))
           // Click goes to the district page (rep + at-large), not straight
           // to the district rep — gives users the full picture of who
           // represents them before drilling into a single profile.
@@ -87,6 +88,26 @@ export default function CouncilMap({ districts, onDistrictHover }) {
       // whole map only when the component unmounts.
     }
   }, [districts, navigate])
+
+  // Sync the polygon highlight + tooltip to the active-district state.
+  // The state is shared with the district cards in RepsIndex, so this
+  // effect fires whether the user hovered a polygon (mouseover above
+  // dispatches onDistrictActivate → state update → effect) or hovered/
+  // focused a card (RepMiniCard dispatches onActivate → same path).
+  // Manually centering the tooltip on the polygon's bounds avoids the
+  // sticky-tooltip cursor-tracking falling back to a stale cursor
+  // position when the activation came from a keyboard focus.
+  useEffect(() => {
+    for (const [num, lyr] of layersByDistrictRef.current) {
+      if (num === activeDistrict) {
+        lyr.setStyle({ weight: 3, fillOpacity: 0.5 })
+        lyr.openTooltip(lyr.getBounds().getCenter())
+      } else {
+        lyr.setStyle({ weight: 2, fillOpacity: 0.3 })
+        lyr.closeTooltip()
+      }
+    }
+  }, [activeDistrict])
 
   // Full unmount cleanup
   useEffect(() => {
