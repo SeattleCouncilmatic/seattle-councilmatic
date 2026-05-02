@@ -64,6 +64,10 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Frontend — NavBar reorder — committed 2026-05-02
+
+Tiny ergonomic reorder. New order: `Home · City Council · Legislation · Events · Municode · About`. Surfaces the human-facing pages (council members, bills, meetings) before the reference/utility ones (municipal code, about). About moves to the tail since it's a one-time read, not a recurring destination. No behavior changes; `NAV_ITEMS` array reorder in `NavBar.jsx` only.
+
 ### LLM — render legislation summaries in API + frontend (Stage 3 of bills pipeline) — committed 2026-04-30
 Final stage of the bills LLM pipeline — surfaces the summaries to users.
 
