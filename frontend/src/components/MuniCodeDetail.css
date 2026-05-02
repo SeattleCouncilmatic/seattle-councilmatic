@@ -101,7 +101,7 @@
 }
 
 .smc-empty {
-  color: #9ca3af;
+  color: #6b7280;
   font-style: italic;
   margin: 0.5rem 0;
 }
@@ -141,7 +141,7 @@
   min-width: 0;
 }
 .smc-scoped-search-input::placeholder {
-  color: #9ca3af;
+  color: #6b7280;
 }
 /* Clear-search X button — only rendered when the input has text.
    Submit/Enter still triggers immediate navigation via the form
@@ -238,6 +238,6 @@
 .smc-source-note {
   margin-top: 2rem;
   font-size: 0.8125rem;
-  color: #9ca3af;
+  color: #6b7280;
   font-style: italic;
 }

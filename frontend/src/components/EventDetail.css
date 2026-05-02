@@ -281,7 +281,7 @@
 .evt-agenda-seq {
   font-size: 0.875rem;
   font-weight: 700;
-  color: #9ca3af;
+  color: #6b7280;
   min-width: 1.5rem;
   padding-top: 0.125rem;
   flex-shrink: 0;
@@ -328,7 +328,7 @@
 
 .evt-agenda-status {
   font-size: 0.75rem;
-  color: #9ca3af;
+  color: #6b7280;
 }
 
 .evt-agenda-action {
