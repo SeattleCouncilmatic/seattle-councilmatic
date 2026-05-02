@@ -138,12 +138,24 @@
 .smc-scoped-search-input {
   flex: 1;
   border: none;
-  outline: none;
   font-size: 0.9375rem;
   color: #1f2937;
   background: transparent;
   padding: 0.4rem 0;
   min-width: 0;
+}
+/* Focus indicator on the input itself — the wrapping
+   `.smc-scoped-search:focus-within` already paints the navy
+   border + ring on the whole search-bar, but Firefox's
+   Accessibility Inspector checks focus styling per element and
+   flags `outline: none` here without a replacement. The 2px
+   solid sits inside the wrapper's padding so it doesn't visually
+   compound with the wrapper ring; together they read as one
+   coherent focused-search-bar look. */
+.smc-scoped-search-input:focus-visible {
+  outline: 2px solid #2E3D5B;
+  outline-offset: 2px;
+  border-radius: 0.25rem;
 }
 .smc-scoped-search-input::placeholder {
   color: #6b7280;
