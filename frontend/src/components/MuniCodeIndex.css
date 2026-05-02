@@ -252,8 +252,11 @@
   background: #2E3D5B;
   color: #ffffff;
 }
+/* See LegislationIndex.css `.leg-index-page-btn:disabled`. */
 .smc-page-btn:disabled {
-  opacity: 0.6;
+  color: #6b7280;
+  border-color: #6b7280;
+  background: #ffffff;
   cursor: not-allowed;
 }
 

@@ -236,17 +236,15 @@ export default function LegislationIndex() {
               className="leg-index-date-input"
               value={introducedAfter}
               onChange={handleDateChange('introduced_after')}
-              aria-label="Introduced from date"
             />
           </label>
           <label className="leg-index-date-field">
-            <span className="leg-index-date-label">to</span>
+            <span className="leg-index-date-label">Introduced to</span>
             <input
               type="date"
               className="leg-index-date-input"
               value={introducedBefore}
               onChange={handleDateChange('introduced_before')}
-              aria-label="Introduced to date"
             />
           </label>
         </div>
