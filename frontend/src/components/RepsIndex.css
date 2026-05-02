@@ -86,20 +86,15 @@
      them is preserved so the highlighted state can fade them in
      without a layout shift. */
   border-color: transparent;
-  /* Left bar uses LONGHAND properties — earlier we used the
-     shorthand `border-left: 4px solid #2E3D5B`, which set both
-     width AND color in one declaration; that made it look (in
-     the browser's resolved style panel) like the inline
-     `borderLeftColor` was being overridden, since a shorthand
-     declaration appears after the inline-applied longhand in
-     the cascade visualization. Splitting the width/style here
-     and leaving border-left-color to the inline style only —
-     `accentBar = { borderLeftColor: DISTRICT_COLORS[num] }` in
-     RepMiniCard — makes the source of truth obvious and removes
-     the resolved-style ambiguity. */
-  border-left-width: 4px;
-  border-left-style: solid;
-  /* No border-left-color here — set per-card via inline style. */
+  /* Left bar reads its color from the `--card-accent` CSS variable
+     set per-card via inline style in RepMiniCard. Falls back to
+     the brand navy if the variable isn't set so the bar always
+     paints. Earlier attempts using inline `borderLeftColor`
+     longhand or the `border-left` shorthand both failed to win
+     the cascade against `border-color: transparent` reliably;
+     resolving via `var()` inside the CSS itself sidesteps any
+     longhand-vs-shorthand resolution ambiguity in DevTools. */
+  border-left: 4px solid var(--card-accent, #2E3D5B);
 }
 
 /* Hover/focus on at-large cards only — they have no district
@@ -151,25 +146,19 @@
 }
 
 .reps-lookup-form {
+  /* Stacked layout: input on its own row (full width), button
+     on the row below right-aligned. Earlier attempts (gap bumps,
+     fixed-width input) either kept the button cramped or pushed
+     it out into a wide-empty-gap layout that read as "broken."
+     Stacking puts the input at full width where it belongs and
+     gives the button a clean right-side anchor on its own row. */
   display: flex;
-  /* Gap was 0.5rem (8px), but the input's :focus state adds a 3px
-     box-shadow ring that visually crowded the "Look up" button.
-     Bumped to 1rem so the ring + button-border have room. */
-  gap: 1rem;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
-/* Visible-label field wrapping the address input. Sized at a
-   fixed 24rem (won't grow past it) so the input doesn't span
-   the full container width and crowd the "Look up" button. The
-   button picks up `margin-left: auto` below so it slides to the
-   right edge of the form, giving a clear visual gap between the
-   two on desktop. flex-shrink: 1 still applies, so on a narrow
-   mobile viewport the input shrinks down. */
+/* Visible-label field wrapping the address input. */
 .reps-lookup-field {
-  flex: 0 1 24rem;
-  max-width: 24rem;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -207,10 +196,9 @@
   border-radius: 0.5rem;
   cursor: pointer;
   transition: background 0.15s;
-  /* Push to the right edge of the form so a clear visual gap
-     opens up between the (now fixed-width) field and the button.
-     On mobile where the form wraps to two lines, this is a no-op. */
-  margin-left: auto;
+  /* Right-align the button on its own row inside the
+     flex-direction: column form. */
+  align-self: flex-end;
 }
 .reps-lookup-btn:hover:not(:disabled) { background: #1c2638; }
 .reps-lookup-btn:disabled { opacity: 0.6; cursor: not-allowed; }
