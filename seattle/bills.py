@@ -4,6 +4,8 @@ import requests
 
 from pupa.scrape import Bill, Scraper
 
+from seattle._http import request_with_retry
+
 CLIENT = "seattle"
 BASE_URL = f"https://webapi.legistar.com/v1/{CLIENT}"
 ENDPOINT = "matters"
@@ -47,8 +49,7 @@ class SeattleBillScraper(Scraper):
             "$orderby": "MatterIntroDate desc",
         }
         try:
-            response = requests.get(url, params=parameters)
-            response.raise_for_status()
+            response = request_with_retry(url, params=parameters)
             return response.json()
         except Exception as e:
             print("API call failed:", e)
@@ -66,8 +67,7 @@ class SeattleBillScraper(Scraper):
         """
         url = f"{BASE_URL}/{ENDPOINT}/{matter_id}/{endpoint}"
         try:
-            response = requests.get(url)
-            response.raise_for_status()
+            response = request_with_retry(url)
             return response.json() or []
         except Exception as e:
             self.warning(f"Failed to fetch {endpoint} for matter {matter_id}: {e}")
