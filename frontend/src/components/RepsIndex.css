@@ -125,7 +125,10 @@
 
 .reps-lookup-form {
   display: flex;
-  gap: 0.5rem;
+  /* Gap was 0.5rem (8px), but the input's :focus state adds a 3px
+     box-shadow ring that visually crowded the "Look up" button.
+     Bumped to 1rem so the ring + button-border have room. */
+  gap: 1rem;
   flex-wrap: wrap;
   align-items: flex-end;
 }

@@ -10,10 +10,13 @@ export default function RepsIndex() {
   useDocumentTitle('City Council')
   const [data, setData] = useState(null)
   const [loadError, setLoadError] = useState(null)
-  // Hover sync between CouncilMap and the district cards: hovering a
-  // polygon highlights the matching card (and vice versa would be nice
-  // someday, but one direction is enough for the visual correlation).
-  const [hoveredDistrict, setHoveredDistrict] = useState(null)
+  // Bidirectional active-district sync between CouncilMap and the
+  // district cards. Hovering a polygon, hovering a card, or
+  // keyboard-focusing a card all set the same state; the map
+  // applies the polygon hover-styling + tooltip and the card
+  // shows its district-color border + ring. Keyboard users get
+  // the same affordance as mouse users.
+  const [activeDistrict, setActiveDistrict] = useState(null)
 
   useEffect(() => {
     fetch('/api/reps/')
@@ -52,7 +55,11 @@ export default function RepsIndex() {
         {data && (
           <>
             <section aria-label="Council map" className="reps-section">
-              <CouncilMap districts={data.districts} onDistrictHover={setHoveredDistrict} />
+              <CouncilMap
+                districts={data.districts}
+                activeDistrict={activeDistrict}
+                onDistrictActivate={setActiveDistrict}
+              />
             </section>
 
             <section aria-label="District representatives" className="reps-section">
@@ -65,7 +72,8 @@ export default function RepsIndex() {
                       districtName={d.name}
                       description={d.description}
                       districtNumber={d.number}
-                      highlighted={hoveredDistrict === d.number}
+                      highlighted={activeDistrict === d.number}
+                      onActivate={setActiveDistrict}
                     />
                   </li>
                 ))}
@@ -92,12 +100,16 @@ export default function RepsIndex() {
   )
 }
 
-function RepMiniCard({ rep, districtName, description, districtNumber, highlighted }) {
+function RepMiniCard({ rep, districtName, description, districtNumber, highlighted, onActivate }) {
   const accent = districtNumber ? DISTRICT_COLORS[districtNumber] : null
-  // Inline style applied only when the matching polygon is hovered, so
-  // the card visibly correlates with the map without a permanent paint.
+  // Inline style applied when the card is "active" — hovered or
+  // focused. Replaces the default gray border with the district
+  // accent color and adds a soft matching ring, AND suppresses the
+  // browser's :focus-visible outline (.rep-mini-card has one set
+  // for at-large cards) so we don't draw a navy ring on top of
+  // the district-color ring on focus.
   const highlightStyle = highlighted && accent
-    ? { borderColor: accent, boxShadow: `0 0 0 2px ${accent}33` }
+    ? { borderColor: accent, boxShadow: `0 0 0 2px ${accent}33`, outline: 'none' }
     : undefined
   const accentBar = accent ? { borderLeftColor: accent } : undefined
 
@@ -105,6 +117,17 @@ function RepMiniCard({ rep, districtName, description, districtNumber, highlight
   // page (rep + at-large). At-large cards have no districtNumber, so they
   // navigate straight to the rep's detail page.
   const target = districtNumber ? `/reps/district/${districtNumber}` : `/reps/${rep?.slug}`
+
+  // Sync card hover/focus to the shared activeDistrict state. Only
+  // fires for districted cards — at-large cards have no map polygon
+  // to highlight, and we don't want a stray onActivate(null) from an
+  // at-large blur to clear an active state set by a districted card.
+  const activateHandlers = districtNumber ? {
+    onMouseEnter: () => onActivate?.(districtNumber),
+    onMouseLeave: () => onActivate?.(null),
+    onFocus: () => onActivate?.(districtNumber),
+    onBlur: () => onActivate?.(null),
+  } : {}
 
   if (!rep) {
     // Vacant seat still wants to surface the district context, so keep
@@ -115,6 +138,7 @@ function RepMiniCard({ rep, districtName, description, districtNumber, highlight
         to={target}
         className={`rep-mini-card rep-mini-card--empty${accent ? ' rep-mini-card--accented' : ''}`}
         style={{ ...accentBar, ...highlightStyle }}
+        {...activateHandlers}
       >
         <div className="rep-mini-card-district">{districtName}</div>
         <div className="rep-mini-card-name">Vacant</div>
@@ -126,6 +150,7 @@ function RepMiniCard({ rep, districtName, description, districtNumber, highlight
       to={target}
       className={`rep-mini-card${accent ? ' rep-mini-card--accented' : ''}`}
       style={{ ...accentBar, ...highlightStyle }}
+      {...activateHandlers}
     >
       <div className="rep-mini-card-district">{districtName}</div>
       <div className="rep-mini-card-name">{rep.name}</div>
