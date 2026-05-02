@@ -1,12 +1,14 @@
 import { useEffect, useState, useRef } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import LegislationCard from './LegislationCard'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './LegislationIndex.css'
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
 
 export default function LegislationIndex() {
+  useDocumentTitle('Legislation')
   const [searchParams, setSearchParams] = useSearchParams()
 
   const q = searchParams.get('q') ?? ''

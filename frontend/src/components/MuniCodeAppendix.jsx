@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import NotFound from './NotFound'
 import SectionText from './SectionText'
 import { Breadcrumb, LoadingView, ErrorView } from './MuniCodeTitle'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './MuniCodeDetail.css'
 
 export default function MuniCodeAppendix() {
@@ -11,6 +12,7 @@ export default function MuniCodeAppendix() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [status, setStatus] = useState(null)
+  useDocumentTitle(data ? `Title ${data.title_number} Appendix ${data.label}` : null)
 
   useEffect(() => {
     setData(null); setError(null); setStatus(null)

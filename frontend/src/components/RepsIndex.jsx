@@ -3,9 +3,11 @@ import { Link, useNavigate } from 'react-router-dom'
 import { AlertCircle } from 'lucide-react'
 import CouncilMap from './CouncilMap'
 import { DISTRICT_COLORS } from './districtColors'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './RepsIndex.css'
 
 export default function RepsIndex() {
+  useDocumentTitle('City Council')
   const [data, setData] = useState(null)
   const [loadError, setLoadError] = useState(null)
   // Hover sync between CouncilMap and the district cards: hovering a

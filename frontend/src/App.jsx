@@ -18,9 +18,11 @@ import RepDistrict from './components/RepDistrict'
 import Search from './components/Search'
 import About from './components/About'
 import NotFound from './components/NotFound'
+import useDocumentTitle from './hooks/useDocumentTitle'
 import './App.css'
 
 function HomePage() {
+  useDocumentTitle(null) // Just "Seattle Councilmatic" — site is the page subject.
   return (
     <>
       <LegislationHero />

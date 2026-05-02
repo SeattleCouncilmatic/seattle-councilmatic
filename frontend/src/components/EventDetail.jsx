@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useLocation, Link } from 'react-router-dom'
 import NotFound from './NotFound'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './EventDetail.css'
 
 function formatDateTime(isoString) {
@@ -129,6 +130,7 @@ export default function EventDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [notFound, setNotFound] = useState(false)
+  useDocumentTitle(event?.name)
 
   useEffect(() => {
     setLoading(true)

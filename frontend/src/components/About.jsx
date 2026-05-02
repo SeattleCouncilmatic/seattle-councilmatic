@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './About.css'
 
 const REPO_URL = 'https://github.com/SeattleCouncilmatic/seattle-councilmatic'
 const CONTACT_EMAIL = 'contact@seattlecouncilmatic.org'
 
 export default function About() {
+  useDocumentTitle('About')
   return (
     <div className="about-page">
       <div className="about-container">

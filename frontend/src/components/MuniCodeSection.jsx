@@ -5,6 +5,7 @@ import NeighborNav from './NeighborNav'
 import SectionText from './SectionText'
 import BillLinkify from './BillLinkify'
 import { Breadcrumb, LoadingView, ErrorView } from './MuniCodeTitle'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './MuniCodeDetail.css'
 
 export default function MuniCodeSection() {
@@ -14,6 +15,7 @@ export default function MuniCodeSection() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [status, setStatus] = useState(null)
+  useDocumentTitle(data ? `SMC ${data.section_number}` : null)
 
   useEffect(() => {
     setData(null); setError(null); setStatus(null)

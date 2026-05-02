@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { Search as SearchIcon, X as XIcon } from 'lucide-react'
 import NotFound from './NotFound'
 import NeighborNav from './NeighborNav'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './MuniCodeDetail.css'
 
 const SCOPED_SEARCH_DEBOUNCE_MS = 300
@@ -32,6 +33,7 @@ function TitlePage({ titleNumber }) {
   const [status, setStatus] = useState(null)
   const [titleSearch, setTitleSearch] = useState('')
   const debounceTimer = useRef(null)
+  useDocumentTitle(data ? `Title ${data.title_number}` : null)
 
   const navigateToScopedResults = (term) => {
     const trimmed = term.trim()
