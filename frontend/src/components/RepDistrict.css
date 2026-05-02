@@ -38,6 +38,14 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 0.25rem;
+  /* Brand navy for the eyebrow text — passes WCAG 1.4.3 AA on
+     white at ~9.5:1. The previous inline `color: accent` (district
+     Tab10 color) failed AA on white for D2/D3/D4/D5 since Tab10
+     wasn't designed as a text palette. District identity is still
+     conveyed by the header's left border bar (which keeps the
+     inline `borderLeftColor: accent`) and the colored polygon
+     on the map. */
+  color: #2E3D5B;
 }
 
 .rep-district-h1 {
