@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { Phone, Mail, ExternalLink, Clock } from 'lucide-react'
 import NotFound from './NotFound'
 import LegislationCard from './LegislationCard'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './RepDetail.css'
 
 export default function RepDetail() {
@@ -10,6 +11,7 @@ export default function RepDetail() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [status, setStatus] = useState(null)
+  useDocumentTitle(data?.name)
 
   useEffect(() => {
     setData(null); setError(null); setStatus(null)

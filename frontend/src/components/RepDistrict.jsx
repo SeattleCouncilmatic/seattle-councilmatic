@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import NotFound from './NotFound'
 import DistrictMiniMap from './DistrictMiniMap'
 import { DISTRICT_COLORS } from './districtColors'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './RepDistrict.css'
 
 export default function RepDistrict() {
@@ -10,6 +11,7 @@ export default function RepDistrict() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [status, setStatus] = useState(null)
+  useDocumentTitle(data ? `District ${number}` : null)
 
   useEffect(() => {
     setData(null); setError(null); setStatus(null)

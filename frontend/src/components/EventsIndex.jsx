@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import EventCard from './EventCard'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './EventsIndex.css'
 
 const PAGE_SIZE = 20
@@ -13,6 +14,7 @@ const TIME_LABELS = {
 }
 
 export default function EventsIndex() {
+  useDocumentTitle('Events')
   const [searchParams, setSearchParams] = useSearchParams()
 
   const q = searchParams.get('q') ?? ''

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Search as SearchIcon } from 'lucide-react'
 import LegislationCard from './LegislationCard'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './Search.css'
 
 const TOP_N = 5
@@ -16,6 +17,7 @@ const SEARCH_DEBOUNCE_MS = 300
 export default function Search() {
   const [searchParams, setSearchParams] = useSearchParams()
   const q = searchParams.get('q') ?? ''
+  useDocumentTitle(q ? `Search: ${q}` : 'Search')
 
   const [legResults, setLegResults] = useState(null)   // { results, total_count } | null
   const [smcResults, setSmcResults] = useState(null)

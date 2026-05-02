@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './NotFound.css'
 
 const VARIANTS = {
@@ -25,6 +26,7 @@ const DEFAULT_VARIANT = {
 
 export default function NotFound({ kind }) {
   const v = VARIANTS[kind] ?? DEFAULT_VARIANT
+  useDocumentTitle(v.title)
   return (
     <div className="notfound-page">
       <div className="notfound-container">

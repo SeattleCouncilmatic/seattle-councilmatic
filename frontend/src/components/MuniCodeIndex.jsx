@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { X as XIcon } from 'lucide-react'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './MuniCodeIndex.css'
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
 
 export default function MuniCodeIndex() {
+  useDocumentTitle('Municipal Code')
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
 

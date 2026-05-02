@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useLocation, Link } from 'react-router-dom'
 import NotFound from './NotFound'
 import BillLinkify from './BillLinkify'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './LegislationDetail.css'
 
 const VARIANT_CLASSES = {
@@ -84,6 +85,7 @@ export default function LegislationDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [notFound, setNotFound] = useState(false)
+  useDocumentTitle(bill?.identifier)
 
   useEffect(() => {
     setLoading(true)

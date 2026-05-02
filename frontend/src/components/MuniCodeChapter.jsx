@@ -4,6 +4,7 @@ import { Search as SearchIcon, X as XIcon } from 'lucide-react'
 import NotFound from './NotFound'
 import NeighborNav from './NeighborNav'
 import { Breadcrumb, LoadingView, ErrorView } from './MuniCodeTitle'
+import useDocumentTitle from '../hooks/useDocumentTitle'
 import './MuniCodeDetail.css'
 
 const SCOPED_SEARCH_DEBOUNCE_MS = 300
@@ -18,6 +19,7 @@ export default function MuniCodeChapter() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [status, setStatus] = useState(null)
+  useDocumentTitle(data ? `Chapter ${data.chapter_number}` : null)
   const [chapterSearch, setChapterSearch] = useState('')
   const debounceTimer = useRef(null)
 
