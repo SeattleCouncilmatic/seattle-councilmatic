@@ -70,6 +70,11 @@
   border-color: #2E3D5B;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
+.smc-listing-link:focus-visible {
+  border-color: #2E3D5B;
+  outline: 2px solid #2E3D5B;
+  outline-offset: 2px;
+}
 
 .smc-listing-num {
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -124,7 +129,7 @@
 }
 .smc-scoped-search:focus-within {
   border-color: #2E3D5B;
-  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.15);
+  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.4);
 }
 .smc-scoped-search-icon {
   color: #6b7280;

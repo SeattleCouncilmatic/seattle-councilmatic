@@ -87,6 +87,11 @@
   border-color: #2E3D5B;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
+.rep-mini-card:focus-visible {
+  border-color: #2E3D5B;
+  outline: 2px solid #2E3D5B;
+  outline-offset: 2px;
+}
 .rep-mini-card--empty {
   cursor: default;
   opacity: 0.7;
@@ -137,7 +142,7 @@
 .reps-lookup-input:focus {
   outline: none;
   border-color: #2E3D5B;
-  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.15);
+  box-shadow: 0 0 0 3px rgba(46, 61, 91, 0.4);
 }
 
 .reps-lookup-btn {
