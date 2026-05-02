@@ -19,10 +19,16 @@ export default function CouncilMap({ districts, onDistrictHover }) {
         zoom: 11,
         zoomControl: true,
         scrollWheelZoom: false,
+        // Leaflet's built-in attribution control renders the
+        // OSM/CARTO links inside a div that Firefox's Inspector
+        // flags as "clickable but not focusable." We disable it
+        // here and render the same attribution as a plain HTML
+        // <a> below the map, where it's natively focusable and
+        // satisfies the OSM/CARTO license terms either way.
+        attributionControl: false,
       })
 
       L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd',
         maxZoom: 20,
       }).addTo(mapInstanceRef.current)
@@ -94,7 +100,17 @@ export default function CouncilMap({ districts, onDistrictHover }) {
 
   return (
     <div className="council-map-wrapper">
-      <div ref={mapRef} className="council-map" />
+      {/* aria-label gives the interactive map an accessible name for
+          screen readers and audit tools. The map content itself is
+          conveyed through the labeled district legend below + the
+          district cards alongside, so SR users always have a
+          non-visual path to the same info. */}
+      <div
+        ref={mapRef}
+        className="council-map"
+        role="application"
+        aria-label="Seattle City Council district map. Click a district to view its representatives."
+      />
       <ul className="council-map-legend" aria-label="District legend">
         {Object.entries(DISTRICT_COLORS).map(([num, color]) => (
           <li key={num} className="council-map-legend-item">
@@ -103,6 +119,16 @@ export default function CouncilMap({ districts, onDistrictHover }) {
           </li>
         ))}
       </ul>
+      <p className="council-map-attribution">
+        Map &copy;{' '}
+        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">
+          OpenStreetMap
+        </a>
+        {' '}contributors &copy;{' '}
+        <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">
+          CARTO
+        </a>
+      </p>
     </div>
   )
 }

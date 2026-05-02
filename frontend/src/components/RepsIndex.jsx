@@ -169,15 +169,17 @@ function AddressLookup() {
   return (
     <div className="reps-lookup">
       <form onSubmit={submit} className="reps-lookup-form">
-        <input
-          type="text"
-          className="reps-lookup-input"
-          placeholder="123 Main St, Seattle"
-          value={address}
-          onChange={e => setAddress(e.target.value)}
-          aria-label="Address"
-          autoFocus
-        />
+        <label className="reps-lookup-field">
+          <span className="reps-lookup-label">Find your representative by address</span>
+          <input
+            type="text"
+            className="reps-lookup-input"
+            placeholder="123 Main St, Seattle"
+            value={address}
+            onChange={e => setAddress(e.target.value)}
+            autoFocus
+          />
+        </label>
         <button type="submit" className="reps-lookup-btn" disabled={loading}>
           {loading ? 'Looking up…' : 'Look up'}
         </button>
