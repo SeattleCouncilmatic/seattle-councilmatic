@@ -372,7 +372,39 @@ def _rep_row_to_dict(name: str, slug: str, label: str, person_id: str) -> Dict[s
             elif link.note == 'Office Hours':
                 rep_data['office_hours_url'] = link.url
 
+        # Committee memberships — one entry per committee Org. Sort
+        # by role priority (Chair > Vice-Chair > Member) so the most
+        # senior assignments lead, then by committee name. Each entry
+        # carries the committee Organization id (for future linking
+        # to per-committee detail pages) plus the seattle.gov source
+        # URL for now.
+        rep_data['committees'] = _committees_for_person(person)
+
     return rep_data
+
+
+_COMMITTEE_ROLE_ORDER = {"Chair": 0, "Vice-Chair": 1, "Member": 2}
+
+
+def _committees_for_person(person) -> List[Dict[str, Any]]:
+    rows: list[dict] = []
+    qs = person.memberships.filter(
+        organization__classification="committee"
+    ).select_related("organization").prefetch_related("organization__sources")
+    for m in qs:
+        org = m.organization
+        source_url = None
+        sources = list(org.sources.all())
+        if sources:
+            source_url = sources[0].url
+        rows.append({
+            "name": org.name,
+            "role": m.role,
+            "organization_id": org.id,
+            "source_url": source_url,
+        })
+    rows.sort(key=lambda r: (_COMMITTEE_ROLE_ORDER.get(r["role"], 99), r["name"]))
+    return rows
 
 
 def _query_current_council_members(extra_filter: str = "", params: Optional[List] = None

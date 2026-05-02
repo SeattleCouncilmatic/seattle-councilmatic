@@ -122,6 +122,67 @@
   color: #ffffff;
 }
 
+/* Committees — list of committee assignments with a role pill on
+   the left. Sits between the external-link row and the bills list.
+   Role colors graduate from filled navy (Chair, the strongest
+   commitment) → outlined navy (Vice-Chair) → light gray (Member). */
+.rep-detail-committees {
+  margin-top: 2rem;
+}
+
+.rep-detail-committee-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rep-detail-committee-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+}
+
+.rep-detail-committee-role {
+  flex: 0 0 auto;
+  display: inline-block;
+  min-width: 5.5rem;
+  text-align: center;
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 0.25rem;
+  border: 1px solid transparent;
+}
+.rep-detail-committee-role--chair {
+  background: #2E3D5B;
+  color: #ffffff;
+}
+.rep-detail-committee-role--vice-chair {
+  background: #ffffff;
+  color: #2E3D5B;
+  border-color: #2E3D5B;
+}
+.rep-detail-committee-role--member {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.rep-detail-committee-name {
+  font-size: 0.95rem;
+  color: #1f2937;
+  text-decoration: underline;
+}
+.rep-detail-committee-name:hover { color: #2E3D5B; }
+
 /* Bills sponsored — sits below the contact + external-link rows.
    Renders the same LegislationCard chrome used on /legislation/ so
    the card style stays consistent across the SPA. We cap the inline

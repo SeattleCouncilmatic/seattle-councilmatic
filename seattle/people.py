@@ -1,4 +1,4 @@
-from pupa.scrape import Scraper, Person
+from pupa.scrape import Scraper, Person, Organization
 import requests
 from lxml import html as lxml_html
 import re
@@ -60,6 +60,57 @@ def _clean_address(div) -> str:
     return "\n".join(lines)
 
 
+_COMMITTEE_HREF_PREFIX = "/council/meetings/committees-and-agendas/"
+_COMMITTEE_LINE_RE = re.compile(r"^\s*(Chair|Vice-Chair|Vice Chair|Member)\s*:\s*(.+?)\s*$")
+
+
+def extract_committee_assignments(html_str: str) -> list[dict]:
+    """Parse a councilmember's `/committees-and-calendar` page. Returns
+    a list of `{role, name, slug, url}` dicts, one per committee.
+
+    Page structure: an `<h2>Committees</h2>` followed by a `<ul>` whose
+    `<li>` items each look like
+
+        <li><strong>Chair: <a href="…/<slug>">Committee Name</a></strong></li>
+
+    Three roles observed in the wild: `Chair`, `Vice-Chair`, `Member`.
+    The committee `<a>` href is the stable identifier — committee
+    *names* on seattle.gov vary in punctuation across reps' pages
+    (e.g. `Seattle Center` vs `Seattle-Center`), and we observed at
+    least one href/text mismatch (a copy-paste error on rinck's page),
+    so callers should dedupe by `slug` and pick a canonical name."""
+    h = lxml_html.fromstring(html_str)
+    headings = h.xpath('//h2[normalize-space(text())="Committees"]')
+    if not headings:
+        return []
+    ul = headings[0].getparent().xpath('.//ul[1]')
+    if not ul:
+        return []
+    out: list[dict] = []
+    for li in ul[0].xpath("./li"):
+        text = li.text_content().strip()
+        m = _COMMITTEE_LINE_RE.match(text)
+        if not m:
+            continue
+        role_raw, name = m.group(1), m.group(2).strip()
+        # Canonicalize 'Vice Chair' → 'Vice-Chair'
+        role = "Vice-Chair" if role_raw in ("Vice-Chair", "Vice Chair") else role_raw
+        a = li.xpath(".//a")
+        if not a:
+            continue
+        href = a[0].get("href") or ""
+        if not href.startswith(_COMMITTEE_HREF_PREFIX):
+            continue
+        slug = href[len(_COMMITTEE_HREF_PREFIX):].rstrip("/")
+        out.append({
+            "role": role,
+            "name": name,
+            "slug": slug,
+            "url": "https://www.seattle.gov" + href,
+        })
+    return out
+
+
 def extract_contact_details(html_str: str) -> dict:
     """Parse the Contact Us tile on a per-member seattle.gov profile
     page. Returns a dict with any of `phone`, `fax`, `email`,
@@ -102,88 +153,125 @@ def extract_contact_details(html_str: str) -> dict:
 
 class SeattlePersonScraper(Scraper):
 
+    def _fetch_member_extras(self, profile_url: str) -> tuple[dict, list[dict]]:
+        """Fetch the per-member detail page for contacts and the
+        `/committees-and-calendar` subpage for committee assignments.
+
+        Returns (contacts_dict, committees_list). Both are empty when
+        the corresponding fetch returns non-200 or the page lacks the
+        expected block. `allow_redirects=False` because seattle.gov
+        301s former-member URLs to their successor (`sara-nelson` →
+        `dionne-foster`); only a 200 means the URL really belongs to
+        this person."""
+        contacts: dict = {}
+        committees: list[dict] = []
+        try:
+            r = requests.get(profile_url, timeout=10, allow_redirects=False)
+            if r.status_code == 200:
+                contacts = extract_contact_details(r.text)
+        except requests.RequestException as e:
+            logger.warning(f"Could not fetch {profile_url}: {e}")
+        try:
+            r = requests.get(profile_url + "/committees-and-calendar",
+                             timeout=10, allow_redirects=False)
+            if r.status_code == 200:
+                committees = extract_committee_assignments(r.text)
+        except requests.RequestException as e:
+            logger.warning(f"Could not fetch committees for {profile_url}: {e}")
+        return contacts, committees
 
     def scrape(self):
-        """
-        Scrape Seattle City Council members from official seattle.gov site
-        """
-        url = "https://www.seattle.gov/council/members"
+        """Scrape Seattle City Council members from seattle.gov.
 
+        Yields (in order, although pupa import sorts by type):
+        - One `Organization` per unique committee (classification
+          `committee`), deduped across all members by URL slug
+        - One `Person` per councilmember, with the existing
+          `Seattle City Council` membership plus one membership per
+          committee with the role recorded as `Chair`, `Vice-Chair`,
+          or `Member`."""
+        url = "https://www.seattle.gov/council/members"
         response = requests.get(url)
         html = lxml_html.fromstring(response.content)
 
-        # Find all councilmember sections
-        # The page has "District X:" or "Position X:" followed by name links
-        member_items = html.xpath('//ul/li[contains(text(), "District") or contains(text(), "Position")]')
+        member_items = html.xpath(
+            '//ul/li[contains(text(), "District") or contains(text(), "Position")]'
+        )
 
+        # Pass 1: collect everything we need per member into a flat list.
+        members_data: list[dict] = []
         for item in member_items:
             text = item.text_content().strip()
-
-            # Parse district/position and name
-            match = re.match(r'(District|Position) (\d+):\s*(.+)', text)
-
-            if match:
-                district_type = match.group(1)
-                number = match.group(2)
-                name = match.group(3).strip()
-
-                district = f"{district_type} {number}"
-
-                person = Person(
-                    name=name,
-                    district=district,
-                    role="Councilmember"
-                )
-
-                # Add membership to the organization
-                # Reference the organization by name
-                # Use the district variable which contains "District X" or "Position X"
-                person.add_membership(
-                    "Seattle City Council",
-                    role="Councilmember",
-                    label=district
-                )
-
-                person.add_source(url)
-
-                # Build profile link — per-member detail page on seattle.gov
-                profile_url = f"{url}/{profile_slug(name)}"
-                person.add_link(profile_url, note="City Council profile")
-
-                # Pull contact details from the per-member detail page.
-                # Falls back to a constructed `firstname.lastname@seattle.gov`
-                # email if the profile fetch or parse fails — not ideal for
-                # multi-name members like Alexis Mercedes Rinck (real
-                # canonical form is `AlexisMercedes.Rinck@seattle.gov`)
-                # but better than nothing.
-                # `allow_redirects=False`: seattle.gov 301s a former
-                # member's URL to their successor's page (e.g.
-                # `/sara-nelson` → `/dionne-foster`), and we don't want
-                # to attribute the successor's contact info to the
-                # former member's record. A 200 means this URL really
-                # belongs to this person.
-                contacts = {}
-                try:
-                    profile_resp = requests.get(profile_url, timeout=10, allow_redirects=False)
-                    if profile_resp.status_code == 200:
-                        contacts = extract_contact_details(profile_resp.text)
-                except requests.RequestException as e:
-                    logger.warning(f"Could not fetch {profile_url}: {e}")
-
-                email = contacts.get("email") or f"{name.replace(' ', '.').lower()}@seattle.gov"
-                person.add_contact_detail(type="email", value=email, note="Official email")
-                if "phone" in contacts:
-                    person.add_contact_detail(type="voice", value=contacts["phone"], note="Office phone")
-                if "fax" in contacts:
-                    person.add_contact_detail(type="fax", value=contacts["fax"], note="Office fax")
-                if "office_address" in contacts:
-                    person.add_contact_detail(type="address", value=contacts["office_address"], note="Office")
-                if "mailing_address" in contacts:
-                    person.add_contact_detail(type="address", value=contacts["mailing_address"], note="Mailing")
-
-                self.info(f"Scraped person: {name} ({district})")
-
-                yield person
-            else:
+            match = re.match(r"(District|Position) (\d+):\s*(.+)", text)
+            if not match:
                 logger.warning(f"Could not parse council member info from text: {text}")
-        pass
+                continue
+            district_type, number, name = match.group(1), match.group(2), match.group(3).strip()
+            district = f"{district_type} {number}"
+            profile_url = f"{url}/{profile_slug(name)}"
+            contacts, committees = self._fetch_member_extras(profile_url)
+            members_data.append({
+                "name": name,
+                "district": district,
+                "profile_url": profile_url,
+                "contacts": contacts,
+                "committees_raw": committees,
+            })
+
+        # Build canonical_committees map: committee names on seattle.gov
+        # vary in punctuation across reps' pages, and at least one page
+        # has a copy-paste href/text mismatch — the URL slug is the
+        # stable identifier. Pick the first-seen display name as
+        # canonical (consistent across the scrape and reasonable for UI).
+        canonical_committees: dict[str, dict] = {}
+        for m in members_data:
+            for c in m["committees_raw"]:
+                slug = c["slug"]
+                if slug not in canonical_committees:
+                    canonical_committees[slug] = {"name": c["name"], "url": c["url"]}
+
+        # Yield each committee Organization once.
+        for slug, data in canonical_committees.items():
+            org = Organization(
+                name=data["name"],
+                classification="committee",
+            )
+            org.add_source(data["url"])
+            yield org
+
+        # Yield each Person with all their memberships (council seat
+        # + 1 per committee) and contact details.
+        for m in members_data:
+            name = m["name"]
+            district = m["district"]
+            contacts = m["contacts"]
+            person = Person(name=name, district=district, role="Councilmember")
+            person.add_membership(
+                "Seattle City Council",
+                role="Councilmember",
+                label=district,
+            )
+            person.add_source(url)
+            person.add_link(m["profile_url"], note="City Council profile")
+
+            # Contacts — see extract_contact_details for shape.
+            email = contacts.get("email") or f"{name.replace(' ', '.').lower()}@seattle.gov"
+            person.add_contact_detail(type="email", value=email, note="Official email")
+            if "phone" in contacts:
+                person.add_contact_detail(type="voice", value=contacts["phone"], note="Office phone")
+            if "fax" in contacts:
+                person.add_contact_detail(type="fax", value=contacts["fax"], note="Office fax")
+            if "office_address" in contacts:
+                person.add_contact_detail(type="address", value=contacts["office_address"], note="Office")
+            if "mailing_address" in contacts:
+                person.add_contact_detail(type="address", value=contacts["mailing_address"], note="Mailing")
+
+            # Committee memberships — resolve to the canonical name
+            # so all 9 reps' memberships agree on org identity.
+            for c in m["committees_raw"]:
+                canonical_name = canonical_committees[c["slug"]]["name"]
+                person.add_membership(canonical_name, role=c["role"])
+
+            self.info(f"Scraped person: {name} ({district}) — "
+                      f"{len(m['committees_raw'])} committee memberships")
+            yield person
