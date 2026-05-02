@@ -58,7 +58,7 @@ export default function LegislationCard({ bill, backToSearch }) {
         )}
       </div>
 
-      <h4 className="leg-card-title">
+      <h3 className="leg-card-title">
         {slug ? (
           <Link to={`/legislation/${slug}`} state={linkState} className="leg-card-link">
             {titleNode}
@@ -66,7 +66,7 @@ export default function LegislationCard({ bill, backToSearch }) {
         ) : (
           titleNode
         )}
-      </h4>
+      </h3>
 
       {sponsor && (
         <p className="leg-card-sponsor">Sponsor: {sponsor}</p>

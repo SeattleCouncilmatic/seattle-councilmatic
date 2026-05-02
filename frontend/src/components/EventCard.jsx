@@ -81,7 +81,7 @@ export default function EventCard({ event, backToSearch }) {
         <div className="evt-card-title-row">
           <TypeChip type={type} />
           {cancelled && <span className="evt-card-cancelled-badge">Cancelled</span>}
-          <h4 className="evt-card-title">
+          <h3 className="evt-card-title">
             {slug ? (
               <Link to={`/events/${slug}`} state={linkState} className="evt-card-link">
                 {name}
@@ -89,7 +89,7 @@ export default function EventCard({ event, backToSearch }) {
             ) : (
               name
             )}
-          </h4>
+          </h3>
         </div>
         <p className="evt-card-date">{formatEventDate(start_date)}</p>
       </div>

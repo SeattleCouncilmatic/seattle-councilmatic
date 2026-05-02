@@ -26,7 +26,7 @@ export default function LegislationHero() {
     <div className="home-hero">
       <div className="home-hero-overlay" />
       <div className="home-hero-content">
-        <h2 className="home-hero-title">Search Seattle Government</h2>
+        <h1 className="home-hero-title">Search Seattle Government</h1>
         <p className="home-hero-subtitle">
           Find bills, resolutions, and the Municipal Code in one search.
         </p>
