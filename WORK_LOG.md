@@ -64,6 +64,12 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Events — clean up 91 stale midnight Event duplicates — committed 2026-05-02
+
+Pre-PR-#34 (committed 2026-04-28) the events scraper read only Legistar's `EventDate` field, which always carries midnight; the wall-clock time lives in a separate `EventTime` field. Every event scraped before that fix landed at midnight Pacific (07:00 UTC during PDT, 08:00 UTC during PST). When the fix shipped the next scrape created *new* event rows at the correct time — pupa upserts on (name + start_date), so a different start_date yielded a new row rather than updating the existing one. Result was 91 (name, date) groups in the DB with both a stale midnight row and a corrected row, double-displaying in `/events/`.
+
+Migration `0022` deletes the stale midnight rows in groups that also contain a non-midnight sibling — that sibling guarantees we know the real meeting time, so the deletion is non-destructive. (Verified pre-flight: 91 candidates, 0 unsafe groups where every sibling is midnight.) Uses Django ORM `.delete()` so OCD's model-level `on_delete=CASCADE` fires for the related EventAgendaItem / Document / Link / Media / Participant / Source rows plus the downstream `councilmatic_core.Event` row — the DB-level FKs are `NO ACTION`, so a raw-SQL `DELETE` on `opencivicdata_event` would have errored. Total events 1230 → 1139.
+
 ### Scrapers — retry-with-backoff on Legistar HTTP — committed 2026-05-02
 
 Cron logs show ~1-2 `RemoteDisconnected` hits per daily run from Legistar's API. Most are inside per-record fetches (sponsors / attachments / histories for a single bill, agenda items for a single event) — the scraper logged a warning, returned empty, and the run continued with that record silently incomplete. **One run today (2026-05-02) hit the bulk events list endpoint instead** — `_fetch_events` returned `[]` on the disconnect, pupa raised `ScrapeError: no objects returned from SeattleEventScraper scrape`, and the entire daily sync (events + bills + sync_councilmatic) failed. Monday's Council Briefing didn't show up in the UI as a result.
