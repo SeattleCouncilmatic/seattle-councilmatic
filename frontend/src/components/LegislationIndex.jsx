@@ -153,69 +153,79 @@ export default function LegislationIndex() {
         </header>
 
         <div className="leg-index-controls">
-          <input
-            type="search"
-            className="leg-index-search"
-            placeholder="Search by identifier or title…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            aria-label="Search legislation"
-            autoFocus
-          />
-          <select
-            className="leg-index-status"
-            value={classification}
-            onChange={handleClassificationChange}
-            aria-label="Filter by type"
-          >
-            <option value="">All types</option>
-            {classificationValues.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-          <select
-            className="leg-index-status"
-            value={status}
-            onChange={handleStatusChange}
-            aria-label="Filter by status"
-          >
-            <option value="">All statuses</option>
-            {statusValues.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <select
-            className="leg-index-status"
-            value={sponsor}
-            onChange={handleSponsorChange}
-            aria-label="Filter by sponsor"
-          >
-            <option value="">All sponsors</option>
-            {sponsorValues.current.length > 0 && (
-              <optgroup label="Current council">
-                {sponsorValues.current.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </optgroup>
-            )}
-            {sponsorValues.former.length > 0 && (
-              <optgroup label="Former members">
-                {sponsorValues.former.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-          <select
-            className="leg-index-status"
-            value={sort || 'recent'}
-            onChange={handleSortChange}
-            aria-label="Sort order"
-          >
-            {sortValues.map(s => (
-              <option key={s.value} value={s.value}>{s.label}</option>
-            ))}
-          </select>
+          <label className="leg-index-field leg-index-field--search">
+            <span className="leg-index-field-label">Search</span>
+            <input
+              type="search"
+              className="leg-index-search"
+              placeholder="Search by identifier or title…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              autoFocus
+            />
+          </label>
+          <label className="leg-index-field">
+            <span className="leg-index-field-label">Type</span>
+            <select
+              className="leg-index-status"
+              value={classification}
+              onChange={handleClassificationChange}
+            >
+              <option value="">All types</option>
+              {classificationValues.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label className="leg-index-field">
+            <span className="leg-index-field-label">Status</span>
+            <select
+              className="leg-index-status"
+              value={status}
+              onChange={handleStatusChange}
+            >
+              <option value="">All statuses</option>
+              {statusValues.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
+          <label className="leg-index-field">
+            <span className="leg-index-field-label">Sponsor</span>
+            <select
+              className="leg-index-status"
+              value={sponsor}
+              onChange={handleSponsorChange}
+            >
+              <option value="">All sponsors</option>
+              {sponsorValues.current.length > 0 && (
+                <optgroup label="Current council">
+                  {sponsorValues.current.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </optgroup>
+              )}
+              {sponsorValues.former.length > 0 && (
+                <optgroup label="Former members">
+                  {sponsorValues.former.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </label>
+          <label className="leg-index-field">
+            <span className="leg-index-field-label">Sort by</span>
+            <select
+              className="leg-index-status"
+              value={sort || 'recent'}
+              onChange={handleSortChange}
+            >
+              {sortValues.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <div className="leg-index-controls leg-index-date-controls">

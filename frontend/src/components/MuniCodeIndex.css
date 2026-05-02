@@ -51,6 +51,20 @@
   margin-bottom: 1rem;
 }
 
+/* See LegislationIndex.css `.leg-index-field` — visible-label
+   wrapper for the search input. */
+.smc-index-field {
+  display: block;
+}
+
+.smc-index-field-label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.25rem;
+}
+
 .smc-index-search-wrapper {
   position: relative;
 }
@@ -239,7 +253,7 @@
   color: #ffffff;
 }
 .smc-page-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 

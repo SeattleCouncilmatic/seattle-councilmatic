@@ -142,37 +142,43 @@ export default function EventsIndex() {
         </header>
 
         <div className="evt-index-controls">
-          <input
-            type="search"
-            className="evt-index-search"
-            placeholder="Search by committee or event name…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            aria-label="Search events"
-            autoFocus
-          />
-          <select
-            className="evt-index-type"
-            value={type}
-            onChange={handleTypeChange}
-            aria-label="Filter by event type"
-          >
-            <option value="">All types</option>
-            {typeValues.map(t => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-          <select
-            className="evt-index-type"
-            value={committee}
-            onChange={handleCommitteeChange}
-            aria-label="Filter by committee"
-          >
-            <option value="">All committees</option>
-            {committeeValues.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+          <label className="evt-index-field evt-index-field--search">
+            <span className="evt-index-field-label">Search</span>
+            <input
+              type="search"
+              className="evt-index-search"
+              placeholder="Search by committee or event name…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              autoFocus
+            />
+          </label>
+          <label className="evt-index-field">
+            <span className="evt-index-field-label">Type</span>
+            <select
+              className="evt-index-type"
+              value={type}
+              onChange={handleTypeChange}
+            >
+              <option value="">All types</option>
+              {typeValues.map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </label>
+          <label className="evt-index-field">
+            <span className="evt-index-field-label">Committee</span>
+            <select
+              className="evt-index-type"
+              value={committee}
+              onChange={handleCommitteeChange}
+            >
+              <option value="">All committees</option>
+              {committeeValues.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
           <div className="evt-index-time-toggle" role="group" aria-label="Filter by time">
             {timeValues.map(v => (
               <button
