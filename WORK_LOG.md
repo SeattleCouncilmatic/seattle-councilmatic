@@ -64,6 +64,14 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Scrapers — retry-with-backoff on Legistar HTTP — committed 2026-05-02
+
+Cron logs show ~1-2 `RemoteDisconnected` hits per daily run from Legistar's API. Most are inside per-record fetches (sponsors / attachments / histories for a single bill, agenda items for a single event) — the scraper logged a warning, returned empty, and the run continued with that record silently incomplete. **One run today (2026-05-02) hit the bulk events list endpoint instead** — `_fetch_events` returned `[]` on the disconnect, pupa raised `ScrapeError: no objects returned from SeattleEventScraper scrape`, and the entire daily sync (events + bills + sync_councilmatic) failed. Monday's Council Briefing didn't show up in the UI as a result.
+
+New `seattle/_http.py:request_with_retry` wraps `requests.get` with exponential backoff (1s, 2s, 4s — 3 attempts default) and re-raises `RequestException` on final failure. Wired into all five fetch points: `_fetch_events`, `_fetch_event_items`, `_fetch_packet_url` in events.py; `fetch_bills`, `fetch_matter_detail` in bills.py.
+
+Behavior change at the edges: per-record helpers still swallow + log on final failure (a missing sponsor list on one bill is preferable to dropping the bill), but `_fetch_events` no longer swallows — if all retries fail we want the run to die visibly with the network exception, not silently produce no events. Today's failure mode of "drift in for a day with stale data and nobody noticed" is the worse outcome.
+
 ### Reps — scrape phone, fax, addresses from per-member contact tile — committed 2026-05-02
 
 The per-member seattle.gov detail pages each carry a Contact Us tile with phone, fax, email, office address, and mailing address. The pupa scraper only emitted a guessed `firstname.lastname@seattle.gov` email before. Now it also fetches the per-member page during scrape and pulls the rest of the tile into `core.PersonContactDetail` rows. Two address rows per person (`note='Office'` / `note='Mailing'`), one phone (`type='voice'`), one fax (`type='fax'`), and the canonical-capitalization email (which matters for `Alexis Mercedes Rinck` since the real mailbox is `AlexisMercedes.Rinck@seattle.gov`, not the guessed `alexis.mercedes.rinck@seattle.gov`).

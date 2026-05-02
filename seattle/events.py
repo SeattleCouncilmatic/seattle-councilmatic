@@ -16,6 +16,8 @@ import time
 import pytz
 import logging
 
+from seattle._http import request_with_retry
+
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://webapi.legistar.com/v1/seattle"
@@ -94,15 +96,14 @@ class SeattleEventScraper(Scraper):
             ),
             "$orderby": "EventDate asc",
         }
-        try:
-            resp = requests.get(f"{BASE_URL}/events", params=params, timeout=30)
-            resp.raise_for_status()
-            events = resp.json()
-            logger.info(f"Fetched {len(events)} events from Legistar API")
-            return events
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to fetch events: {e}")
-            return []
+        # No swallow on the bulk events fetch: if all retries fail, let
+        # the ScrapeError bubble. An empty `[]` here was the failure mode
+        # that crashed the entire daily sync on 2026-05-02 — we'd rather
+        # see the network exception than mask it as "no events".
+        resp = request_with_retry(f"{BASE_URL}/events", params=params, timeout=30)
+        events = resp.json()
+        logger.info(f"Fetched {len(events)} events from Legistar API")
+        return events
 
     def _fetch_packet_url(self, legistar_page_url: str) -> str | None:
         """
@@ -110,8 +111,7 @@ class SeattleEventScraper(Scraper):
         The packet URL is not in the REST API — it only appears in the HTML.
         """
         try:
-            resp = requests.get(legistar_page_url, timeout=15)
-            resp.raise_for_status()
+            resp = request_with_retry(legistar_page_url, timeout=15)
             match = re.search(
                 r'id="ctl00_ContentPlaceHolder1_hypAgendaPacket"\s+href="([^"]+)"',
                 resp.text,
@@ -127,12 +127,11 @@ class SeattleEventScraper(Scraper):
         """Fetch agenda items for a single event, including attachments."""
         try:
             url = f"{BASE_URL}/events/{event_id}/eventitems"
-            resp = requests.get(
+            resp = request_with_retry(
                 url,
                 params={"AgendaNote": 1, "MinutesNote": 1, "Attachments": 1},
                 timeout=30,
             )
-            resp.raise_for_status()
             return resp.json() or []
         except requests.exceptions.RequestException as e:
             logger.warning(f"Failed to fetch event items for event {event_id}: {e}")
