@@ -58,7 +58,7 @@ export default function Search() {
   }, [q])
 
   return (
-    <main className="search-page">
+    <div className="search-page">
       <div className="search-container">
         <nav className="search-breadcrumb" aria-label="Breadcrumb">
           <Link to="/">Home</Link>
@@ -151,7 +151,7 @@ export default function Search() {
           </>
         )}
       </div>
-    </main>
+    </div>
   )
 }
 

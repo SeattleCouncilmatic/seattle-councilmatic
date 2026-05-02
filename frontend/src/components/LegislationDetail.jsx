@@ -117,7 +117,7 @@ export default function LegislationDetail() {
   const showRightCol = hasKeyChanges || hasDocuments
 
   return (
-    <main className="leg-detail-page">
+    <div className="leg-detail-page">
       <div className="leg-detail-container">
 
         {/* Breadcrumb */}
@@ -336,6 +336,6 @@ export default function LegislationDetail() {
 
         </div>
       </div>
-    </main>
+    </div>
   )
 }

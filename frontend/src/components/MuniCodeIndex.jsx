@@ -131,7 +131,7 @@ export default function MuniCodeIndex() {
   const hasNext = offset + PAGE_SIZE < totalCount
 
   return (
-    <main className="smc-index-page">
+    <div className="smc-index-page">
       <div className="smc-index-container">
         <nav className="smc-breadcrumb" aria-label="Breadcrumb">
           <Link to="/">Home</Link>
@@ -219,7 +219,7 @@ export default function MuniCodeIndex() {
           <BrowseTree tree={tree} error={error} />
         )}
       </div>
-    </main>
+    </div>
   )
 }
 

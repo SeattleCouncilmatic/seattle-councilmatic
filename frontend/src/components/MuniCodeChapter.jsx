@@ -68,7 +68,7 @@ export default function MuniCodeChapter() {
   if (!data) return <LoadingView />
 
   return (
-    <main className="smc-detail-page">
+    <div className="smc-detail-page">
       <div className="smc-detail-container">
         <Breadcrumb crumbs={[
           { to: '/', label: 'Home' },
@@ -143,6 +143,6 @@ export default function MuniCodeChapter() {
 
         <NeighborNav neighbors={data.neighbors} ariaLabel="Chapter navigation" />
       </div>
-    </main>
+    </div>
   )
 }

@@ -4,7 +4,38 @@
     display: flex;
     flex-direction: column;
   }
-  
+
+  /* Skip-link: visually hidden until focused, then drops in from the
+     top of the viewport. Sits at the very top of the DOM (App.jsx,
+     before <Header>) so it's the first focusable element on every
+     page. Targets <main id="main-content"> wrapping <Routes>. */
+  .skip-link {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 100;
+    padding: 0.5rem 1rem;
+    background: #2E3D5B;
+    color: #ffffff;
+    font-weight: 700;
+    text-decoration: none;
+    border-radius: 0.375rem;
+    transform: translateY(calc(-100% - 1rem));
+    transition: transform 0.15s;
+  }
+  .skip-link:focus {
+    transform: translateY(0);
+    outline: 2px solid #ffffff;
+    outline-offset: 2px;
+  }
+
+  /* Strip the default focus ring on <main id="main-content">. The
+     tabIndex=-1 there is for programmatic focus from the skip-link;
+     we don't want a visual ring on the entire main region. */
+  main#main-content:focus {
+    outline: none;
+  }
+
   .header {
     position: sticky;
     top: 0;

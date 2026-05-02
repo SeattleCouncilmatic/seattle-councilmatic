@@ -6,7 +6,7 @@ const CONTACT_EMAIL = 'contact@seattlecouncilmatic.org'
 
 export default function About() {
   return (
-    <main className="about-page">
+    <div className="about-page">
       <div className="about-container">
         <nav className="about-breadcrumb" aria-label="Breadcrumb">
           <Link to="/">Home</Link>
@@ -203,6 +203,6 @@ export default function About() {
           </p>
         </section>
       </div>
-    </main>
+    </div>
   )
 }

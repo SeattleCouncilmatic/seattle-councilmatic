@@ -136,7 +136,7 @@ export default function LegislationIndex() {
   const hasNext = offset + PAGE_SIZE < totalCount
 
   return (
-    <main className="leg-index-page">
+    <div className="leg-index-page">
       <div className="leg-index-container">
         <nav className="leg-index-breadcrumb" aria-label="Breadcrumb">
           <Link to="/">Home</Link>
@@ -285,6 +285,6 @@ export default function LegislationIndex() {
           </nav>
         )}
       </div>
-    </main>
+    </div>
   )
 }
