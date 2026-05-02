@@ -5,11 +5,11 @@ import './NavBar.css';
 
 const NAV_ITEMS = [
   { label: 'Home',         to: '/' },
-  { label: 'About',        to: '/about' },
-  { label: 'Events',       to: '/events' },
-  { label: 'Legislation',  to: '/legislation' },
-  { label: 'Municode',     to: '/municode' },
   { label: 'City Council', to: '/reps' },
+  { label: 'Legislation',  to: '/legislation' },
+  { label: 'Events',       to: '/events' },
+  { label: 'Municode',     to: '/municode' },
+  { label: 'About',        to: '/about' },
 ];
 
 function isActive(pathname, item) {
