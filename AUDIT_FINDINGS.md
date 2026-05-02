@@ -95,6 +95,30 @@ Every page currently has `<title>Seattle Councilmatic</title>` from the static S
 
 ---
 
+## Known false positives — do not chase
+
+These show up in some accessibility tools but represent tool limitations rather than real-world barriers. Real screen readers (NVDA, JAWS, VoiceOver, Orca) handle the underlying patterns correctly.
+
+### FP.1 Firefox Inspector flags the React `#root` div as "clickable but not focusable"
+
+Reported as: `Clickable elements must be focusable and should have interactive semantics` on `<div id="root">` with `actions: ["Click"]`.
+
+**Why it fires:** React 17+ uses event delegation — it attaches a single `click` listener to the root container and dispatches synthetically to your components. Firefox's accessibility tree picks up that listener and reports the root as clickable. The listener is React plumbing, not a UI affordance.
+
+**Why it's harmless:** Real screen readers don't announce `<div id="root">` as clickable. Keyboard users don't try to interact with it. Every React app has this finding; the React community treats it as expected.
+
+### FP.2 Firefox Inspector flags `<input type="date">` spinbutton children as missing labels
+
+Reported as: `Form elements should have a visible text label` on the spinbutton role inside a date input, even when the parent `<input type="date">` is correctly labeled via `<label htmlFor>`.
+
+**Why it fires:** Firefox decomposes `<input type="date">` into the parent input + three child spinbuttons (month/day/year). Each spinbutton is its own accessible object. Firefox's name-derivation walk doesn't always propagate the parent's label down to the children, so each spinbutton appears to lack a name.
+
+**Why it's harmless:** Other browsers (Chrome, Safari) don't decompose date inputs the same way; axe doesn't see the spinbutton children. Real screen readers announce the date input based on the labeled parent — they don't navigate into the spinbutton children individually as if they were unlabeled. The PR #114 explicit-`htmlFor`/`id` switch is the right pattern regardless; the FF Inspector finding persists as a known browser quirk.
+
+**Workarounds we declined:** Re-adding redundant `aria-label` (might satisfy FF, would clutter the markup with redundancy). Replacing native `<input type="date">` with a custom date picker library (loses native UX for one Inspector check).
+
+---
+
 ## Priority 3 — minor / nice-to-have
 
 ### P3.1 `.sr-only` defined inside one component file
