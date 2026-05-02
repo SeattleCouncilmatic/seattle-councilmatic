@@ -39,6 +39,23 @@
   border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
+/* OSM / CARTO attribution. We disable Leaflet's default
+   attribution control (which renders inside the map div and
+   trips Firefox's "clickable but not focusable" check) and
+   render the same content as plain HTML here, where the <a>
+   tags are natively focusable and tab-able like any other
+   link on the page. */
+.council-map-attribution {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-align: right;
+}
+.council-map-attribution a {
+  color: #4b5563;
+  text-decoration: underline;
+}
+
 @media (max-width: 600px) {
   .council-map { height: 360px; }
 }

@@ -127,10 +127,26 @@
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+/* Visible-label field wrapping the address input. Same pattern as
+   the index-page filter fields. */
+.reps-lookup-field {
+  flex: 1 1 16rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.reps-lookup-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
 }
 
 .reps-lookup-input {
-  flex: 1 1 16rem;
+  width: 100%;
   padding: 0.625rem 0.875rem;
   font-size: 1rem;
   border: 2px solid #e5e7eb;
