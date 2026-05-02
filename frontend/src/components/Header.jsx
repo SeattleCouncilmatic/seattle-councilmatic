@@ -18,7 +18,10 @@ export default function Header() {
 
             {/* title and subtitle */}
             <div>
-              <h1 className="title">Seattle Councilmatic</h1>
+              {/* Branding wordmark, not a heading — using <p> so each
+                  page's actual <h1> (bill identifier, section number,
+                  rep name, etc.) is the only h1 in the document. */}
+              <p className="title">Seattle Councilmatic</p>
               <p className="subtitle">
                 An easy way to follow Seattle City Council activity and find local bills.
               </p>

@@ -7,10 +7,10 @@ import './ThisWeek.css';
 function SectionHeader({ icon: Icon, title, subtitle }) {
   return (
     <div className="tw-section-header">
-      <h3 className="tw-section-title">
+      <h2 className="tw-section-title">
         <Icon className="tw-section-icon" size={36} aria-hidden="true" />
         {title}
-      </h3>
+      </h2>
       <p className="tw-section-subtitle">{subtitle}</p>
     </div>
   );
@@ -62,7 +62,7 @@ export default function ThisWeek() {
   }, []);
 
   return (
-    <section id="this-week" className="this-week" aria-labelledby="tw-heading">
+    <section id="this-week" className="this-week">
       <div className="tw-inner">
         <div className="tw-grid">
 
