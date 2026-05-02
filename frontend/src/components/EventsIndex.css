@@ -58,11 +58,29 @@
   gap: 0.75rem;
   margin-bottom: 1rem;
   flex-wrap: wrap;
-  align-items: stretch;
+  align-items: flex-end;
+}
+
+/* See LegislationIndex.css `.leg-index-field` for the rationale —
+   visible-label wrapper for each filter control. */
+.evt-index-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.evt-index-field--search {
+  flex: 1 1 16rem;
+}
+
+.evt-index-field-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
 }
 
 .evt-index-search {
-  flex: 1 1 16rem;
+  width: 100%;
   padding: 0.625rem 0.875rem;
   font-size: 1rem;
   border: 2px solid #e5e7eb;
@@ -205,7 +223,7 @@
 }
 
 .evt-index-page-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 

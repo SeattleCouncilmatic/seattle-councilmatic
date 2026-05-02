@@ -148,32 +148,34 @@ export default function MuniCodeIndex() {
         </header>
 
         <div className="smc-index-controls">
-          <div className="smc-index-search-wrapper">
-            <input
-              type="search"
-              className="smc-index-search"
-              placeholder="Search the code (e.g. 'short-term rental') or jump to a citation ('23.47A.004')…"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              aria-label="Search the Seattle Municipal Code"
-              // Search is the primary interaction on this page — autofocus
-              // on mount so the user can type immediately. Also covers
-              // arriving here from a scoped search submission on a title
-              // or chapter page (focus would otherwise be lost when the
-              // scope page unmounted).
-              autoFocus
-            />
-            {searchInput && (
-              <button
-                type="button"
-                className="smc-index-search-clear"
-                onClick={clearSearchImmediately}
-                aria-label="Clear search"
-              >
-                <XIcon size={16} aria-hidden="true" />
-              </button>
-            )}
-          </div>
+          <label className="smc-index-field">
+            <span className="smc-index-field-label">Search</span>
+            <div className="smc-index-search-wrapper">
+              <input
+                type="search"
+                className="smc-index-search"
+                placeholder="Search the code (e.g. 'short-term rental') or jump to a citation ('23.47A.004')…"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                // Search is the primary interaction on this page — autofocus
+                // on mount so the user can type immediately. Also covers
+                // arriving here from a scoped search submission on a title
+                // or chapter page (focus would otherwise be lost when the
+                // scope page unmounted).
+                autoFocus
+              />
+              {searchInput && (
+                <button
+                  type="button"
+                  className="smc-index-search-clear"
+                  onClick={clearSearchImmediately}
+                  aria-label="Clear search"
+                >
+                  <XIcon size={16} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          </label>
         </div>
 
         {q && (chapter || title) && (

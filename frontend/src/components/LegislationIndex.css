@@ -58,10 +58,32 @@
   gap: 0.75rem;
   margin-bottom: 1rem;
   flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+/* Field wrapper that stacks a visible <span> label above each input
+   or select so the filter row meets WCAG SC 2.4.6 (Headings and
+   Labels) and 2.5.3 (Label in Name) — both want a visible textual
+   label, not just an aria-label. The wrapper is a <label>, so
+   clicking the label text focuses the control natively. */
+.leg-index-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.leg-index-field--search {
+  flex: 1 1 16rem;
+}
+
+.leg-index-field-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
 }
 
 .leg-index-search {
-  flex: 1 1 16rem;
+  width: 100%;
   padding: 0.625rem 0.875rem;
   font-size: 1rem;
   border: 2px solid #e5e7eb;
@@ -172,7 +194,7 @@
 }
 
 .leg-index-page-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
