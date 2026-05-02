@@ -1,3 +1,9 @@
+.district-mini-map-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .district-mini-map {
   width: 100%;
   height: 320px;
@@ -5,6 +11,20 @@
   border: 1px solid #e5e7eb;
   background: #ffffff;
   z-index: 1;
+}
+
+/* See CouncilMap.css `.council-map-attribution` for the rationale —
+   render the OSM/CARTO links outside the map div where they're
+   natively focusable. */
+.district-mini-map-attribution {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-align: right;
+}
+.district-mini-map-attribution a {
+  color: #4b5563;
+  text-decoration: underline;
 }
 
 @media (max-width: 600px) {
