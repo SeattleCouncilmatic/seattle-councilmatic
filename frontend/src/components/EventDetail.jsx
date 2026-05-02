@@ -150,9 +150,9 @@ export default function EventDetail() {
       .catch(e => { setError(e.message); setLoading(false) })
   }, [slug])
 
-  if (loading)  return <div className="evt-detail-loading">Loading…</div>
+  if (loading)  return <div role="status" className="evt-detail-loading">Loading…</div>
   if (notFound) return <NotFound kind="event" />
-  if (error)    return <div className="evt-detail-error">Could not load event: {error}</div>
+  if (error)    return <div role="alert" className="evt-detail-error">Could not load event: {error}</div>
 
   const legistarUrl = event.legistar_url || null
   // Filter out items that have no matter_file and no attachments (pure procedural notes)
