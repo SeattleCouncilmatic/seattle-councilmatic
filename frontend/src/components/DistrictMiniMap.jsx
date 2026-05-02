@@ -21,9 +21,13 @@ export default function DistrictMiniMap({ geometry, districtNumber }) {
         zoom: 11,
         zoomControl: true,
         scrollWheelZoom: false,
+        // Same rationale as CouncilMap: Leaflet's built-in
+        // attribution control trips Firefox's "clickable but not
+        // focusable" check. Render the OSM/CARTO links as plain
+        // HTML below the map instead.
+        attributionControl: false,
       })
       L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd',
         maxZoom: 20,
       }).addTo(mapInstanceRef.current)
@@ -68,5 +72,24 @@ export default function DistrictMiniMap({ geometry, districtNumber }) {
   }, [])
 
   if (!geometry) return null
-  return <div ref={mapRef} className="district-mini-map" />
+  return (
+    <div className="district-mini-map-wrapper">
+      <div
+        ref={mapRef}
+        className="district-mini-map"
+        role="img"
+        aria-label={`Boundary of District ${districtNumber}`}
+      />
+      <p className="district-mini-map-attribution">
+        Map &copy;{' '}
+        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">
+          OpenStreetMap
+        </a>
+        {' '}contributors &copy;{' '}
+        <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">
+          CARTO
+        </a>
+      </p>
+    </div>
+  )
 }
