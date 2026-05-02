@@ -163,3 +163,98 @@ Both `<Header>`'s NavBar and `<Footer>` link to About. SR users tabbing through 
 7. **a11y/focus-visible** *(small)* — add explicit `:focus-visible` to card wrappers + bump focus ring opacity (P2.1 + P2.2).
 
 After P1 items land, run Firefox Accessibility Inspector + axe DevTools on the flagship pages (Home, /legislation, a bill detail, /municode, an SMC section, /reps, a rep detail) to catch the runtime-only issues this static pass can't see (computed contrast, focus order, dynamic ARIA).
+
+---
+
+## Conventions to keep applying
+
+The audit shipped 17 PRs (#105–#124) clearing the priority items above plus the runtime issues the FF Inspector + axe pass surfaced. Patterns established along the way — apply on any new UI to avoid re-introducing the same findings.
+
+### Form fields
+
+- **Visible label above each control.** `<label className="...-field"><span className="...-field-label">Search</span><input/></label>`. `aria-label` alone fails axe `label` and WCAG 2.5.3.
+- **Date inputs need explicit `htmlFor`/`id`.** Firefox's Inspector doesn't reliably detect implicit `<label>`-wrapping for `<input type="date">`. Use `<div className="...-date-field"><label htmlFor="x" ...>From</label><input id="x" type="date"/></div>`.
+- **Self-sufficient labels.** "to" alone fails — use "Date to" / "Introduced to".
+- **Drop redundant `aria-label`** once a visible label exists; the visible label becomes the source of truth.
+
+### Disabled state
+
+Use **explicit colors**, not `opacity`. Opacity composites against the page bg and fails WCAG 1.4.3 even at 0.6. Pattern:
+
+```css
+.btn:disabled {
+  color: #6b7280;
+  border-color: #6b7280;
+  background: #ffffff;
+  cursor: not-allowed;
+}
+```
+
+`#6b7280` on `#ffffff` ≈ 4.83:1 — clears AA, still reads as faded.
+
+### Color
+
+- **Text on white**: `#9ca3af` (gray-400, 2.85:1) fails AA. Use `#6b7280` (gray-500, 4.83:1) at minimum.
+- **The Tab10 district palette is for fills only**, not text. D2 orange / D3 green / D4 red / D5 purple all fail AA on white. For text, use brand navy `#2E3D5B` (~9.5:1).
+- **Decorative `aria-hidden` elements** (e.g. breadcrumb `/` separators) are exempt from contrast requirements — `#9ca3af` is fine there.
+- **Per-instance dynamic colors** that interact with CSS shorthands: pass via CSS variable, consume with `var()` inside the CSS itself. Inline React `borderColor`/`borderLeftColor` longhand can lose to CSS shorthands unpredictably.
+
+  ```jsx
+  style={{ '--card-accent': accent }}
+  ```
+
+  ```css
+  border-left: 4px solid var(--card-accent, #2E3D5B);
+  ```
+
+### Focus
+
+- **Use `:focus-visible`, not `:focus`** — keyboard-only indicator, doesn't fire on every mouse click.
+- **Card-wrappers need explicit `:focus-visible`** with a 2px navy outline + offset. Browser default isn't reliable across browsers.
+- **Focus rings via box-shadow**: ≥ 0.4 alpha (~3:1) to clear WCAG 2.4.13. 0.15 fails.
+- **State-driven highlight + CSS focus**: when an inline highlight covers focus visually, set `outline: 'none'` in the inline style to suppress the underlying CSS outline and avoid double rings.
+- **Inputs that delegate focus to a parent's `:focus-within`** still need their own `:focus-visible` rule — Firefox checks per-element.
+
+### Heading hierarchy
+
+- **One `<h1>` per page.** Header brand mark is `<p className="title">`, not `<h1>` (Header renders on every page).
+- **No level skips.** Index pages: h1 (page) → h2 (sections/filters) → h3 (cards). LegislationCard / EventCard titles are `<h3>`.
+- Homepage h1 lives in LegislationHero.
+
+### Landmarks
+
+- **One `<main id="main-content" tabIndex={-1}>`** wrapping `<Routes>` in `App.jsx`. Per-page outer is `<div className="...-page">`, not `<main>`.
+- **Skip-link** `<a href="#main-content" className="skip-link">` is the first focusable element on every page (rendered in `App.jsx` before `<Header>`).
+- **Per-page**: one `<header>`, optional `<aside>`, `<nav aria-label="Breadcrumb">`, `<nav aria-label="Pagination">`.
+
+### Live regions
+
+| State | Role | Why |
+| --- | --- | --- |
+| Loading | `role="status"` | Polite — announces when SR user is idle |
+| Standalone error | `role="alert"` | Assertive — interrupts |
+| Combined summary (Loading → Results → Error) | `role="status"` | Don't aggressively interrupt on filter changes |
+
+### Document title
+
+Per-page `<title>` via `useDocumentTitle(pageTitle)` from `frontend/src/hooks/useDocumentTitle.js`. Static pages pass a literal string; detail pages pass `data?.field` — hook handles `null`/`undefined` by falling back to the bare site name so the previous page's title doesn't leak during loading.
+
+### Maps (Leaflet)
+
+- Pass `attributionControl: false` to `L.map()` — the built-in attribution trips Firefox's "clickable but not focusable" check.
+- Render OSM/CARTO attribution as a plain `<p>` with `<a>` tags below the map (license-compliant and natively focusable). Pattern in `CouncilMap.jsx` and `DistrictMiniMap.jsx`.
+- Map div needs an accessible name. Interactive maps (CouncilMap): `role="application"` + descriptive `aria-label`. Static maps (DistrictMiniMap): `role="img"` + `aria-label="Boundary of District N"`.
+- For half-step zoom levels (smoother +/- and tighter `fitBounds`): set `zoomSnap: 0.5`.
+
+### Reduced motion + utilities
+
+- Global `@media (prefers-reduced-motion: reduce)` rule in `index.css` collapses all transitions/animations. Don't add new persistent animations without checking.
+- `.sr-only` utility class lives in `index.css` for visually-hidden labels and skip-link text.
+
+### Vite scaffold defaults are dangerous
+
+`frontend/src/index.css` should be minimal — only typography, body reset, the `.sr-only` utility, and the reduced-motion rule. Don't reintroduce Vite's default `<a>` / `<button>` / `<h1>` styles, and never the `prefers-color-scheme: light` block that sets dark `#1a1a1a` bg (the original scaffold had this backwards).
+
+### Text-link underlines
+
+Text-style links (breadcrumbs, sponsor names, doc names, RCW/SMC refs, external links) use `text-decoration: underline` persistently. Card-wrappers and button-styled links keep `text-decoration: none` — their chrome already signals interactivity.
