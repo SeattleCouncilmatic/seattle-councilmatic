@@ -22,6 +22,12 @@ export default function CouncilMap({ districts, activeDistrict, onDistrictActiva
       mapInstanceRef.current = L.map(mapRef.current, {
         center: [47.6062, -122.3321], // Seattle center
         zoom: 11,
+        // Default zoomSnap of 1 means each "+/-" click doubles or
+        // halves the scale — too coarse for our default fit. With
+        // 0.5 the +/- buttons step in half-zooms and fitBounds can
+        // pick a fractional level, so the districts fill the
+        // viewport tightly without needing a click-in to feel right.
+        zoomSnap: 0.5,
         zoomControl: true,
         scrollWheelZoom: false,
         // Leaflet's built-in attribution control renders the
@@ -79,7 +85,12 @@ export default function CouncilMap({ districts, activeDistrict, onDistrictActiva
     }
 
     if (allBounds.isValid()) {
-      mapInstanceRef.current.fitBounds(allBounds, { padding: [16, 16] })
+      // Padding is `[paddingX, paddingY]` in Leaflet's Point form.
+      // Tighter vertical padding nudges fitBounds to pick a slightly
+      // closer zoom so the city polygons fill most of the 480px-tall
+      // map area; keeping horizontal padding at 16 leaves breathing
+      // room around West Seattle and the eastern edge.
+      mapInstanceRef.current.fitBounds(allBounds, { padding: [16, 4] })
     }
 
     return () => {
