@@ -155,7 +155,7 @@ function RepMiniCard({ rep, districtName, description, districtNumber, highlight
     <Link
       to={target}
       className={`rep-mini-card${accent ? ' rep-mini-card--accented' : ''}`}
-      style={{ ...accentBar, ...highlightStyle }}
+      style={{ ...accentVar, ...highlightStyle }}
       {...activateHandlers}
     >
       <div className="rep-mini-card-district">{districtName}</div>
