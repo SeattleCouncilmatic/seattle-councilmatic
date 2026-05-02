@@ -229,24 +229,33 @@ export default function LegislationIndex() {
         </div>
 
         <div className="leg-index-controls leg-index-date-controls">
-          <label className="leg-index-date-field">
-            <span className="leg-index-date-label">Introduced from</span>
+          {/* Explicit htmlFor/id association — Firefox's Accessibility
+              Inspector doesn't always detect implicit <label>-wraps-
+              <input> association on date inputs. */}
+          <div className="leg-index-date-field">
+            <label htmlFor="leg-index-date-from" className="leg-index-date-label">
+              Introduced from
+            </label>
             <input
+              id="leg-index-date-from"
               type="date"
               className="leg-index-date-input"
               value={introducedAfter}
               onChange={handleDateChange('introduced_after')}
             />
-          </label>
-          <label className="leg-index-date-field">
-            <span className="leg-index-date-label">Introduced to</span>
+          </div>
+          <div className="leg-index-date-field">
+            <label htmlFor="leg-index-date-to" className="leg-index-date-label">
+              Introduced to
+            </label>
             <input
+              id="leg-index-date-to"
               type="date"
               className="leg-index-date-input"
               value={introducedBefore}
               onChange={handleDateChange('introduced_before')}
             />
-          </label>
+          </div>
         </div>
 
         <div role="status" className="leg-index-summary">

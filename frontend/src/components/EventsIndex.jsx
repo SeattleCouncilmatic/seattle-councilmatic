@@ -195,24 +195,33 @@ export default function EventsIndex() {
         </div>
 
         <div className="evt-index-controls evt-index-date-controls">
-          <label className="evt-index-date-field">
-            <span className="evt-index-date-label">Date from</span>
+          {/* Explicit htmlFor/id association — see LegislationIndex
+              for why we don't use implicit <label>-wraps-<input>
+              on date inputs. */}
+          <div className="evt-index-date-field">
+            <label htmlFor="evt-index-date-from" className="evt-index-date-label">
+              Date from
+            </label>
             <input
+              id="evt-index-date-from"
               type="date"
               className="evt-index-date-input"
               value={dateAfter}
               onChange={handleDateChange('date_after')}
             />
-          </label>
-          <label className="evt-index-date-field">
-            <span className="evt-index-date-label">Date to</span>
+          </div>
+          <div className="evt-index-date-field">
+            <label htmlFor="evt-index-date-to" className="evt-index-date-label">
+              Date to
+            </label>
             <input
+              id="evt-index-date-to"
               type="date"
               className="evt-index-date-input"
               value={dateBefore}
               onChange={handleDateChange('date_before')}
             />
-          </label>
+          </div>
         </div>
 
         <div role="status" className="evt-index-summary">
