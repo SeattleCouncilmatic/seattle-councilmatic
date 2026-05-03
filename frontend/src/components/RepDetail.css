@@ -169,6 +169,58 @@
   color: #ffffff;
 }
 
+/* Staff — sits in the left rail under the external-link buttons.
+   Compact stacked entries: name (bold) / title (muted) / email link.
+   `rail-h2` is the smaller-fonted heading style for in-rail sections
+   so they don't compete visually with the right-column h2s for
+   Committees and Bills. */
+.rep-detail-staff {
+  margin-top: 1.5rem;
+}
+
+.rep-detail-rail-h2 {
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #2E3D5B;
+  margin: 0 0 0.625rem;
+}
+
+.rep-detail-staff-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.rep-detail-staff-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.rep-detail-staff-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.rep-detail-staff-title {
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+.rep-detail-staff-email {
+  font-size: 0.8125rem;
+  color: #2E3D5B;
+  text-decoration: underline;
+  word-break: break-all;
+}
+.rep-detail-staff-email:hover { color: #1f2937; }
+
 /* Committees — list of committee assignments with a role pill on
    the left. Top section in the right column on desktop; first
    thing under the rail on mobile. Role colors graduate from filled

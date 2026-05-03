@@ -126,6 +126,25 @@ export default function RepDetail() {
                 </a>
               )}
             </section>
+
+            {(data.staff || []).length > 0 && (
+              <section className="rep-detail-staff" aria-label="Staff">
+                <h2 className="rep-detail-rail-h2">Staff</h2>
+                <ul className="rep-detail-staff-list">
+                  {data.staff.map(s => (
+                    <li key={s.email || s.name} className="rep-detail-staff-row">
+                      <div className="rep-detail-staff-name">{s.name}</div>
+                      {s.title && <div className="rep-detail-staff-title">{s.title}</div>}
+                      {s.email && (
+                        <a href={`mailto:${s.email}`} className="rep-detail-staff-email">
+                          {s.email}
+                        </a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </header>
 
           <div className="rep-detail-main">
