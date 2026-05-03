@@ -64,6 +64,16 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Reps — banner photo + 2-column RepDetail layout — committed 2026-05-02
+
+The pupa scraper now captures each councilmember's banner photo URL from the main per-member page and persists it to `core.Person.image`. URL pattern: `https://www.seattle.gov/images/Council/Members/CouncilmemberBanners/<lastname>_635x250.{jpg,png}`. `extract_photo_url(html_str)` regex-matches the `images/Council/Members/CouncilmemberBanners/...` substring and prepends the canonical host — sidesteps a CMS quirk where seattle.gov's HTML emits a doubled `images//images/` prefix. (One real-world wrinkle: Strauss's filename is `struass_635x250.jpg` — a typo on the seattle.gov side; we use the typo'd URL because that's what 200s.)
+
+API: `_rep_row_to_dict` returns `image` when `Person.image` is set. Former members (Sara Nelson, Mark Solomon) get no photo because the existing redirect-skip pattern keeps us off their successors' pages.
+
+Frontend: `RepDetail` shifts from a single-column stack to a 2-column grid at ≥1024px (`20rem` left rail + flexible right). Left rail = identity (photo, district eyebrow, h1 name, district description, contacts card, external-link buttons). Right column = substantive content (Committees, Bills sponsored). Below 1024px it's single-column with the same source order. Container max-width bumped 56rem → 72rem to give the right column breathing room. h1 dropped from 2.25rem → 1.75rem so longer names like "Alexis Mercedes Rinck" don't wrap in the rail width. Photo uses `aspect-ratio: 635/250` with a neutral `#f3f4f6` placeholder background.
+
+We supply our own `alt={Councilmember <name>}` rather than trust the seattle.gov source — at least one banner has a stale alt text from a predecessor (Foster's says "Sara Nelson").
+
 ### Reps — scrape committee memberships → OCD Organization + Membership — committed 2026-05-02
 
 Each councilmember's `/council/members/<slug>/committees-and-calendar` page lists 4-6 committee assignments with role (Chair / Vice-Chair / Member). The pupa scraper now fetches that page during the people scrape, parses the committees ul, and yields one OCD `Organization` per unique committee plus one `Membership` per (person, committee) with the role.
