@@ -2,17 +2,19 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Phone, Mail, Printer, MapPin, ExternalLink, Clock } from 'lucide-react'
 import NotFound from './NotFound'
-import LegislationCard from './LegislationCard'
+import LegislationInvolvementTable from './LegislationInvolvementTable'
 import useDocumentTitle from '../hooks/useDocumentTitle'
 import './RepDetail.css'
 
-// Order in which option tallies appear in the breakdown row. Keys
-// match `_OPTION_LABELS` on the API side. Display labels are taken
-// from each row's `option_label` so the source of truth lives in one
-// place (Python).
+// Order in which lifetime option tallies appear in the breakdown row
+// above the legislation involvement table. Keys match `_OPTION_LABELS`
+// on the API side.
 const VOTE_OPTION_ORDER = ['yes', 'no', 'abstain', 'absent', 'excused', 'not voting', 'other']
 
 const optionSlug = (s) => s.replace(/\s+/g, '-')
+
+const optionTitle = (opt) =>
+  opt === 'not voting' ? 'Not voting' : opt.charAt(0).toUpperCase() + opt.slice(1)
 
 export default function RepDetail() {
   const { slug } = useParams()
@@ -179,39 +181,9 @@ export default function RepDetail() {
               </section>
             )}
 
-            {(data.sponsored_bills_total || 0) > 0 && (
-              <section className="rep-detail-bills" aria-label="Bills sponsored">
-                <h2 className="rep-detail-section-h2">
-                  Bills sponsored
-                  <span className="rep-detail-section-count">
-                    {' '}({data.sponsored_bills_total})
-                  </span>
-                </h2>
-                <div className="rep-detail-bill-list">
-                  {data.sponsored_bills.map(bill => (
-                    <LegislationCard key={bill.slug} bill={bill} />
-                  ))}
-                </div>
-                {data.sponsored_bills_total > data.sponsored_bills.length && (
-                  <Link
-                    to={`/legislation?sponsor=${encodeURIComponent(data.name)}`}
-                    className="rep-detail-bills-viewall"
-                  >
-                    View all {data.sponsored_bills_total} bills sponsored by {data.name} →
-                  </Link>
-                )}
-              </section>
-            )}
-
             {(data.voting_history?.total || 0) > 0 && (
-              <section className="rep-detail-votes" aria-labelledby="rep-votes-h2">
-                <h2 id="rep-votes-h2" className="rep-detail-section-h2">
-                  Voting history
-                  <span className="rep-detail-section-count">
-                    {' '}({data.voting_history.total})
-                  </span>
-                </h2>
-                <ul className="rep-detail-vote-breakdown" aria-label="Lifetime vote totals">
+              <section className="rep-detail-vote-stats" aria-label="Lifetime vote totals">
+                <ul className="rep-detail-vote-breakdown">
                   {VOTE_OPTION_ORDER.map(opt => {
                     const n = data.voting_history.breakdown[opt] || 0
                     if (!n) return null
@@ -221,54 +193,26 @@ export default function RepDetail() {
                         className={`rep-detail-vote-stat rep-detail-vote-stat--${optionSlug(opt)}`}
                       >
                         <span className="rep-detail-vote-stat-n">{n}</span>
-                        <span className="rep-detail-vote-stat-label">
-                          {opt === 'not voting' ? 'Not voting'
-                            : opt.charAt(0).toUpperCase() + opt.slice(1)}
-                        </span>
+                        <span className="rep-detail-vote-stat-label">{optionTitle(opt)}</span>
                       </li>
                     )
                   })}
                 </ul>
-                <h3 className="rep-detail-vote-recent-h3">Recent votes</h3>
-                <ol className="rep-detail-vote-list">
-                  {data.voting_history.recent.map((v, i) => (
-                    <li
-                      key={`${v.bill.slug}-${v.date}-${i}`}
-                      className="rep-detail-vote-row"
-                    >
-                      <div className="rep-detail-vote-meta">
-                        <time className="rep-detail-vote-date" dateTime={v.date}>
-                          {v.date}
-                        </time>
-                        <span
-                          className={`rep-detail-vote-option rep-detail-vote-option--${optionSlug(v.option)}`}
-                        >
-                          {v.option_label}
-                        </span>
-                        <span
-                          className={`rep-detail-vote-result rep-detail-vote-result--${v.result}`}
-                        >
-                          {v.result === 'pass' ? 'Passed' : 'Failed'}
-                        </span>
-                      </div>
-                      <Link
-                        to={`/legislation/${v.bill.slug}/`}
-                        className="rep-detail-vote-bill"
-                      >
-                        <span className="rep-detail-vote-bill-id">{v.bill.identifier}</span>
-                        {v.bill.title && (
-                          <span className="rep-detail-vote-bill-title">{v.bill.title}</span>
-                        )}
-                      </Link>
-                    </li>
-                  ))}
-                </ol>
-                {data.voting_history.total > data.voting_history.recent.length && (
-                  <p className="rep-detail-vote-truncated">
-                    Showing the {data.voting_history.recent.length} most recent
-                    {' '}of {data.voting_history.total} recorded votes.
-                  </p>
-                )}
+              </section>
+            )}
+
+            {(data.legislation_involvement || []).length > 0 && (
+              <section className="rep-detail-involvement" aria-labelledby="rep-involvement-h2">
+                <h2 id="rep-involvement-h2" className="rep-detail-section-h2">
+                  Legislation
+                  <span className="rep-detail-section-count">
+                    {' '}({data.legislation_involvement.length})
+                  </span>
+                </h2>
+                <LegislationInvolvementTable
+                  rows={data.legislation_involvement}
+                  repName={data.name}
+                />
               </section>
             )}
           </div>
