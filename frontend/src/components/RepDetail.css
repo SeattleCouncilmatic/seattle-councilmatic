@@ -5,8 +5,54 @@
 }
 
 .rep-detail-container {
-  max-width: 56rem;
+  max-width: 72rem;
   margin: 0 auto;
+}
+
+/* Two-column body on desktop, single-column on tablet/mobile.
+   Left rail = identity (photo, name, district, contacts, external
+   links). Right column = substantive content (committees, bills).
+   `align-items: start` keeps the rail anchored to the top instead of
+   stretching to match the right column's height. */
+.rep-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+@media (min-width: 1024px) {
+  .rep-detail-grid {
+    grid-template-columns: 20rem 1fr;
+    align-items: start;
+  }
+}
+
+.rep-detail-rail {
+  display: flex;
+  flex-direction: column;
+}
+
+.rep-detail-main {
+  min-width: 0; /* prevent grid item from blowing out wider than its track */
+}
+
+/* Banner photo — seattle.gov serves them at 635×250, so we honor
+   that aspect ratio and let the image fill the rail's width. The
+   neutral background shows through during load and as a fallback
+   for the rare case where the image 404s. Border-radius matches
+   the contact card for visual consistency. */
+.rep-detail-photo {
+  margin: 0 0 1rem;
+  width: 100%;
+  aspect-ratio: 635 / 250;
+  background: #f3f4f6;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.rep-detail-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .rep-detail-breadcrumb {
@@ -23,8 +69,6 @@
 .rep-detail-breadcrumb-sep { color: #9ca3af; font-weight: 400; }
 .rep-detail-breadcrumb-current { color: #6b7280; font-weight: 500; }
 
-.rep-detail-header { margin-bottom: 2rem; }
-
 .rep-detail-eyebrow {
   font-size: 0.875rem;
   font-weight: 600;
@@ -35,7 +79,10 @@
 }
 
 .rep-detail-h1 {
-  font-size: 2.25rem;
+  /* Smaller in the rail than the old full-width header, since the
+     rail is ~20rem on desktop and the old 2.25rem h1 would wrap on
+     longer names like "Alexis Mercedes Rinck". */
+  font-size: 1.75rem;
   font-weight: 800;
   color: #1f2937;
   margin: 0 0 0.5rem;
@@ -43,7 +90,7 @@
 }
 
 .rep-detail-sub {
-  margin: 0;
+  margin: 0 0 1rem;
   color: #6b7280;
   font-size: 0.95rem;
 }
@@ -123,11 +170,12 @@
 }
 
 /* Committees — list of committee assignments with a role pill on
-   the left. Sits between the external-link row and the bills list.
-   Role colors graduate from filled navy (Chair, the strongest
-   commitment) → outlined navy (Vice-Chair) → light gray (Member). */
+   the left. Top section in the right column on desktop; first
+   thing under the rail on mobile. Role colors graduate from filled
+   navy (Chair, the strongest commitment) → outlined navy (Vice-Chair)
+   → light gray (Member). */
 .rep-detail-committees {
-  margin-top: 2rem;
+  margin-bottom: 2rem;
 }
 
 .rep-detail-committee-list {
@@ -183,14 +231,14 @@
 }
 .rep-detail-committee-name:hover { color: #2E3D5B; }
 
-/* Bills sponsored — sits below the contact + external-link rows.
+/* Bills sponsored — sits below committees in the right column.
    Renders the same LegislationCard chrome used on /legislation/ so
    the card style stays consistent across the SPA. We cap the inline
    list at 10 cards from the API; the "View all" link below falls
    through to the existing legislation index sponsor filter when the
    rep has more than that. */
 .rep-detail-bills {
-  margin-top: 2rem;
+  margin-top: 0;
 }
 
 .rep-detail-section-h2 {

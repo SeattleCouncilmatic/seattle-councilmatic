@@ -111,6 +111,24 @@ def extract_committee_assignments(html_str: str) -> list[dict]:
     return out
 
 
+_PHOTO_PATH_RE = re.compile(r"images/Council/Members/CouncilmemberBanners/[^\"'?]+")
+
+
+def extract_photo_url(html_str: str) -> str | None:
+    """Return the absolute URL of the rep's banner photo, if any.
+
+    The seattle.gov main per-member page emits the banner with a
+    relative src like `images//images/Council/Members/CouncilmemberBanners/foster_635x250.jpg`
+    (the double-slash is a CMS artifact and the server tolerates it,
+    but we normalize to the canonical single-slash absolute URL).
+    Returns None if the page lacks a banner img — callers leave
+    `person.image` unset in that case."""
+    m = _PHOTO_PATH_RE.search(html_str)
+    if not m:
+        return None
+    return "https://www.seattle.gov/" + m.group(0)
+
+
 def extract_contact_details(html_str: str) -> dict:
     """Parse the Contact Us tile on a per-member seattle.gov profile
     page. Returns a dict with any of `phone`, `fax`, `email`,
@@ -153,22 +171,24 @@ def extract_contact_details(html_str: str) -> dict:
 
 class SeattlePersonScraper(Scraper):
 
-    def _fetch_member_extras(self, profile_url: str) -> tuple[dict, list[dict]]:
-        """Fetch the per-member detail page for contacts and the
-        `/committees-and-calendar` subpage for committee assignments.
+    def _fetch_member_extras(self, profile_url: str) -> tuple[dict, list[dict], str | None]:
+        """Fetch the per-member detail page for contacts + photo, and
+        the `/committees-and-calendar` subpage for committee assignments.
 
-        Returns (contacts_dict, committees_list). Both are empty when
-        the corresponding fetch returns non-200 or the page lacks the
-        expected block. `allow_redirects=False` because seattle.gov
-        301s former-member URLs to their successor (`sara-nelson` →
-        `dionne-foster`); only a 200 means the URL really belongs to
-        this person."""
+        Returns (contacts_dict, committees_list, photo_url). All can be
+        empty/None when the corresponding fetch returns non-200 or the
+        page lacks the expected block. `allow_redirects=False` because
+        seattle.gov 301s former-member URLs to their successor
+        (`sara-nelson` → `dionne-foster`); only a 200 means the URL
+        really belongs to this person."""
         contacts: dict = {}
         committees: list[dict] = []
+        photo_url: str | None = None
         try:
             r = requests.get(profile_url, timeout=10, allow_redirects=False)
             if r.status_code == 200:
                 contacts = extract_contact_details(r.text)
+                photo_url = extract_photo_url(r.text)
         except requests.RequestException as e:
             logger.warning(f"Could not fetch {profile_url}: {e}")
         try:
@@ -178,7 +198,7 @@ class SeattlePersonScraper(Scraper):
                 committees = extract_committee_assignments(r.text)
         except requests.RequestException as e:
             logger.warning(f"Could not fetch committees for {profile_url}: {e}")
-        return contacts, committees
+        return contacts, committees, photo_url
 
     def scrape(self):
         """Scrape Seattle City Council members from seattle.gov.
@@ -209,13 +229,14 @@ class SeattlePersonScraper(Scraper):
             district_type, number, name = match.group(1), match.group(2), match.group(3).strip()
             district = f"{district_type} {number}"
             profile_url = f"{url}/{profile_slug(name)}"
-            contacts, committees = self._fetch_member_extras(profile_url)
+            contacts, committees, photo_url = self._fetch_member_extras(profile_url)
             members_data.append({
                 "name": name,
                 "district": district,
                 "profile_url": profile_url,
                 "contacts": contacts,
                 "committees_raw": committees,
+                "photo_url": photo_url,
             })
 
         # Build canonical_committees map: committee names on seattle.gov
@@ -246,6 +267,8 @@ class SeattlePersonScraper(Scraper):
             district = m["district"]
             contacts = m["contacts"]
             person = Person(name=name, district=district, role="Councilmember")
+            if m["photo_url"]:
+                person.image = m["photo_url"]
             person.add_membership(
                 "Seattle City Council",
                 role="Councilmember",

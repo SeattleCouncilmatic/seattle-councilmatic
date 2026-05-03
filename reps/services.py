@@ -352,6 +352,8 @@ def _rep_row_to_dict(name: str, slug: str, label: str, person_id: str) -> Dict[s
     # and pull her predecessor's contact info).
     person = OCDPerson.objects.filter(id=person_id).first()
     if person:
+        if person.image:
+            rep_data['image'] = person.image
         for contact in person.contact_details.all():
             if contact.type == 'email':
                 rep_data['email'] = contact.value
