@@ -5,7 +5,10 @@
 }
 
 .rep-detail-container {
-  max-width: 72rem;
+  /* Matches LegislationDetail's 90rem so the involvement table on big
+     reps (200-300+ rows) gets room to breathe — at 72rem, the
+     6-column table forced horizontal scroll on most desktops. */
+  max-width: 90rem;
   margin: 0 auto;
 }
 

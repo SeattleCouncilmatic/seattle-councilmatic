@@ -183,9 +183,12 @@ export default function LegislationInvolvementTable({ rows, repName }) {
                 {pageRows.map(row => (
                   <tr key={row.bill.slug}>
                     <th scope="row" className="involvement-cell-bill">
-                      <Link to={`/legislation/${row.bill.slug}/`} className="involvement-bill-link">
-                        <span className="involvement-bill-id">{row.bill.identifier}</span>
-                        <span className="involvement-bill-title">{row.bill.title}</span>
+                      <Link
+                        to={`/legislation/${row.bill.slug}/`}
+                        className="involvement-bill-link"
+                        title={row.bill.title}
+                      >
+                        {row.bill.identifier}
                       </Link>
                     </th>
                     <td>
