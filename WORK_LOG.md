@@ -64,6 +64,26 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Votes — implement SeattleVoteEventScraper (data only, no UI yet) — committed 2026-05-03
+
+First of three planned PRs for voting history. Replaces the long-stubbed `SeattleVoteEventScraper` (was `pass` since project init) with a working implementation that walks past Legistar events in a 548-day window (matches the bills scraper window) and yields one Pupa `VoteEvent` per substantive eventitem with a roll-call vote.
+
+**Data flow**: `/events?$filter=EventDate ge ...` → for each event, `/events/<id>/eventitems` → for each item with a `MatterId`, `/eventitems/<id>/votes`. The per-person vote's `VoteValueName` ("In Favor" / "Opposed" / "Abstain" / "Absent(NV)" / etc.) maps to pupa's standard options (`yes` / `no` / `abstain` / `absent` / `excused` / `not voting` / `other`). Aggregate result comes from the eventitem's `EventItemPassedFlagName` ("Pass" / "Fail").
+
+WORK_LOG previously claimed `/matters/<id>/votes` was the right endpoint; it isn't (404). Votes live on event items.
+
+**Three pupa import edge cases hit + fixed during the first backfill:**
+
+1. **Org resolution.** Passing `organization="Seattle City Council"` (bare string) to `VoteEvent` makes pupa store the literal name and crash at import (`KeyError: 'Seattle City Council'` in `resolve_json_id`). Fix: `chamber="legislature"` instead, which pupa wraps as `~{"classification": "legislature"}` pseudo_id and matches our existing legislature Org by classification.
+
+2. **Non-bill agenda items.** Many event items are appointments / minutes adoption / IRC adoption — they have a `MatterId` but no Bill record in our DB. Pupa's `bill_importer.resolve_json_id()` doesn't pass `allow_no_match=True`, so unresolved bills crash the import. Fix: `_TRACKED_MATTER_PREFIXES = ("CB ", "Ord ", "Res ")` skip filter at scrape time.
+
+3. **Bills outside the 548-day window.** A vote in our window can reference a bill introduced earlier (CB 120856 from session 2024 in this case). Same crash. Fix: `_load_known_bill_identifiers()` queries the DB at scraper init for `(identifier, session)` pairs and skips votes for unknowns. Tradeoff: pupa scrapers don't typically hit the DB, but it's the cleanest pre-import filter without monkey-patching pupa internals.
+
+**Data after first backfill**: 552 `VoteEvent` rows, 4113 `PersonVote` rows. Voter counts align with tenure (Hollingsworth 494, Strauss/Saka/Rivera/Kettle ~460 each, Lin 82, Foster 53). Three unmatched historical members (Cathy Moore, Tammy J. Morales, Tanya Woo) get warnings + `voter_id=NULL` since they're not in our Person table — votes are still stored, just not linkable to a rep. Acceptable for v1; we'd need to scrape former-member rosters to link these.
+
+Registered in `seattle/__init__.py` so the daily cron picks it up automatically — no separate scheduler change needed. No API or frontend changes — that's PRs 2 and 3 (RepDetail surface, then LegislationDetail roll-call section).
+
 ### Reps — staff list in the left rail — committed 2026-05-02
 
 Each councilmember's `/staff` subpage on seattle.gov lists their office staff (3-5 per rep, with `name`, `title`, and `mailto:` email; bio prose intentionally skipped — too verbose for an identity rail). The pupa scraper now fetches that page and stashes the parsed list on `core.Person.extras['staff']` as a JSON array of `{name, title, email}` dicts.

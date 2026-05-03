@@ -2,9 +2,7 @@ from pupa.scrape import Jurisdiction, Organization
 from .people import SeattlePersonScraper
 from .events import SeattleEventScraper
 from .bills import SeattleBillScraper
-
-# TODO: Implement these scrapers
-# from .vote_events import SeattleVoteEventScraper
+from .vote_events import SeattleVoteEventScraper
 
 class Seattle(Jurisdiction):
     # These IDs are from Open Civic Data standard and identify Seattle
@@ -18,8 +16,7 @@ class Seattle(Jurisdiction):
         "people": SeattlePersonScraper,
         "events": SeattleEventScraper,
         "bills": SeattleBillScraper,
-        # TODO: Add these back when implemented
-        # "vote_events": SeattleVoteEventScraper,
+        "vote_events": SeattleVoteEventScraper,
     }
 
     # Bills must be linked to a legislative session
