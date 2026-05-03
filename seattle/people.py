@@ -114,6 +114,33 @@ def extract_committee_assignments(html_str: str) -> list[dict]:
 _PHOTO_PATH_RE = re.compile(r"images/Council/Members/CouncilmemberBanners/[^\"'?]+")
 
 
+def extract_staff(html_str: str) -> list[dict]:
+    """Parse a councilmember's `/staff` page. Returns a list of
+    `{name, title, email}` dicts, one per staff member. Bio prose is
+    intentionally skipped — the rep page renders staff as a compact
+    contact list, not biographical content.
+
+    Page structure: each staff member is a `.boardMemberContent` div
+    containing `<h2 class="boardMemberName">`, `<div
+    class="boardMemberProfTitle">`, and a `<div class="memberBio">`
+    whose first link is the staff member's mailto. We sidebar
+    "City Council" / "Citywide Information" headings — those are
+    page-chrome, not staff."""
+    h = lxml_html.fromstring(html_str)
+    out: list[dict] = []
+    for block in h.xpath('//div[contains(@class, "boardMemberContent")]'):
+        name_nodes = block.xpath('.//h2[@class="boardMemberName"]/text()')
+        title_nodes = block.xpath('.//div[@class="boardMemberProfTitle"]/text()')
+        email_hrefs = block.xpath('.//div[@class="memberBio"]//a[starts-with(@href, "mailto:")]/@href')
+        if not name_nodes:
+            continue
+        name = name_nodes[0].strip()
+        title = title_nodes[0].strip() if title_nodes else ""
+        email = email_hrefs[0][len("mailto:"):].strip() if email_hrefs else ""
+        out.append({"name": name, "title": title, "email": email})
+    return out
+
+
 def extract_photo_url(html_str: str) -> str | None:
     """Return the absolute URL of the rep's banner photo, if any.
 
@@ -171,19 +198,20 @@ def extract_contact_details(html_str: str) -> dict:
 
 class SeattlePersonScraper(Scraper):
 
-    def _fetch_member_extras(self, profile_url: str) -> tuple[dict, list[dict], str | None]:
+    def _fetch_member_extras(self, profile_url: str) -> tuple[dict, list[dict], str | None, list[dict]]:
         """Fetch the per-member detail page for contacts + photo, and
-        the `/committees-and-calendar` subpage for committee assignments.
+        the `/committees-and-calendar` and `/staff` subpages.
 
-        Returns (contacts_dict, committees_list, photo_url). All can be
-        empty/None when the corresponding fetch returns non-200 or the
-        page lacks the expected block. `allow_redirects=False` because
-        seattle.gov 301s former-member URLs to their successor
+        Returns (contacts_dict, committees_list, photo_url, staff_list).
+        All can be empty/None when the corresponding fetch returns
+        non-200 or the page lacks the expected block. `allow_redirects=False`
+        because seattle.gov 301s former-member URLs to their successor
         (`sara-nelson` → `dionne-foster`); only a 200 means the URL
         really belongs to this person."""
         contacts: dict = {}
         committees: list[dict] = []
         photo_url: str | None = None
+        staff: list[dict] = []
         try:
             r = requests.get(profile_url, timeout=10, allow_redirects=False)
             if r.status_code == 200:
@@ -198,7 +226,14 @@ class SeattlePersonScraper(Scraper):
                 committees = extract_committee_assignments(r.text)
         except requests.RequestException as e:
             logger.warning(f"Could not fetch committees for {profile_url}: {e}")
-        return contacts, committees, photo_url
+        try:
+            r = requests.get(profile_url + "/staff",
+                             timeout=10, allow_redirects=False)
+            if r.status_code == 200:
+                staff = extract_staff(r.text)
+        except requests.RequestException as e:
+            logger.warning(f"Could not fetch staff for {profile_url}: {e}")
+        return contacts, committees, photo_url, staff
 
     def scrape(self):
         """Scrape Seattle City Council members from seattle.gov.
@@ -229,7 +264,7 @@ class SeattlePersonScraper(Scraper):
             district_type, number, name = match.group(1), match.group(2), match.group(3).strip()
             district = f"{district_type} {number}"
             profile_url = f"{url}/{profile_slug(name)}"
-            contacts, committees, photo_url = self._fetch_member_extras(profile_url)
+            contacts, committees, photo_url, staff = self._fetch_member_extras(profile_url)
             members_data.append({
                 "name": name,
                 "district": district,
@@ -237,6 +272,7 @@ class SeattlePersonScraper(Scraper):
                 "contacts": contacts,
                 "committees_raw": committees,
                 "photo_url": photo_url,
+                "staff": staff,
             })
 
         # Build canonical_committees map: committee names on seattle.gov
@@ -269,6 +305,13 @@ class SeattlePersonScraper(Scraper):
             person = Person(name=name, district=district, role="Councilmember")
             if m["photo_url"]:
                 person.image = m["photo_url"]
+            if m["staff"]:
+                # Stash the staff list on Person.extras as a JSON list
+                # of `{name, title, email}` dicts. Staff aren't first-
+                # class OCD entities (we don't surface them as Person
+                # records, search them, link them to bills, etc.) — just
+                # display data attached to the rep.
+                person.extras["staff"] = m["staff"]
             person.add_membership(
                 "Seattle City Council",
                 role="Councilmember",

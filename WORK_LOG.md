@@ -64,6 +64,16 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Reps — staff list in the left rail — committed 2026-05-02
+
+Each councilmember's `/staff` subpage on seattle.gov lists their office staff (3-5 per rep, with `name`, `title`, and `mailto:` email; bio prose intentionally skipped — too verbose for an identity rail). The pupa scraper now fetches that page and stashes the parsed list on `core.Person.extras['staff']` as a JSON array of `{name, title, email}` dicts.
+
+Why `extras` rather than first-class OCD `Person` records: staff aren't queryable entities for us — we don't search them, link them to bills, or render dedicated pages. They're display-only contact context attached to the rep, so a JSON blob is the right weight.
+
+API: `_rep_row_to_dict` returns `staff` when set. Frontend: new `Staff` section in the left rail under the External Links buttons, with a smaller `rail-h2` heading style (`0.875rem` uppercase navy) so it doesn't compete visually with the right column's full-size h2s for Committees and Bills. Each entry stacks `name (bold) / title (muted) / email (mailto link)`.
+
+Live data after scrape: 30 staff entries across 8 of the 9 current members (counts range 3-5 per rep). Former members get nothing — the existing `allow_redirects=False` skip-non-200 pattern keeps us off their successors' pages.
+
 ### Reps — banner photo + 2-column RepDetail layout — committed 2026-05-02
 
 The pupa scraper now captures each councilmember's banner photo URL from the main per-member page and persists it to `core.Person.image`. URL pattern: `https://www.seattle.gov/images/Council/Members/CouncilmemberBanners/<lastname>_635x250.{jpg,png}`. `extract_photo_url(html_str)` regex-matches the `images/Council/Members/CouncilmemberBanners/...` substring and prepends the canonical host — sidesteps a CMS quirk where seattle.gov's HTML emits a doubled `images//images/` prefix. (One real-world wrinkle: Strauss's filename is `struass_635x250.jpg` — a typo on the seattle.gov side; we use the typo'd URL because that's what 200s.)

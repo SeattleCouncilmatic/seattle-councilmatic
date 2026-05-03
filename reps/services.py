@@ -354,6 +354,11 @@ def _rep_row_to_dict(name: str, slug: str, label: str, person_id: str) -> Dict[s
     if person:
         if person.image:
             rep_data['image'] = person.image
+        # Staff list lives on `Person.extras['staff']` as a JSON list
+        # of `{name, title, email}` dicts — see seattle/people.py.
+        staff = (person.extras or {}).get('staff') or []
+        if staff:
+            rep_data['staff'] = staff
         for contact in person.contact_details.all():
             if contact.type == 'email':
                 rep_data['email'] = contact.value
