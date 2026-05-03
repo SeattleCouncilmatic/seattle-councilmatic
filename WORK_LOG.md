@@ -26,7 +26,7 @@ Prioritized to-do. Quick wins flagged with *(quick)*.
 
 **Councilmember data on rep detail pages**
 - ~~**Bills sponsored**~~ *(quick)*. Shipped on `reps/bills-sponsored`. `get_rep_by_slug()` now includes `sponsored_bills` (top 10 by latest action) + `sponsored_bills_total`; `RepDetail` renders them via the existing `LegislationCard` and falls through to a "View all N bills sponsored by [name]" link to the legislation index sponsor filter.
-- **Voting history.** The `SeattleVoteEventScraper` skeleton exists at `seattle/vote_events.py:5-9` but is stubbed to `pass`; `seattle/__init__.py:7-8` has the registration commented out. Legistar exposes `/matters/{id}/votes` per matter, which Pupa's `VoteEvent` + `VoteCount` schema already supports — implement the scraper, register it, run a backfill, then expose votes both on `RepDetail` (chronological list of "voted yes/no on CB X.Y") and on `LegislationDetail` (the existing action history could grow a roll-call section). Big lift — touches scraper, models, API, and two surfaces.
+- **Voting history → roll-call on `LegislationDetail`.** Scraper + RepDetail surface have shipped (PR 1: `votes/scraper-and-backfill` data, PR 2: `votes/repdetail-surface` UI). Remaining is a per-bill roll-call section on `LegislationDetail` — a bill can have multiple `VoteEvent`s (committee + full council), each with per-person yes/no. The existing action history timeline is the natural place to grow this. Lookup is `Bill.votes.all().prefetch_related('votes', 'counts')` in API, and the frontend renders an expandable per-event block listing each councilmember's option grouped by yes / no / abstain / absent.
 - **Committee involvements.** Today we surface `bill.extras.MatterBodyName` as the "committee" chip on bill cards but never roll it up per-rep, and we don't have committee *membership* data. Two paths to investigate: (a) Legistar `/bodies/` or `/events/` may expose committee rosters via an `EventBodyName` ↔ Person association — `seattle/events.py:171-173` already captures `EventInSiteURL`, audit whether the same response carries member lists; (b) fall back to scraping seattle.gov councilmember pages where committee assignments are listed prose-style. Once captured, render as a "Committees" section on `RepDetail` showing role (chair / member) + start/end date.
 - **Tenure / "serving since".** Schema has `Membership.start_date` / `end_date` but the data isn't actually populated — `seattle/people.py:48-52` calls `add_membership(...)` without passing dates, and the Legistar people endpoint we scrape doesn't expose them. So this is a data gap, not a quick win as previously noted: requires either (a) extending the people scraper to fetch term dates from seattle.gov councilmember pages or another source, or (b) hardcoding term boundaries based on Seattle's election cycle (Districts 1/3/5/7 vs 2/4/6/At-Large stagger). Once populated, surface as "Serving since June 2024" on the rep header. Pairs with relaxing the `is_current` filter to surface former councilmembers under e.g. `/reps/former/` when we want the historical view.
 - **File pointers**: `frontend/src/components/RepDetail.jsx`, `seattle_app/reps/services.py:320-365` (`_rep_row_to_dict`), `seattle_app/reps/views.py:108-118` (rep_detail), `seattle/vote_events.py` (stub), `seattle/__init__.py:7-8` (scraper registration).
@@ -63,6 +63,22 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 ---
 
 ## Done
+
+### Votes — surface voting history on RepDetail — committed 2026-05-03
+
+PR 2 of 3 for voting history. Now that the scraper + backfill (PR 1) populated 552 `VoteEvent` + 4,113 `PersonVote` rows, `/api/reps/<slug>/` ships a `voting_history` block and `RepDetail` renders it as the third right-column section under Committees and Bills sponsored.
+
+**API** — new `_get_voting_history(person_id, limit=25)` in `reps/services.py`. Two queries: a `Count` aggregation by option for the lifetime breakdown, and a `select_related('vote_event__bill__councilmatic_bill')` fetch of the most recent N PersonVote rows for the per-row card data. Filters on `voter_id` (the OCD Person primary key) rather than `voter_name`, which sidesteps the name-collision problem the bills sponsorship query has with former and current members. Returns `{total, breakdown: {option: count, ...}, recent: [{date, option, option_label, result, bill: {identifier, title, slug}}, ...]}`. Returns `total=0` for any rep with no PersonVote rows (the three former councilmembers in the historical data who weren't in our Person table get `voter_id=NULL` and so produce empty payloads here).
+
+`vote_event.start_date` is an OCD CharField storing ISO-8601 strings with fixed-offset suffixes — lex-sort `-vote_event__start_date` matches Pacific wall-clock chronology because the date prefix dominates the comparison even across the PST/PDT boundary.
+
+**Frontend** — new `<section class="rep-detail-votes">` after Bills sponsored on `RepDetail.jsx`. Two pieces:
+1. **Lifetime breakdown row** — one pill per non-zero option (Yes/No/Abstain/Absent/Excused/Not voting/Other) with the count and label, ordered by significance. The pill's left-edge accent color matches the per-row option chip below so the breakdown reads as a summary of the list.
+2. **Recent votes list** — most recent 25 as `<ol>`, each row showing date, option chip, pass/fail result, and a link to `/legislation/<slug>/` with the bill identifier + title. When `total > 25` a footer line declares "Showing the 25 most recent of N recorded votes."
+
+Color is paired with text labels everywhere (Yes/No/Abstain) so contrast doesn't carry meaning alone — yes is green-on-white, no is red-on-white, abstain is amber, the procedural options (absent / excused / not voting / other) share a quieter gray. `<time dateTime>` for accessible date semantics. `aria-labelledby` ties the section to its h2.
+
+Live shape across current councilmembers: Hollingsworth 494 votes (486 yes / 4 no / 1 abstain / 2 absent / 1 not voting), Foster 53 (52 yes / 1 not voting), Lin 82 (76 / 2 / 3 / 1), Rinck 393 (372 / 10 / 0 / 2 / 8 / 1 other). No section at all when total=0 (none in the current 9 actually hit that, but the guard is in for the future).
 
 ### Votes — implement SeattleVoteEventScraper (data only, no UI yet) — committed 2026-05-03
 

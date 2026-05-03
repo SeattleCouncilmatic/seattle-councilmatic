@@ -319,3 +319,150 @@
   font-size: 0.9375rem;
   text-decoration: underline;
 }
+
+/* Voting history — sits below Bills sponsored. Two pieces:
+   (1) lifetime breakdown row (counts of yes/no/abstain/...) so the
+       overall pattern is visible at a glance, and
+   (2) the most recent N votes as a compact list with bill links.
+   Color is paired with the explicit text label (`Yes`/`No`/...) so
+   contrast doesn't carry the meaning alone. */
+.rep-detail-votes {
+  margin-top: 2.5rem;
+}
+
+.rep-detail-vote-breakdown {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+.rep-detail-vote-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.5rem 0.875rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid #9ca3af;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}
+.rep-detail-vote-stat-n {
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: #1f2937;
+}
+.rep-detail-vote-stat-label {
+  color: #4b5563;
+}
+/* Match the option-chip colors below so the breakdown reads as a
+   summary of the row chips. The left-edge accent carries the cue
+   without coloring the whole pill (which would compete with the
+   chips). */
+.rep-detail-vote-stat--yes        { border-left-color: #047857; }
+.rep-detail-vote-stat--no         { border-left-color: #b91c1c; }
+.rep-detail-vote-stat--abstain    { border-left-color: #b45309; }
+.rep-detail-vote-stat--absent     { border-left-color: #6b7280; }
+.rep-detail-vote-stat--excused    { border-left-color: #6b7280; }
+.rep-detail-vote-stat--not-voting { border-left-color: #6b7280; }
+.rep-detail-vote-stat--other      { border-left-color: #6b7280; }
+
+.rep-detail-vote-recent-h3 {
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #4b5563;
+  margin: 0 0 0.75rem;
+}
+
+.rep-detail-vote-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rep-detail-vote-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.75rem 0.875rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+}
+
+.rep-detail-vote-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 0.8125rem;
+}
+
+.rep-detail-vote-date {
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pupa option chip. Solid color + uppercase short label so the
+   value is unambiguous even with the color stripped. Yes/No/Abstain
+   carry policy meaning; Absent/Excused/etc. are procedural and use
+   a quieter gray to keep the eye on the substantive options. */
+.rep-detail-vote-option {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 0.25rem;
+  color: #ffffff;
+  background: #6b7280;
+}
+.rep-detail-vote-option--yes        { background: #047857; }
+.rep-detail-vote-option--no         { background: #b91c1c; }
+.rep-detail-vote-option--abstain    { background: #b45309; }
+.rep-detail-vote-option--absent     { background: #6b7280; }
+.rep-detail-vote-option--excused    { background: #6b7280; }
+.rep-detail-vote-option--not-voting { background: #6b7280; }
+.rep-detail-vote-option--other      { background: #6b7280; }
+
+.rep-detail-vote-result {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #4b5563;
+}
+.rep-detail-vote-result--pass { color: #047857; }
+.rep-detail-vote-result--fail { color: #b91c1c; }
+
+.rep-detail-vote-bill {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  text-decoration: none;
+}
+.rep-detail-vote-bill-id {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #2E3D5B;
+  text-decoration: underline;
+}
+.rep-detail-vote-bill:hover .rep-detail-vote-bill-id { color: #1f2937; }
+.rep-detail-vote-bill-title {
+  font-size: 0.875rem;
+  color: #4b5563;
+  line-height: 1.35;
+}
+
+.rep-detail-vote-truncated {
+  margin: 1rem 0 0;
+  font-size: 0.8125rem;
+  color: #6b7280;
+}

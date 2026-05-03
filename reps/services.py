@@ -17,7 +17,8 @@ from django.contrib.gis.geos import Point
 from django.db import connection, models
 
 from councilmatic_core.models import Bill, Person, Membership
-from django.db.models import Max
+from opencivicdata.legislative.models import PersonVote
+from django.db.models import Count, Max
 from .models import District
 
 
@@ -495,7 +496,95 @@ def get_rep_by_slug(slug: str) -> Optional[Dict[str, Any]]:
     bills, total = _get_sponsored_bills(name)
     rep['sponsored_bills'] = bills
     rep['sponsored_bills_total'] = total
+    rep['voting_history'] = _get_voting_history(person_id)
     return rep
+
+
+# Pupa's standard vote-option keys → display labels. The keys come from
+# `seattle/vote_events.py:_VOTE_VALUE_MAP`; "not voting" is the only one
+# with a space, which the frontend slug-cases for class names.
+_OPTION_LABELS = {
+    'yes':         'Yes',
+    'no':          'No',
+    'abstain':     'Abstain',
+    'absent':      'Absent',
+    'excused':     'Excused',
+    'not voting':  'Not voting',
+    'other':       'Other',
+}
+
+
+def _get_voting_history(person_id: str, limit: int = 25) -> Dict[str, Any]:
+    """Aggregate voting stats + the most recent N PersonVote rows for
+    this rep, with bill info attached. Filtering by `voter_id` (the OCD
+    Person primary key) rather than `voter_name` avoids the ambiguity
+    the bills sponsor query has with name collisions across former and
+    current members; the scraper sets `voter` whenever the name resolves
+    to a Person we've scraped.
+
+    Shape:
+        {
+          'total':     N,
+          'breakdown': {'yes': ..., 'no': ..., 'abstain': ..., ...},
+          'recent':    [{'date', 'option', 'option_label', 'result',
+                         'bill': {'identifier', 'title', 'slug'}}, ...],
+        }
+
+    `breakdown` only contains options the rep has actually cast — drops
+    zero entries on the API side so the frontend can iterate without
+    filtering. `recent` is capped at `limit` items, ordered most-recent
+    first; pre-scrape historical members get total=0 here."""
+    if not person_id:
+        return {'total': 0, 'breakdown': {}, 'recent': []}
+
+    # Aggregate all option counts in one query.
+    breakdown_qs = (
+        PersonVote.objects
+        .filter(voter_id=person_id)
+        .values('option')
+        .annotate(n=Count('id'))
+    )
+    breakdown = {row['option']: row['n'] for row in breakdown_qs}
+    total = sum(breakdown.values())
+    if total == 0:
+        return {'total': 0, 'breakdown': {}, 'recent': []}
+
+    # Most recent N votes. `vote_event.start_date` is an ISO-8601 string
+    # with a fixed-offset suffix; lexicographic ordering matches Pacific
+    # wall-clock chronology because the date prefix dominates the sort.
+    recent_qs = (
+        PersonVote.objects
+        .filter(voter_id=person_id)
+        .select_related('vote_event__bill__councilmatic_bill')
+        .order_by('-vote_event__start_date')
+        [:limit]
+    )
+
+    recent: List[Dict[str, Any]] = []
+    for pv in recent_qs:
+        ve = pv.vote_event
+        ocd_bill = ve.bill
+        cm_bill = getattr(ocd_bill, 'councilmatic_bill', None) if ocd_bill else None
+        if not cm_bill:
+            # Defensive — the scraper pre-filters out votes whose bill
+            # isn't in our DB, but skip cleanly if anything slips through.
+            continue
+        recent.append({
+            'date':         (ve.start_date or '')[:10],
+            'option':       pv.option,
+            'option_label': _OPTION_LABELS.get(pv.option, pv.option.title()),
+            'result':       ve.result,
+            'bill': {
+                'identifier': ocd_bill.identifier,
+                'title':      cm_bill.title or '',
+                'slug':       cm_bill.slug,
+            },
+        })
+    return {
+        'total':     total,
+        'breakdown': breakdown,
+        'recent':    recent,
+    }
 
 
 # Mirrors `_normalise_status` in seattle_app/api_views.py — same status
