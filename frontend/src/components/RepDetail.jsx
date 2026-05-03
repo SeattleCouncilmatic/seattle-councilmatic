@@ -6,6 +6,14 @@ import LegislationCard from './LegislationCard'
 import useDocumentTitle from '../hooks/useDocumentTitle'
 import './RepDetail.css'
 
+// Order in which option tallies appear in the breakdown row. Keys
+// match `_OPTION_LABELS` on the API side. Display labels are taken
+// from each row's `option_label` so the source of truth lives in one
+// place (Python).
+const VOTE_OPTION_ORDER = ['yes', 'no', 'abstain', 'absent', 'excused', 'not voting', 'other']
+
+const optionSlug = (s) => s.replace(/\s+/g, '-')
+
 export default function RepDetail() {
   const { slug } = useParams()
   const [data, setData] = useState(null)
@@ -191,6 +199,75 @@ export default function RepDetail() {
                   >
                     View all {data.sponsored_bills_total} bills sponsored by {data.name} →
                   </Link>
+                )}
+              </section>
+            )}
+
+            {(data.voting_history?.total || 0) > 0 && (
+              <section className="rep-detail-votes" aria-labelledby="rep-votes-h2">
+                <h2 id="rep-votes-h2" className="rep-detail-section-h2">
+                  Voting history
+                  <span className="rep-detail-section-count">
+                    {' '}({data.voting_history.total})
+                  </span>
+                </h2>
+                <ul className="rep-detail-vote-breakdown" aria-label="Lifetime vote totals">
+                  {VOTE_OPTION_ORDER.map(opt => {
+                    const n = data.voting_history.breakdown[opt] || 0
+                    if (!n) return null
+                    return (
+                      <li
+                        key={opt}
+                        className={`rep-detail-vote-stat rep-detail-vote-stat--${optionSlug(opt)}`}
+                      >
+                        <span className="rep-detail-vote-stat-n">{n}</span>
+                        <span className="rep-detail-vote-stat-label">
+                          {opt === 'not voting' ? 'Not voting'
+                            : opt.charAt(0).toUpperCase() + opt.slice(1)}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+                <h3 className="rep-detail-vote-recent-h3">Recent votes</h3>
+                <ol className="rep-detail-vote-list">
+                  {data.voting_history.recent.map((v, i) => (
+                    <li
+                      key={`${v.bill.slug}-${v.date}-${i}`}
+                      className="rep-detail-vote-row"
+                    >
+                      <div className="rep-detail-vote-meta">
+                        <time className="rep-detail-vote-date" dateTime={v.date}>
+                          {v.date}
+                        </time>
+                        <span
+                          className={`rep-detail-vote-option rep-detail-vote-option--${optionSlug(v.option)}`}
+                        >
+                          {v.option_label}
+                        </span>
+                        <span
+                          className={`rep-detail-vote-result rep-detail-vote-result--${v.result}`}
+                        >
+                          {v.result === 'pass' ? 'Passed' : 'Failed'}
+                        </span>
+                      </div>
+                      <Link
+                        to={`/legislation/${v.bill.slug}/`}
+                        className="rep-detail-vote-bill"
+                      >
+                        <span className="rep-detail-vote-bill-id">{v.bill.identifier}</span>
+                        {v.bill.title && (
+                          <span className="rep-detail-vote-bill-title">{v.bill.title}</span>
+                        )}
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+                {data.voting_history.total > data.voting_history.recent.length && (
+                  <p className="rep-detail-vote-truncated">
+                    Showing the {data.voting_history.recent.length} most recent
+                    {' '}of {data.voting_history.total} recorded votes.
+                  </p>
                 )}
               </section>
             )}
