@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useLocation, Link } from 'react-router-dom'
 import NotFound from './NotFound'
 import BillLinkify from './BillLinkify'
+import RollCall from './RollCall'
 import useDocumentTitle from '../hooks/useDocumentTitle'
 import './LegislationDetail.css'
 
@@ -337,6 +338,9 @@ export default function LegislationDetail() {
           )}
 
         </div>
+
+        <RollCall events={bill.roll_call} />
+
       </div>
     </div>
   )
