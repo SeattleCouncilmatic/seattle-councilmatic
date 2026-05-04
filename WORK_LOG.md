@@ -64,6 +64,23 @@ Lower-priority backlog — fix when you're already in the area, not worth schedu
 
 ## Done
 
+### Ops — production deployment scaffold for Hetzner — committed 2026-05-03
+
+First-time production deploy artifacts for `www.seattlecouncilmatic.org` on a Hetzner CPX21 (3 vCPU / 4 GB / 80 GB). One-VPS layout: Caddy + gunicorn + PostGIS + scheduler all in `docker-compose.prod.yml` on the same host.
+
+**Components added:**
+
+* **Multi-stage `Dockerfile`** — new node:20-alpine `frontend-build` stage runs `npm ci && npm run build`, the existing python:3.12 `app` stage `COPY --from=frontend-build` pulls the built SPA so the image always contains a real `frontend/dist/`. In dev compose the source-mount volume shadows the bundled dist; in prod the bundled version is what Django serves.
+* **`docker-compose.prod.yml`** — standalone (not a `-f override`). Differences from dev: `app` runs gunicorn (3 workers, 60s timeout) instead of `runserver`; no source-mount volume; no published port. `postgres` has no published port. No `frontend` service (built into `app`). New `caddy` service binds :80, :443, :443/udp. `restart: unless-stopped` everywhere. Backups dir bind-mounted into postgres so the host-cron pg_dump script can write there.
+* **`Caddyfile`** — auto Let's Encrypt for both `www.seattlecouncilmatic.org` and the apex; apex 308-redirects to www. Reverse-proxies to `app:8000` over Docker's compose-internal network. Strict-Transport-Security + X-Content-Type-Options + Referrer-Policy + Permissions-Policy + X-Frame-Options headers.
+* **`scripts/backup-db.sh`** — pg_dump (custom format, compressed) to `./backups/seattle_<UTC>.dump` with 7-day rotation. Run from host crontab (NOT inside a container — uses `docker compose exec` to dump from the running postgres). Sanity check rejects empty/tiny dumps. Local-only; offsite to a Hetzner Storage Box / S3 is a documented follow-up.
+* **`DEPLOY.md`** — first-time setup (DNS, server prep, clone, .env, build, initial scrape, backup cron) + day-2 ops (deploy, logs, restart, manual scrape, restore, secret rotation, TLS renewal). Includes architecture diagram and the `POSTGRES_PASSWORD` ↔ `DATABASE_URL` coupling that bites if you change one without the other.
+* **Settings hardening** — added `CSRF_TRUSTED_ORIGINS` (Django 4+ requires it behind an HTTPS reverse proxy or admin/Wagtail POSTs fail). Widened prod `CSP_IMG_SRC` to allow `https://www.seattle.gov` since rep banner photos hotlink from there. The existing `if not DEBUG:` block already had `SECURE_SSL_REDIRECT`, `SECURE_PROXY_SSL_HEADER`, `SESSION_COOKIE_SECURE`, etc. — no change needed there.
+* **`requirements.txt`** — added `gunicorn>=21,<23`. Whitenoise was already pinned + middleware-wired.
+* **`.env.example`** — flagged the prod-only variables (`CSRF_TRUSTED_ORIGINS`, `POSTGRES_PASSWORD`) with comments explaining their behavior.
+* **`.gitignore`** — added `backups/`.
+
+**Verified:** dev compose builds and runs against the multi-stage Dockerfile (stage 1 adds ~1-2 min one-time cost; cached on subsequent rebuilds when frontend deps don't change). `docker compose -f docker-compose.prod.yml config --quiet` parses cleanly. Live deploy on Hetzner is gated on the user setting up `.env` and pushing DNS.
 ### Votes — per-bill roll call on LegislationDetail — committed 2026-05-03
 
 Closes the voting-history workstream. `LegislationDetail` now renders a "Roll call votes" section below the body grid showing every `VoteEvent` for the bill, ordered chronologically (oldest first so the council vote lands at the bottom — the bill's final outcome). Each event card carries the body name + date, an aggregate result chip ("Passed 8–0" or "Failed 4–5 (1 abstain)"), and per-option groupings of councilmember names linked back to `/reps/<slug>/` for currently-serving members. Plain text for former members and historical members not in the Person table.

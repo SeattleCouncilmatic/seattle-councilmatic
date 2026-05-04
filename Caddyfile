@@ -1,0 +1,50 @@
+# Caddy config for www.seattlecouncilmatic.org.
+#
+# Caddy auto-issues Let's Encrypt certs for both names below on first
+# start; renewal is automatic. The ACME state + cert files persist in
+# the `caddy_data` named volume — DON'T delete that volume or you'll
+# burn through the per-domain rate limit re-issuing.
+#
+# Apex (seattlecouncilmatic.org) → permanent redirect to www. Pick one
+# canonical name; we picked www to match the user's DNS records.
+
+www.seattlecouncilmatic.org {
+	encode gzip zstd
+
+	# Reverse proxy to the Django app on the compose-internal network.
+	# `app` is the service name in docker-compose.prod.yml; Docker DNS
+	# resolves it to the gunicorn container.
+	reverse_proxy app:8000
+
+	# Caddy already adds Strict-Transport-Security on HTTPS sites by
+	# default, but make the policy explicit so the value is reviewable.
+	# `includeSubDomains` is fine because we don't run anything on a
+	# subdomain that needs HTTP. `preload` is intentionally omitted —
+	# only add it when you're committed to never reverting.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options    "nosniff"
+		Referrer-Policy           "strict-origin-when-cross-origin"
+		# Permissions-Policy: lock down APIs we don't use. Add to the
+		# list if a future feature needs e.g. geolocation.
+		Permissions-Policy        "geolocation=(), microphone=(), camera=(), payment=()"
+		# X-Frame-Options is set by Django (XFrameOptionsMiddleware)
+		# but mirroring it at the proxy avoids depending on the app
+		# layer for clickjacking protection.
+		X-Frame-Options           "DENY"
+	}
+
+	# Caddy logs to stdout by default which docker captures — view with
+	# `docker compose -f docker-compose.prod.yml logs -f caddy`.
+	log {
+		output stdout
+		format console
+	}
+}
+
+seattlecouncilmatic.org {
+	# 308 (permanent redirect, preserves method) — Caddy's `redir
+	# ... permanent` is 301, which can be cached aggressively. 308
+	# matches modern best practice for canonicalization redirects.
+	redir https://www.seattlecouncilmatic.org{uri} 308
+}

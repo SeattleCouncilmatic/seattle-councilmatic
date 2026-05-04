@@ -23,6 +23,10 @@ scraper-legistar>=0.0.2
 # Static files and frontend
 whitenoise>=6.6.0
 
+# Production WSGI server (used by docker-compose.prod.yml; dev uses
+# Django's runserver via docker-compose.yml).
+gunicorn>=21.0,<23
+
 # Development and debugging
 django-debug-toolbar>=4.2.0
 

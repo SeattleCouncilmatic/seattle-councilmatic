@@ -1,3 +1,16 @@
+# Stage 1 — build the Vite SPA. Output ends up at /app/frontend/dist/
+# and is copied into the Django app stage so collectstatic can pick it
+# up via STATICFILES_DIRS. In dev (docker-compose.yml) the Vite dev
+# server runs as a separate service for HMR; this stage only matters
+# for production images where Django serves the built bundle.
+FROM node:20-alpine AS frontend-build
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+
 FROM python:3.12 AS app
 LABEL maintainer "DataMade <info@datamade.us>"
 
@@ -14,6 +27,14 @@ COPY ./requirements.txt /app/requirements.txt
 RUN pip install -r requirements.txt
 
 COPY . /app
+
+# Pull the production-built SPA from the node stage so the image
+# contains a real `frontend/dist/` regardless of the host's state.
+# In dev compose this gets shadowed by the source-mount volume — the
+# developer runs `npm run build` (or uses Vite's :5173 dev server)
+# instead.
+COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
+
 ENV DJANGO_SECRET_KEY 'foobar'
 RUN python manage.py collectstatic --no-input
 

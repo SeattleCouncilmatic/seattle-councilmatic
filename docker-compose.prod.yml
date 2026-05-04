@@ -1,0 +1,110 @@
+# Production compose for www.seattlecouncilmatic.org on Hetzner.
+#
+# Standalone (NOT a `-f override` of `docker-compose.yml`) — run with:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Differences from the dev compose:
+#   * `app` runs gunicorn (not Django's runserver), no source-mount
+#     volume, no published port — only Caddy on the internal network
+#     proxies to it.
+#   * No `frontend` service — the Vite SPA is built in the `app` image's
+#     frontend-build stage (see Dockerfile) and served by Django.
+#   * `postgres` has no published port — internal-only.
+#   * NEW `caddy` service handles TLS (auto Let's Encrypt) + reverse
+#     proxy on :80 / :443 / :443/udp (HTTP/3).
+#   * Backups directory bind-mounted into postgres so the host-cron
+#     pg_dump script (scripts/backup-db.sh) can write there.
+#   * `restart: unless-stopped` on every service so a host reboot brings
+#     the stack back up.
+#
+# Secrets live in `.env` on the host; never commit. See `.env.example`
+# for the full list of variables.
+
+services:
+  app:
+    build: .
+    container_name: seattle_councilmatic
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DJANGO_MANAGEPY_MIGRATE: "on"
+    expose:
+      - "8000"
+    restart: unless-stopped
+    entrypoint: /app/docker-entrypoint.sh
+    # 3 workers ≈ 2*vCPU + 1 on the CPX21 (3 vCPU). Timeout bumped from
+    # the default 30s because the LLM-batch poll endpoints can take
+    # longer when responses are large; bump higher if you see 504s.
+    command: gunicorn seattle_app.wsgi:application
+             --bind 0.0.0.0:8000
+             --workers 3
+             --timeout 60
+             --access-logfile -
+             --error-logfile -
+
+  postgres:
+    container_name: seattle_postgres
+    image: postgis/postgis:14-3.2
+    platform: linux/amd64
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      # All three default to non-`postgres` values so a misconfigured
+      # `.env` doesn't silently fall back to the well-known superuser
+      # credentials. Override in `.env` to taste; the postgres
+      # container creates the role + database with these on first
+      # boot. Coupling: `DATABASE_URL` MUST embed matching values
+      # for username, password, and database name — see DEPLOY.md.
+      POSTGRES_DB:       ${POSTGRES_DB:-councilmatic}
+      POSTGRES_USER:     ${POSTGRES_USER:-councilmatic_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    volumes:
+      - seattle_postgres_data:/var/lib/postgresql/data
+      # Bind-mount so scripts/backup-db.sh on the host can write
+      # pg_dump output here without needing to docker-cp.
+      - ./backups:/backups
+    restart: unless-stopped
+
+  scheduler:
+    build: .
+    container_name: seattle_scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Cron schedule is interpreted as Seattle local — DST handled
+      # automatically. Other containers stay in UTC.
+      TZ: America/Los_Angeles
+    volumes:
+      - seattle_cron_logs:/var/log/cron
+    restart: unless-stopped
+    command: sh /app/scripts/scheduler-entrypoint.sh
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: seattle_caddy
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # Let's Encrypt certs + ACME state
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  seattle_postgres_data:
+  seattle_cron_logs:
+  caddy_data:
+  caddy_config:
