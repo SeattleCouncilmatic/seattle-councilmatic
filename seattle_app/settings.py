@@ -205,6 +205,13 @@ if DEBUG:
     ]
 
 WAGTAIL_SITE_NAME = "Seattle Councilmatic"
+# Used by Wagtail for outbound notification email URLs. Without it,
+# the admin's W003 system check fires every boot. Default points at
+# the canonical prod hostname; override via env for staging deploys.
+WAGTAILADMIN_BASE_URL = os.getenv(
+    "WAGTAILADMIN_BASE_URL",
+    "https://www.seattlecouncilmatic.org/cms/",
+)
 
 OCD_CITY_COUNCIL_NAME = os.getenv("OCD_CITY_COUNCIL_NAME", WAGTAIL_SITE_NAME)
 
@@ -256,7 +263,13 @@ if DEBUG:
         "http://127.0.0.1:5173",
     ]
 else:
-    # In production, configure based on your deployment
-    CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+    # In production, the SPA is served same-origin by Django so CORS
+    # isn't strictly needed. Empty list is valid; comma-split-and-
+    # filter mirrors the CSRF_TRUSTED_ORIGINS pattern so a missing
+    # env var doesn't leave a `[""]` that fails the corsheaders
+    # system check.
+    CORS_ALLOWED_ORIGINS = [
+        o for o in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if o
+    ]
 
 CORS_ALLOW_CREDENTIALS = True
