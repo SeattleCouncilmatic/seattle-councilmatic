@@ -46,6 +46,26 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Surfaced when an activity-pill filter is active, so users can
+   clear it without scrolling back up to the pill row. */
+.involvement-clear-filter {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: none;
+  border: 0;
+  color: var(--involvement-navy);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+.involvement-clear-filter:hover { color: var(--involvement-text); }
+.involvement-clear-filter:focus-visible {
+  outline: 2px solid var(--involvement-navy);
+  outline-offset: 2px;
+  border-radius: 0.125rem;
+}
+
 .involvement-empty {
   padding: 2rem 1rem;
   text-align: center;

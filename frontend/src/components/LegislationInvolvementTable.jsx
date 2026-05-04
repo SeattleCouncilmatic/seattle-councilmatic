@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import './LegislationInvolvementTable.css'
 
@@ -83,7 +83,23 @@ function VoteCell({ vote, extraCount, billSlug }) {
   )
 }
 
-export default function LegislationInvolvementTable({ rows, repName }) {
+// Predicate for the activity-pill filter wired in from RepDetail.
+// Vote-kind pills match if EITHER the committee or council vote
+// option matches — clicking "Yes" shows bills the rep voted yes on
+// at any stage. Sponsorship pills match the row's sponsorship marker.
+function matchesActiveFilter(row, filter) {
+  if (!filter) return true
+  if (filter.kind === 'sponsorship') {
+    return row.sponsorship === filter.value
+  }
+  if (filter.kind === 'vote') {
+    return row.committee_vote?.option === filter.value
+        || row.council_vote?.option === filter.value
+  }
+  return true
+}
+
+export default function LegislationInvolvementTable({ rows, repName, activeFilter, onClearFilter }) {
   const [query, setQuery] = useState('')
   const [sortKey, setSortKey] = useState(null) // null = server order
   const [sortDir, setSortDir] = useState('desc')
@@ -91,15 +107,23 @@ export default function LegislationInvolvementTable({ rows, repName }) {
   const searchId = useId()
   const liveRegionId = useId()
 
-  // Filter (case-insensitive on identifier + title).
+  // Whenever the parent filter changes, reset to page 1 so the user
+  // doesn't land on an empty page from the prior view.
+  useEffect(() => { setPage(1) }, [activeFilter])
+
+  // Filter — text search AND activity-pill filter combine with AND
+  // logic. The text query matches `bill.identifier` or `bill.title`
+  // case-insensitively; the pill filter is applied via
+  // `matchesActiveFilter`.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter(r =>
-      r.bill.identifier.toLowerCase().includes(q) ||
-      r.bill.title.toLowerCase().includes(q)
-    )
-  }, [rows, query])
+    return rows.filter(r => {
+      if (!matchesActiveFilter(r, activeFilter)) return false
+      if (!q) return true
+      return r.bill.identifier.toLowerCase().includes(q) ||
+             r.bill.title.toLowerCase().includes(q)
+    })
+  }, [rows, query, activeFilter])
 
   // Sort (in-place copy when a sort key is active; otherwise keep server order).
   const sorted = useMemo(() => {
@@ -146,6 +170,15 @@ export default function LegislationInvolvementTable({ rows, repName }) {
             ? `${rows.length.toLocaleString()} bills`
             : `${sorted.length.toLocaleString()} of ${rows.length.toLocaleString()} bills`}
         </span>
+        {activeFilter && onClearFilter && (
+          <button
+            type="button"
+            onClick={onClearFilter}
+            className="involvement-clear-filter"
+          >
+            Clear filter
+          </button>
+        )}
       </div>
 
       {sorted.length === 0 ? (

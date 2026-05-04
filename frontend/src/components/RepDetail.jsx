@@ -21,10 +21,15 @@ export default function RepDetail() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [status, setStatus] = useState(null)
+  // The activity stats pills double as filters on the involvement
+  // table below. `activeFilter` is `{kind, value}` or null; click a
+  // pill to set it, click again to clear, click another to switch.
+  // Resets to null whenever the rep changes.
+  const [activeFilter, setActiveFilter] = useState(null)
   useDocumentTitle(data?.name)
 
   useEffect(() => {
-    setData(null); setError(null); setStatus(null)
+    setData(null); setError(null); setStatus(null); setActiveFilter(null)
     fetch(`/api/reps/${encodeURIComponent(slug)}/`)
       .then(r => {
         setStatus(r.status)
@@ -35,6 +40,15 @@ export default function RepDetail() {
       .then(setData)
       .catch(e => setError(e.message))
   }, [slug])
+
+  function togglePill(kind, value) {
+    setActiveFilter(prev =>
+      prev && prev.kind === kind && prev.value === value ? null : { kind, value }
+    )
+  }
+  function isPressed(kind, value) {
+    return activeFilter?.kind === kind && activeFilter?.value === value
+  }
 
   if (status === 404) return <NotFound />
   if (error) return (
@@ -199,30 +213,48 @@ export default function RepDetail() {
 
           <div className="rep-detail-main">
             {hasActivity && (
-              <section className="rep-detail-vote-stats" aria-label="Lifetime activity totals">
+              <section className="rep-detail-vote-stats" aria-label="Lifetime activity totals — click a pill to filter the table below">
                 <ul className="rep-detail-vote-breakdown">
                   {sponsorshipCounts.primary > 0 && (
-                    <li className="rep-detail-vote-stat rep-detail-vote-stat--primary">
-                      <span className="rep-detail-vote-stat-n">{sponsorshipCounts.primary}</span>
-                      <span className="rep-detail-vote-stat-label">Primary sponsor</span>
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() => togglePill('sponsorship', 'primary')}
+                        aria-pressed={isPressed('sponsorship', 'primary')}
+                        className={`rep-detail-vote-stat rep-detail-vote-stat--primary${isPressed('sponsorship', 'primary') ? ' rep-detail-vote-stat--active' : ''}`}
+                      >
+                        <span className="rep-detail-vote-stat-n">{sponsorshipCounts.primary}</span>
+                        <span className="rep-detail-vote-stat-label">Primary sponsor</span>
+                      </button>
                     </li>
                   )}
                   {sponsorshipCounts.cosponsor > 0 && (
-                    <li className="rep-detail-vote-stat rep-detail-vote-stat--cosponsor">
-                      <span className="rep-detail-vote-stat-n">{sponsorshipCounts.cosponsor}</span>
-                      <span className="rep-detail-vote-stat-label">Cosponsor</span>
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() => togglePill('sponsorship', 'cosponsor')}
+                        aria-pressed={isPressed('sponsorship', 'cosponsor')}
+                        className={`rep-detail-vote-stat rep-detail-vote-stat--cosponsor${isPressed('sponsorship', 'cosponsor') ? ' rep-detail-vote-stat--active' : ''}`}
+                      >
+                        <span className="rep-detail-vote-stat-n">{sponsorshipCounts.cosponsor}</span>
+                        <span className="rep-detail-vote-stat-label">Cosponsor</span>
+                      </button>
                     </li>
                   )}
                   {VOTE_OPTION_ORDER.map(opt => {
                     const n = data.voting_history?.breakdown?.[opt] || 0
                     if (!n) return null
                     return (
-                      <li
-                        key={opt}
-                        className={`rep-detail-vote-stat rep-detail-vote-stat--${optionSlug(opt)}`}
-                      >
-                        <span className="rep-detail-vote-stat-n">{n}</span>
-                        <span className="rep-detail-vote-stat-label">{optionTitle(opt)}</span>
+                      <li key={opt}>
+                        <button
+                          type="button"
+                          onClick={() => togglePill('vote', opt)}
+                          aria-pressed={isPressed('vote', opt)}
+                          className={`rep-detail-vote-stat rep-detail-vote-stat--${optionSlug(opt)}${isPressed('vote', opt) ? ' rep-detail-vote-stat--active' : ''}`}
+                        >
+                          <span className="rep-detail-vote-stat-n">{n}</span>
+                          <span className="rep-detail-vote-stat-label">{optionTitle(opt)}</span>
+                        </button>
                       </li>
                     )
                   })}
@@ -241,6 +273,8 @@ export default function RepDetail() {
                 <LegislationInvolvementTable
                   rows={data.legislation_involvement}
                   repName={data.name}
+                  activeFilter={activeFilter}
+                  onClearFilter={() => setActiveFilter(null)}
                 />
               </section>
             )}

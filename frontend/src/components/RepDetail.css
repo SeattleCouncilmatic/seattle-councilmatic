@@ -312,6 +312,13 @@
   gap: 0.625rem;
 }
 
+/* Pills are `<button>`s — they double as filters on the involvement
+   table below. Resetting the default button chrome and inheriting
+   the cursor-pointer + hover affordance lets them read as
+   interactive without looking like primary actions. The pressed
+   state (`aria-pressed=true` + `--active` modifier) inverts the
+   left-edge color to a thicker fill so the active filter is
+   unmistakable at a glance. */
 .rep-detail-vote-stat {
   display: inline-flex;
   align-items: baseline;
@@ -322,6 +329,21 @@
   border-left: 4px solid #9ca3af;
   border-radius: 0.375rem;
   font-size: 0.875rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.rep-detail-vote-stat:hover {
+  background: #f9fafb;
+}
+.rep-detail-vote-stat:focus-visible {
+  outline: 2px solid #2E3D5B;
+  outline-offset: 2px;
+}
+.rep-detail-vote-stat--active {
+  background: #f3f4f6;
+  border-color: #1f2937;
 }
 .rep-detail-vote-stat-n {
   font-weight: 700;
