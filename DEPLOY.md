@@ -78,11 +78,16 @@ DJANGO_SECRET_KEY=<generate with: python -c 'import secrets; print(secrets.token
 DJANGO_ALLOWED_HOSTS=www.seattlecouncilmatic.org,seattlecouncilmatic.org
 CSRF_TRUSTED_ORIGINS=https://www.seattlecouncilmatic.org,https://seattlecouncilmatic.org
 
-# Database — POSTGRES_PASSWORD and the password inside DATABASE_URL
-# MUST match. The postgres container creates the role with
-# POSTGRES_PASSWORD on first boot; Django connects via DATABASE_URL.
+# Database — the postgres container creates the role + database with
+# these values on first boot. All three MUST match what's embedded
+# in DATABASE_URL. The compose defaults are non-`postgres`
+# (`councilmatic_app` / `councilmatic`) so a misconfigured .env
+# doesn't silently fall back to the well-known superuser. Override
+# here only if you want different names; the password is required.
+POSTGRES_USER=councilmatic_app
+POSTGRES_DB=councilmatic
 POSTGRES_PASSWORD=<strong-random-password>
-DATABASE_URL=postgis://postgres:<same-password>@postgres:5432/postgres
+DATABASE_URL=postgis://councilmatic_app:<same-password>@postgres:5432/councilmatic
 POSTGRES_REQUIRE_SSL=False
 
 # Anthropic — required for the LLM summary pipelines (bills + SMC

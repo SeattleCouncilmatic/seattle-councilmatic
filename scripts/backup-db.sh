@@ -45,8 +45,12 @@ fi
 
 # `pg_dump -Fc` = custom format (compressed, restorable with pg_restore).
 # `-T` keeps stdout free of TTY allocation so the dump pipes cleanly.
+# `$POSTGRES_USER` / `$POSTGRES_DB` are evaluated INSIDE the container
+# (note the single-quoted sh -c) so we use the role + DB the postgres
+# image was started with — works regardless of whether the user kept
+# the defaults or set their own in `.env`.
 docker compose -f "$COMPOSE_FILE" exec -T postgres \
-    pg_dump -U postgres -Fc postgres > "$OUT_FILE"
+    sh -c 'pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB"' > "$OUT_FILE"
 
 # Sanity check — pg_dump occasionally returns 0 even when the file is
 # empty (bad pg_dump version mismatch, etc.). 1KB minimum is generous;

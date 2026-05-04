@@ -55,8 +55,14 @@ services:
       timeout: 5s
       retries: 5
     environment:
-      POSTGRES_DB: postgres
-      POSTGRES_USER: postgres
+      # All three default to non-`postgres` values so a misconfigured
+      # `.env` doesn't silently fall back to the well-known superuser
+      # credentials. Override in `.env` to taste; the postgres
+      # container creates the role + database with these on first
+      # boot. Coupling: `DATABASE_URL` MUST embed matching values
+      # for username, password, and database name — see DEPLOY.md.
+      POSTGRES_DB:       ${POSTGRES_DB:-councilmatic}
+      POSTGRES_USER:     ${POSTGRES_USER:-councilmatic_app}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     volumes:
       - seattle_postgres_data:/var/lib/postgresql/data
