@@ -24,6 +24,15 @@ urlpatterns = [
     # would.
     path("favicon.ico", RedirectView.as_view(url="/static/favicon.svg", permanent=False)),
     path("favicon.png", RedirectView.as_view(url="/static/favicon.png", permanent=False)),
+    # `/admin` and `/cms` (no trailing slash) get an explicit redirect
+    # to the slash variant. Django's APPEND_SLASH would handle this on
+    # its own — but the SPA catch-all at the bottom (`<path:path>`)
+    # matches `/admin` first, so APPEND_SLASH never kicks in and the
+    # request lands on the React NotFound. The Vite dev server has a
+    # parallel middleware fix (see frontend/vite.config.js); this is
+    # the prod-side equivalent.
+    path("admin", RedirectView.as_view(url="/admin/", permanent=True)),
+    path("cms",   RedirectView.as_view(url="/cms/",   permanent=True)),
     path("admin/", admin.site.urls),
     path("api/reps/", include("reps.urls")),
     path("api/legislation/recent/", api_views.recent_legislation, name="api_legislation_recent"),
