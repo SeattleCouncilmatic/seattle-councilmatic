@@ -44,6 +44,23 @@ export default function RepDetail() {
     <div className="rep-detail-page"><div role="status" className="rep-detail-container">Loading…</div></div>
   )
 
+  // Sponsorship breakdown — computed from `legislation_involvement` so
+  // the activity stats strip stays in sync with the table without a
+  // second API trip. The table already has the per-row sponsorship
+  // marker; we just tally it.
+  const sponsorshipCounts = (data.legislation_involvement || []).reduce(
+    (acc, r) => {
+      if (r.sponsorship === 'primary')   acc.primary++
+      if (r.sponsorship === 'cosponsor') acc.cosponsor++
+      return acc
+    },
+    { primary: 0, cosponsor: 0 }
+  )
+  const hasActivity =
+    (data.voting_history?.total || 0) > 0 ||
+    sponsorshipCounts.primary > 0 ||
+    sponsorshipCounts.cosponsor > 0
+
   return (
     <div className="rep-detail-page">
       <div className="rep-detail-container">
@@ -181,11 +198,23 @@ export default function RepDetail() {
               </section>
             )}
 
-            {(data.voting_history?.total || 0) > 0 && (
-              <section className="rep-detail-vote-stats" aria-label="Lifetime vote totals">
+            {hasActivity && (
+              <section className="rep-detail-vote-stats" aria-label="Lifetime activity totals">
                 <ul className="rep-detail-vote-breakdown">
+                  {sponsorshipCounts.primary > 0 && (
+                    <li className="rep-detail-vote-stat rep-detail-vote-stat--primary">
+                      <span className="rep-detail-vote-stat-n">{sponsorshipCounts.primary}</span>
+                      <span className="rep-detail-vote-stat-label">Primary sponsor</span>
+                    </li>
+                  )}
+                  {sponsorshipCounts.cosponsor > 0 && (
+                    <li className="rep-detail-vote-stat rep-detail-vote-stat--cosponsor">
+                      <span className="rep-detail-vote-stat-n">{sponsorshipCounts.cosponsor}</span>
+                      <span className="rep-detail-vote-stat-label">Cosponsor</span>
+                    </li>
+                  )}
                   {VOTE_OPTION_ORDER.map(opt => {
-                    const n = data.voting_history.breakdown[opt] || 0
+                    const n = data.voting_history?.breakdown?.[opt] || 0
                     if (!n) return null
                     return (
                       <li

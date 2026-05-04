@@ -335,6 +335,10 @@
 .rep-detail-vote-stat-label {
   color: #4b5563;
 }
+/* Sponsorship pills lead the row (stronger involvement than voting),
+   colored navy to match the Primary/Cosponsor chips in the table. */
+.rep-detail-vote-stat--primary    { border-left-color: #2E3D5B; }
+.rep-detail-vote-stat--cosponsor  { border-left-color: #2E3D5B; }
 .rep-detail-vote-stat--yes        { border-left-color: #047857; }
 .rep-detail-vote-stat--no         { border-left-color: #b91c1c; }
 .rep-detail-vote-stat--abstain    { border-left-color: #b45309; }
