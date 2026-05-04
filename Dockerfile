@@ -28,6 +28,13 @@ RUN pip install -r requirements.txt
 
 COPY . /app
 
+# Restore the executable bit on shell scripts. Files committed from
+# Windows often land in git with mode 644 because `core.fileMode`
+# defaults to false there; the Linux container's OCI runtime then
+# refuses to exec them. Doing this in the image avoids a per-deploy
+# manual `chmod +x` on the host.
+RUN chmod +x /app/docker-entrypoint.sh /app/scripts/*.sh
+
 # Pull the production-built SPA from the node stage so the image
 # contains a real `frontend/dist/` regardless of the host's state.
 # In dev compose this gets shadowed by the source-mount volume — the
