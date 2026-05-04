@@ -83,23 +83,26 @@ function VoteCell({ vote, extraCount, billSlug }) {
   )
 }
 
-// Predicate for the activity-pill filter wired in from RepDetail.
-// Vote-kind pills match if EITHER the committee or council vote
-// option matches — clicking "Yes" shows bills the rep voted yes on
-// at any stage. Sponsorship pills match the row's sponsorship marker.
-function matchesActiveFilter(row, filter) {
-  if (!filter) return true
-  if (filter.kind === 'sponsorship') {
-    return row.sponsorship === filter.value
+// Predicate for the activity-pill filters wired in from RepDetail.
+// Pure-OR semantics: a row matches if ANY currently-pressed pill
+// applies. Vote-kind pills match if either the committee OR council
+// vote option matches — clicking "Yes" surfaces every bill the rep
+// voted yes on at any stage. Sponsorship pills match the row's
+// sponsorship marker. With no pills pressed in either kind, the
+// filter is inactive and every row passes.
+function matchesActiveFilters(row, filters) {
+  const hasSponsorship = filters.sponsorship.length > 0
+  const hasVote = filters.vote.length > 0
+  if (!hasSponsorship && !hasVote) return true
+  if (hasSponsorship && filters.sponsorship.includes(row.sponsorship)) return true
+  if (hasVote) {
+    if (filters.vote.includes(row.committee_vote?.option)) return true
+    if (filters.vote.includes(row.council_vote?.option)) return true
   }
-  if (filter.kind === 'vote') {
-    return row.committee_vote?.option === filter.value
-        || row.council_vote?.option === filter.value
-  }
-  return true
+  return false
 }
 
-export default function LegislationInvolvementTable({ rows, repName, activeFilter, onClearFilter }) {
+export default function LegislationInvolvementTable({ rows, repName, activeFilters, onClearFilters }) {
   const [query, setQuery] = useState('')
   const [sortKey, setSortKey] = useState(null) // null = server order
   const [sortDir, setSortDir] = useState('desc')
@@ -109,21 +112,25 @@ export default function LegislationInvolvementTable({ rows, repName, activeFilte
 
   // Whenever the parent filter changes, reset to page 1 so the user
   // doesn't land on an empty page from the prior view.
-  useEffect(() => { setPage(1) }, [activeFilter])
+  useEffect(() => { setPage(1) }, [activeFilters])
+
+  const hasAnyFilter =
+    (activeFilters?.sponsorship?.length || 0) > 0 ||
+    (activeFilters?.vote?.length || 0) > 0
 
   // Filter — text search AND activity-pill filter combine with AND
-  // logic. The text query matches `bill.identifier` or `bill.title`
-  // case-insensitively; the pill filter is applied via
-  // `matchesActiveFilter`.
+  // logic at the top level (so typing "homeless" while a pill is
+  // pressed narrows to bills matching both the text AND a pill).
+  // Within the pill filter itself, the multi-select is OR.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return rows.filter(r => {
-      if (!matchesActiveFilter(r, activeFilter)) return false
+      if (hasAnyFilter && !matchesActiveFilters(r, activeFilters)) return false
       if (!q) return true
       return r.bill.identifier.toLowerCase().includes(q) ||
              r.bill.title.toLowerCase().includes(q)
     })
-  }, [rows, query, activeFilter])
+  }, [rows, query, activeFilters, hasAnyFilter])
 
   // Sort (in-place copy when a sort key is active; otherwise keep server order).
   const sorted = useMemo(() => {
@@ -170,13 +177,13 @@ export default function LegislationInvolvementTable({ rows, repName, activeFilte
             ? `${rows.length.toLocaleString()} bills`
             : `${sorted.length.toLocaleString()} of ${rows.length.toLocaleString()} bills`}
         </span>
-        {activeFilter && onClearFilter && (
+        {hasAnyFilter && onClearFilters && (
           <button
             type="button"
-            onClick={onClearFilter}
+            onClick={onClearFilters}
             className="involvement-clear-filter"
           >
-            Clear filter
+            Clear filters
           </button>
         )}
       </div>

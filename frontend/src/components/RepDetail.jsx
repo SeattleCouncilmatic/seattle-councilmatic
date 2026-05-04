@@ -22,14 +22,16 @@ export default function RepDetail() {
   const [error, setError] = useState(null)
   const [status, setStatus] = useState(null)
   // The activity stats pills double as filters on the involvement
-  // table below. `activeFilter` is `{kind, value}` or null; click a
-  // pill to set it, click again to clear, click another to switch.
-  // Resets to null whenever the rep changes.
-  const [activeFilter, setActiveFilter] = useState(null)
+  // table below. Multi-select with pure-OR semantics: a row matches
+  // if ANY currently-pressed pill applies (across both sponsorship
+  // and vote kinds). Empty arrays = no filter, show all rows.
+  // Resets when the rep changes.
+  const [activeFilters, setActiveFilters] = useState({ sponsorship: [], vote: [] })
   useDocumentTitle(data?.name)
 
   useEffect(() => {
-    setData(null); setError(null); setStatus(null); setActiveFilter(null)
+    setData(null); setError(null); setStatus(null)
+    setActiveFilters({ sponsorship: [], vote: [] })
     fetch(`/api/reps/${encodeURIComponent(slug)}/`)
       .then(r => {
         setStatus(r.status)
@@ -42,12 +44,17 @@ export default function RepDetail() {
   }, [slug])
 
   function togglePill(kind, value) {
-    setActiveFilter(prev =>
-      prev && prev.kind === kind && prev.value === value ? null : { kind, value }
-    )
+    setActiveFilters(prev => {
+      const cur = prev[kind]
+      const next = cur.includes(value) ? cur.filter(v => v !== value) : [...cur, value]
+      return { ...prev, [kind]: next }
+    })
   }
   function isPressed(kind, value) {
-    return activeFilter?.kind === kind && activeFilter?.value === value
+    return activeFilters[kind].includes(value)
+  }
+  function clearFilters() {
+    setActiveFilters({ sponsorship: [], vote: [] })
   }
 
   if (status === 404) return <NotFound />
@@ -273,8 +280,8 @@ export default function RepDetail() {
                 <LegislationInvolvementTable
                   rows={data.legislation_involvement}
                   repName={data.name}
-                  activeFilter={activeFilter}
-                  onClearFilter={() => setActiveFilter(null)}
+                  activeFilters={activeFilters}
+                  onClearFilters={clearFilters}
                 />
               </section>
             )}
