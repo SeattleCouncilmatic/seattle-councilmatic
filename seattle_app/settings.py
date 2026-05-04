@@ -17,6 +17,15 @@ DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
+# Required by Django 4+ for any state-changing POST behind an HTTPS
+# reverse proxy (admin login, Wagtail CMS, the address-lookup form).
+# Caddy terminates TLS and forwards to gunicorn over plain HTTP, so
+# without this Django thinks the request is HTTP and rejects the
+# CSRF token. Comma-separated list of full origins (scheme + host).
+CSRF_TRUSTED_ORIGINS = [
+    o for o in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if o
+]
+
 # Application definition
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -214,11 +223,16 @@ if DEBUG:
     CSP_FONT_SRC = ("'self'", "data:", "localhost:3000")
     CSP_CONNECT_SRC = ("'self'", "localhost:3000", "localhost:8000", "ws://localhost:3000")
 else:
-    # Production CSP - adjust as needed
+    # Production CSP. `img-src` allows seattle.gov because rep banner
+    # photos (RepDetail) load from
+    # `https://www.seattle.gov/images/Council/Members/CouncilmemberBanners/...`
+    # — we hotlink rather than mirror so updates on seattle.gov flow
+    # through automatically. data: stays for the inline SVG icons
+    # bundled by lucide-react.
     CSP_DEFAULT_SRC = ("'self'",)
     CSP_SCRIPT_SRC = ("'self'",)
     CSP_STYLE_SRC = ("'self'",)
-    CSP_IMG_SRC = ("'self'", "data:")
+    CSP_IMG_SRC = ("'self'", "data:", "https://www.seattle.gov")
     CSP_FONT_SRC = ("'self'",)
 
 # CORS settings for API

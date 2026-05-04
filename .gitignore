@@ -38,6 +38,9 @@ frontend/dist/
 node_modules
 .claude/*
 
+# Production backups (pg_dump outputs from scripts/backup-db.sh)
+backups/
+
 # Claude
 CLAUDE.md
 
