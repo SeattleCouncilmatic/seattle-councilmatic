@@ -611,6 +611,8 @@ def legislation_detail(request, slug):
             'sponsorships',
             'documents__links',
             'llm_summary__affected_sections',
+            'votes__votes',
+            'votes__counts',
         ),
         slug=slug,
     )
@@ -730,6 +732,8 @@ def legislation_detail(request, slug):
         # Don't link a bill's identifier to itself.
         bill_refs = {k: v for k, v in bill_refs.items() if v != bill.slug}
 
+    roll_call = _build_roll_call(bill)
+
     return JsonResponse({
         'identifier':      bill.identifier,
         'title':           bill.title,
@@ -748,7 +752,76 @@ def legislation_detail(request, slug):
         'slug':            bill.slug,
         'llm_summary':     llm_summary,
         'bill_refs':       bill_refs,
+        'roll_call':       roll_call,
     })
+
+
+def _build_roll_call(bill) -> list[dict]:
+    """Per-VoteEvent roll call for a single bill: ordered chronologically
+    (oldest first), grouped by vote option, with each councilmember
+    linked back to /reps/<slug>/ where the voter resolves to a
+    Person we have in `councilmatic_core_person`.
+
+    Empty when the bill has no VoteEvents (most bills introduced
+    before the 548-day vote scrape window have none; the involvement
+    table on RepDetail uses the same skip-if-empty pattern).
+
+    Voter-name → slug resolution batches across every PersonVote on
+    every event into one SQL JOIN — same pattern as the sponsor
+    name→slug lookup above. Historical members not in our Person
+    table (Cathy Moore, Tammy J. Morales, Tanya Woo) get `slug: None`
+    and render as plain text on the frontend."""
+    all_events = list(bill.votes.order_by('start_date'))
+    if not all_events:
+        return []
+
+    # Batch lookup voter_id → councilmatic slug. Restrict to currently
+    # serving members so links go somewhere live — `/reps/<slug>/` 404s
+    # on former members today (the rep service filters `is_current = TRUE`).
+    # Sara Nelson and Mark Solomon are in the Person table but
+    # `is_current = FALSE`, so they fall out here and render as plain
+    # text on the frontend — same as Cathy Moore / Tammy J. Morales /
+    # Tanya Woo, who aren't in the table at all.
+    voter_ids = list({pv.voter_id
+                      for ve in all_events
+                      for pv in ve.votes.all()
+                      if pv.voter_id})
+    voter_slugs: dict[str, str] = {}
+    if voter_ids:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT cp.person_id, cp.slug
+                FROM councilmatic_core_person cp
+                WHERE cp.person_id = ANY(%s)
+                  AND cp.is_current = TRUE
+            """, [voter_ids])
+            voter_slugs = dict(cursor.fetchall())
+
+    out: list[dict] = []
+    for ve in all_events:
+        body = ((ve.extras or {}).get('event_body_name') or '').strip()
+        votes_by_option: dict[str, list] = {}
+        for pv in ve.votes.all():
+            entry = {
+                'name': pv.voter_name or '',
+                'slug': voter_slugs.get(pv.voter_id) if pv.voter_id else None,
+            }
+            votes_by_option.setdefault(pv.option, []).append(entry)
+        # Alphabetize within each option group so the names render in
+        # a stable order regardless of pupa's import order.
+        for opt in votes_by_option:
+            votes_by_option[opt].sort(key=lambda e: e['name'].lower())
+        counts = {opt: val for opt, val in ve.counts.values_list('option', 'value')}
+        out.append({
+            'date':            (ve.start_date or '')[:10],
+            'body_name':       body,
+            'is_council':      body == 'City Council',
+            'motion_text':     ve.motion_text or '',
+            'result':          ve.result,
+            'counts':          counts,
+            'votes_by_option': votes_by_option,
+        })
+    return out
 
 
 # ---------------------------------------------------------------------------
