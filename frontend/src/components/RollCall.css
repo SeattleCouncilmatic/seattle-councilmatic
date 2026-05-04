@@ -1,0 +1,186 @@
+/* Roll call votes — full-width section below the LegislationDetail
+   body grid. Each VoteEvent renders as a card with the body name,
+   date, aggregate tally, and per-option groupings of councilmember
+   names (linked back to /reps/<slug>/ for current members). */
+
+.rollcall-section {
+  margin-top: 2rem;
+}
+
+.rollcall-section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 1rem;
+}
+
+.rollcall-section-count {
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.rollcall-event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.rollcall-event {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1.25rem 1.25rem 1rem;
+}
+
+.rollcall-event-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.rollcall-event-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rollcall-event-body {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+/* Decorative tag — flagging the council vote distinct from any
+   committee votes that came before it. The aria-hidden on the JSX
+   side keeps SR users from re-announcing this since the body name
+   already carries the same information. */
+.rollcall-event-tag {
+  display: inline-block;
+  padding: 0.0625rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 0.25rem;
+  background: #2E3D5B;
+  color: #ffffff;
+}
+
+.rollcall-event-date {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.rollcall-event-tally {
+  margin: 0 0 0.875rem;
+  font-size: 0.9375rem;
+}
+
+.rollcall-result {
+  font-weight: 700;
+}
+.rollcall-result--pass { color: #047857; }
+.rollcall-result--fail { color: #b91c1c; }
+
+.rollcall-event-counts {
+  color: #4b5563;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Per-option groupings. Each row is a `<div>` inside a `<dl>` so we
+   keep semantic option-label / voter-list pairing while still
+   getting flexbox layout (the unwrapped dt/dd default would
+   line-break between them). */
+.rollcall-options {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.rollcall-option {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: baseline;
+}
+
+.rollcall-option-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.rollcall-option-chip {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 0.25rem;
+  color: #ffffff;
+  background: #6b7280;
+}
+/* Same palette as the involvement table chips so the visual
+   language stays consistent across the SPA. */
+.rollcall-option-chip--yes        { background: #047857; }
+.rollcall-option-chip--no         { background: #b91c1c; }
+.rollcall-option-chip--abstain    { background: #b45309; }
+.rollcall-option-chip--absent     { background: #6b7280; }
+.rollcall-option-chip--excused    { background: #6b7280; }
+.rollcall-option-chip--not-voting { background: #6b7280; }
+.rollcall-option-chip--other      { background: #6b7280; }
+
+.rollcall-option-count {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.rollcall-option-voters {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: #1f2937;
+  line-height: 1.5;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.rollcall-voter-link {
+  color: #2E3D5B;
+  text-decoration: underline;
+}
+.rollcall-voter-link:hover { color: #1f2937; }
+
+.rollcall-voter-text {
+  color: #4b5563;
+}
+
+/* Motion text is often boilerplate ("The Motion carried, the Council
+   Bill was passed by the following vote, and the President signed
+   the Council Bill") but can carry useful detail on amendments and
+   substitute motions. Render it small + italic at the bottom of the
+   card so it's available without competing with the vote breakdown. */
+.rollcall-event-motion {
+  margin: 0.875rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f3f4f6;
+  font-size: 0.8125rem;
+  font-style: italic;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.rollcall-motion-label {
+  font-style: normal;
+  font-weight: 600;
+  color: #4b5563;
+}
