@@ -25,6 +25,19 @@ ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split("
 CSRF_TRUSTED_ORIGINS = [
     o for o in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if o
 ]
+# Dev-mode auto-allow for the Vite dev server (:5173) and Django
+# itself (:8000). When the browser hits `localhost:5173/admin/`, the
+# `Origin` header is `http://localhost:5173`; Vite proxies the
+# request to Django on :8000, which Django would otherwise reject
+# as cross-origin. Production is unaffected — DEBUG=False there, so
+# only the explicit env-var values count.
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS.extend([
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ])
 
 # Application definition
 INSTALLED_APPS = [
