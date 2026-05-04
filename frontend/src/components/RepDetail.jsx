@@ -2,27 +2,36 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Phone, Mail, Printer, MapPin, ExternalLink, Clock } from 'lucide-react'
 import NotFound from './NotFound'
-import LegislationCard from './LegislationCard'
+import LegislationInvolvementTable from './LegislationInvolvementTable'
 import useDocumentTitle from '../hooks/useDocumentTitle'
 import './RepDetail.css'
 
-// Order in which option tallies appear in the breakdown row. Keys
-// match `_OPTION_LABELS` on the API side. Display labels are taken
-// from each row's `option_label` so the source of truth lives in one
-// place (Python).
+// Order in which lifetime option tallies appear in the breakdown row
+// above the legislation involvement table. Keys match `_OPTION_LABELS`
+// on the API side.
 const VOTE_OPTION_ORDER = ['yes', 'no', 'abstain', 'absent', 'excused', 'not voting', 'other']
 
 const optionSlug = (s) => s.replace(/\s+/g, '-')
+
+const optionTitle = (opt) =>
+  opt === 'not voting' ? 'Not voting' : opt.charAt(0).toUpperCase() + opt.slice(1)
 
 export default function RepDetail() {
   const { slug } = useParams()
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [status, setStatus] = useState(null)
+  // The activity stats pills double as filters on the involvement
+  // table below. Multi-select with pure-OR semantics: a row matches
+  // if ANY currently-pressed pill applies (across both sponsorship
+  // and vote kinds). Empty arrays = no filter, show all rows.
+  // Resets when the rep changes.
+  const [activeFilters, setActiveFilters] = useState({ sponsorship: [], vote: [] })
   useDocumentTitle(data?.name)
 
   useEffect(() => {
     setData(null); setError(null); setStatus(null)
+    setActiveFilters({ sponsorship: [], vote: [] })
     fetch(`/api/reps/${encodeURIComponent(slug)}/`)
       .then(r => {
         setStatus(r.status)
@@ -34,6 +43,20 @@ export default function RepDetail() {
       .catch(e => setError(e.message))
   }, [slug])
 
+  function togglePill(kind, value) {
+    setActiveFilters(prev => {
+      const cur = prev[kind]
+      const next = cur.includes(value) ? cur.filter(v => v !== value) : [...cur, value]
+      return { ...prev, [kind]: next }
+    })
+  }
+  function isPressed(kind, value) {
+    return activeFilters[kind].includes(value)
+  }
+  function clearFilters() {
+    setActiveFilters({ sponsorship: [], vote: [] })
+  }
+
   if (status === 404) return <NotFound />
   if (error) return (
     <div className="rep-detail-page"><div role="alert" className="rep-detail-container">Could not load: {error}</div></div>
@@ -41,6 +64,23 @@ export default function RepDetail() {
   if (!data) return (
     <div className="rep-detail-page"><div role="status" className="rep-detail-container">Loading…</div></div>
   )
+
+  // Sponsorship breakdown — computed from `legislation_involvement` so
+  // the activity stats strip stays in sync with the table without a
+  // second API trip. The table already has the per-row sponsorship
+  // marker; we just tally it.
+  const sponsorshipCounts = (data.legislation_involvement || []).reduce(
+    (acc, r) => {
+      if (r.sponsorship === 'primary')   acc.primary++
+      if (r.sponsorship === 'cosponsor') acc.cosponsor++
+      return acc
+    },
+    { primary: 0, cosponsor: 0 }
+  )
+  const hasActivity =
+    (data.voting_history?.total || 0) > 0 ||
+    sponsorshipCounts.primary > 0 ||
+    sponsorshipCounts.cosponsor > 0
 
   return (
     <div className="rep-detail-page">
@@ -135,6 +175,29 @@ export default function RepDetail() {
               )}
             </section>
 
+            {(data.committees || []).length > 0 && (
+              <section className="rep-detail-committees" aria-label="Committee assignments">
+                <h2 className="rep-detail-rail-h2">Committees</h2>
+                <ul className="rep-detail-committee-list">
+                  {data.committees.map(c => (
+                    <li key={c.organization_id} className="rep-detail-committee-row">
+                      <span className={`rep-detail-committee-role rep-detail-committee-role--${c.role.toLowerCase().replace(/[^a-z]/g, '-')}`}>
+                        {c.role}
+                      </span>
+                      {c.source_url ? (
+                        <a href={c.source_url} target="_blank" rel="noopener noreferrer"
+                           className="rep-detail-committee-name">
+                          {c.name}
+                        </a>
+                      ) : (
+                        <span className="rep-detail-committee-name">{c.name}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {(data.staff || []).length > 0 && (
               <section className="rep-detail-staff" aria-label="Staff">
                 <h2 className="rep-detail-rail-h2">Staff</h2>
@@ -156,119 +219,70 @@ export default function RepDetail() {
           </header>
 
           <div className="rep-detail-main">
-            {(data.committees || []).length > 0 && (
-              <section className="rep-detail-committees" aria-label="Committee assignments">
-                <h2 className="rep-detail-section-h2">Committees</h2>
-                <ul className="rep-detail-committee-list">
-                  {data.committees.map(c => (
-                    <li key={c.organization_id} className="rep-detail-committee-row">
-                      <span className={`rep-detail-committee-role rep-detail-committee-role--${c.role.toLowerCase().replace(/[^a-z]/g, '-')}`}>
-                        {c.role}
-                      </span>
-                      {c.source_url ? (
-                        <a href={c.source_url} target="_blank" rel="noopener noreferrer"
-                           className="rep-detail-committee-name">
-                          {c.name}
-                        </a>
-                      ) : (
-                        <span className="rep-detail-committee-name">{c.name}</span>
-                      )}
+            {hasActivity && (
+              <section className="rep-detail-vote-stats" aria-label="Lifetime activity totals — click a pill to filter the table below">
+                <ul className="rep-detail-vote-breakdown">
+                  {sponsorshipCounts.primary > 0 && (
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() => togglePill('sponsorship', 'primary')}
+                        aria-pressed={isPressed('sponsorship', 'primary')}
+                        className={`rep-detail-vote-stat rep-detail-vote-stat--primary${isPressed('sponsorship', 'primary') ? ' rep-detail-vote-stat--active' : ''}`}
+                      >
+                        <span className="rep-detail-vote-stat-n">{sponsorshipCounts.primary}</span>
+                        <span className="rep-detail-vote-stat-label">Primary sponsor</span>
+                      </button>
                     </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {(data.sponsored_bills_total || 0) > 0 && (
-              <section className="rep-detail-bills" aria-label="Bills sponsored">
-                <h2 className="rep-detail-section-h2">
-                  Bills sponsored
-                  <span className="rep-detail-section-count">
-                    {' '}({data.sponsored_bills_total})
-                  </span>
-                </h2>
-                <div className="rep-detail-bill-list">
-                  {data.sponsored_bills.map(bill => (
-                    <LegislationCard key={bill.slug} bill={bill} />
-                  ))}
-                </div>
-                {data.sponsored_bills_total > data.sponsored_bills.length && (
-                  <Link
-                    to={`/legislation?sponsor=${encodeURIComponent(data.name)}`}
-                    className="rep-detail-bills-viewall"
-                  >
-                    View all {data.sponsored_bills_total} bills sponsored by {data.name} →
-                  </Link>
-                )}
-              </section>
-            )}
-
-            {(data.voting_history?.total || 0) > 0 && (
-              <section className="rep-detail-votes" aria-labelledby="rep-votes-h2">
-                <h2 id="rep-votes-h2" className="rep-detail-section-h2">
-                  Voting history
-                  <span className="rep-detail-section-count">
-                    {' '}({data.voting_history.total})
-                  </span>
-                </h2>
-                <ul className="rep-detail-vote-breakdown" aria-label="Lifetime vote totals">
+                  )}
+                  {sponsorshipCounts.cosponsor > 0 && (
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() => togglePill('sponsorship', 'cosponsor')}
+                        aria-pressed={isPressed('sponsorship', 'cosponsor')}
+                        className={`rep-detail-vote-stat rep-detail-vote-stat--cosponsor${isPressed('sponsorship', 'cosponsor') ? ' rep-detail-vote-stat--active' : ''}`}
+                      >
+                        <span className="rep-detail-vote-stat-n">{sponsorshipCounts.cosponsor}</span>
+                        <span className="rep-detail-vote-stat-label">Cosponsor</span>
+                      </button>
+                    </li>
+                  )}
                   {VOTE_OPTION_ORDER.map(opt => {
-                    const n = data.voting_history.breakdown[opt] || 0
+                    const n = data.voting_history?.breakdown?.[opt] || 0
                     if (!n) return null
                     return (
-                      <li
-                        key={opt}
-                        className={`rep-detail-vote-stat rep-detail-vote-stat--${optionSlug(opt)}`}
-                      >
-                        <span className="rep-detail-vote-stat-n">{n}</span>
-                        <span className="rep-detail-vote-stat-label">
-                          {opt === 'not voting' ? 'Not voting'
-                            : opt.charAt(0).toUpperCase() + opt.slice(1)}
-                        </span>
+                      <li key={opt}>
+                        <button
+                          type="button"
+                          onClick={() => togglePill('vote', opt)}
+                          aria-pressed={isPressed('vote', opt)}
+                          className={`rep-detail-vote-stat rep-detail-vote-stat--${optionSlug(opt)}${isPressed('vote', opt) ? ' rep-detail-vote-stat--active' : ''}`}
+                        >
+                          <span className="rep-detail-vote-stat-n">{n}</span>
+                          <span className="rep-detail-vote-stat-label">{optionTitle(opt)}</span>
+                        </button>
                       </li>
                     )
                   })}
                 </ul>
-                <h3 className="rep-detail-vote-recent-h3">Recent votes</h3>
-                <ol className="rep-detail-vote-list">
-                  {data.voting_history.recent.map((v, i) => (
-                    <li
-                      key={`${v.bill.slug}-${v.date}-${i}`}
-                      className="rep-detail-vote-row"
-                    >
-                      <div className="rep-detail-vote-meta">
-                        <time className="rep-detail-vote-date" dateTime={v.date}>
-                          {v.date}
-                        </time>
-                        <span
-                          className={`rep-detail-vote-option rep-detail-vote-option--${optionSlug(v.option)}`}
-                        >
-                          {v.option_label}
-                        </span>
-                        <span
-                          className={`rep-detail-vote-result rep-detail-vote-result--${v.result}`}
-                        >
-                          {v.result === 'pass' ? 'Passed' : 'Failed'}
-                        </span>
-                      </div>
-                      <Link
-                        to={`/legislation/${v.bill.slug}/`}
-                        className="rep-detail-vote-bill"
-                      >
-                        <span className="rep-detail-vote-bill-id">{v.bill.identifier}</span>
-                        {v.bill.title && (
-                          <span className="rep-detail-vote-bill-title">{v.bill.title}</span>
-                        )}
-                      </Link>
-                    </li>
-                  ))}
-                </ol>
-                {data.voting_history.total > data.voting_history.recent.length && (
-                  <p className="rep-detail-vote-truncated">
-                    Showing the {data.voting_history.recent.length} most recent
-                    {' '}of {data.voting_history.total} recorded votes.
-                  </p>
-                )}
+              </section>
+            )}
+
+            {(data.legislation_involvement || []).length > 0 && (
+              <section className="rep-detail-involvement" aria-labelledby="rep-involvement-h2">
+                <h2 id="rep-involvement-h2" className="rep-detail-section-h2">
+                  Legislation
+                  <span className="rep-detail-section-count">
+                    {' '}({data.legislation_involvement.length})
+                  </span>
+                </h2>
+                <LegislationInvolvementTable
+                  rows={data.legislation_involvement}
+                  repName={data.name}
+                  activeFilters={activeFilters}
+                  onClearFilters={clearFilters}
+                />
               </section>
             )}
           </div>

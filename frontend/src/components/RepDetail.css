@@ -5,7 +5,10 @@
 }
 
 .rep-detail-container {
-  max-width: 72rem;
+  /* Matches LegislationDetail's 90rem so the involvement table on big
+     reps (200-300+ rows) gets room to breathe — at 72rem, the
+     6-column table forced horizontal scroll on most desktops. */
+  max-width: 90rem;
   margin: 0 auto;
 }
 
@@ -221,13 +224,14 @@
 }
 .rep-detail-staff-email:hover { color: #1f2937; }
 
-/* Committees — list of committee assignments with a role pill on
-   the left. Top section in the right column on desktop; first
-   thing under the rail on mobile. Role colors graduate from filled
-   navy (Chair, the strongest commitment) → outlined navy (Vice-Chair)
-   → light gray (Member). */
+/* Committees — list of committee assignments in the left rail
+   between External Links and Staff. Each entry stacks a small
+   role pill on top of the committee name, matching the staff
+   entries' airy text-only look (no card chrome) so the rail
+   stays visually light. Role colors graduate from filled navy
+   (Chair) → outlined navy (Vice-Chair) → light gray (Member). */
 .rep-detail-committees {
-  margin-bottom: 2rem;
+  margin-top: 1.5rem;
 }
 
 .rep-detail-committee-list {
@@ -236,26 +240,20 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.875rem;
 }
 
 .rep-detail-committee-row {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.625rem 0.875rem;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
 }
 
 .rep-detail-committee-role {
-  flex: 0 0 auto;
   display: inline-block;
-  min-width: 5.5rem;
-  text-align: center;
-  padding: 0.125rem 0.625rem;
-  font-size: 0.75rem;
+  padding: 0.0625rem 0.5rem;
+  font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -277,21 +275,12 @@
 }
 
 .rep-detail-committee-name {
-  font-size: 0.95rem;
+  font-size: 0.875rem;
+  line-height: 1.35;
   color: #1f2937;
   text-decoration: underline;
 }
 .rep-detail-committee-name:hover { color: #2E3D5B; }
-
-/* Bills sponsored — sits below committees in the right column.
-   Renders the same LegislationCard chrome used on /legislation/ so
-   the card style stays consistent across the SPA. We cap the inline
-   list at 10 cards from the API; the "View all" link below falls
-   through to the existing legislation index sponsor filter when the
-   rep has more than that. */
-.rep-detail-bills {
-  margin-top: 0;
-}
 
 .rep-detail-section-h2 {
   font-size: 1.25rem;
@@ -305,40 +294,31 @@
   color: #6b7280;
 }
 
-.rep-detail-bill-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.rep-detail-bills-viewall {
-  display: inline-block;
-  margin-top: 1rem;
-  color: #2E3D5B;
-  font-weight: 600;
-  font-size: 0.9375rem;
-  text-decoration: underline;
-}
-
-/* Voting history — sits below Bills sponsored. Two pieces:
-   (1) lifetime breakdown row (counts of yes/no/abstain/...) so the
-       overall pattern is visible at a glance, and
-   (2) the most recent N votes as a compact list with bill links.
-   Color is paired with the explicit text label (`Yes`/`No`/...) so
-   contrast doesn't carry the meaning alone. */
-.rep-detail-votes {
-  margin-top: 2.5rem;
+/* Lifetime vote totals — at-a-glance pill row above the legislation
+   involvement table. Each non-zero option (Yes/No/Abstain/Absent/
+   Excused/Not voting/Other) gets one pill; the left-edge accent
+   color matches the per-row option chip palette in the table below
+   so the breakdown reads as a summary. */
+.rep-detail-vote-stats {
+  margin-bottom: 1.5rem;
 }
 
 .rep-detail-vote-breakdown {
   list-style: none;
-  margin: 0 0 1.5rem;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 0.625rem;
 }
 
+/* Pills are `<button>`s — they double as filters on the involvement
+   table below. Resetting the default button chrome and inheriting
+   the cursor-pointer + hover affordance lets them read as
+   interactive without looking like primary actions. The pressed
+   state (`aria-pressed=true` + `--active` modifier) inverts the
+   left-edge color to a thicker fill so the active filter is
+   unmistakable at a glance. */
 .rep-detail-vote-stat {
   display: inline-flex;
   align-items: baseline;
@@ -349,6 +329,21 @@
   border-left: 4px solid #9ca3af;
   border-radius: 0.375rem;
   font-size: 0.875rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.rep-detail-vote-stat:hover {
+  background: #f9fafb;
+}
+.rep-detail-vote-stat:focus-visible {
+  outline: 2px solid #2E3D5B;
+  outline-offset: 2px;
+}
+.rep-detail-vote-stat--active {
+  background: #f3f4f6;
+  border-color: #1f2937;
 }
 .rep-detail-vote-stat-n {
   font-weight: 700;
@@ -358,10 +353,10 @@
 .rep-detail-vote-stat-label {
   color: #4b5563;
 }
-/* Match the option-chip colors below so the breakdown reads as a
-   summary of the row chips. The left-edge accent carries the cue
-   without coloring the whole pill (which would compete with the
-   chips). */
+/* Sponsorship pills lead the row (stronger involvement than voting),
+   colored navy to match the Primary/Cosponsor chips in the table. */
+.rep-detail-vote-stat--primary    { border-left-color: #2E3D5B; }
+.rep-detail-vote-stat--cosponsor  { border-left-color: #2E3D5B; }
 .rep-detail-vote-stat--yes        { border-left-color: #047857; }
 .rep-detail-vote-stat--no         { border-left-color: #b91c1c; }
 .rep-detail-vote-stat--abstain    { border-left-color: #b45309; }
@@ -370,99 +365,6 @@
 .rep-detail-vote-stat--not-voting { border-left-color: #6b7280; }
 .rep-detail-vote-stat--other      { border-left-color: #6b7280; }
 
-.rep-detail-vote-recent-h3 {
-  font-size: 0.875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #4b5563;
-  margin: 0 0 0.75rem;
-}
-
-.rep-detail-vote-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.rep-detail-vote-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-  padding: 0.75rem 0.875rem;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-}
-
-.rep-detail-vote-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.625rem;
-  font-size: 0.8125rem;
-}
-
-.rep-detail-vote-date {
-  color: #6b7280;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Pupa option chip. Solid color + uppercase short label so the
-   value is unambiguous even with the color stripped. Yes/No/Abstain
-   carry policy meaning; Absent/Excused/etc. are procedural and use
-   a quieter gray to keep the eye on the substantive options. */
-.rep-detail-vote-option {
-  display: inline-block;
-  padding: 0.125rem 0.5rem;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  border-radius: 0.25rem;
-  color: #ffffff;
-  background: #6b7280;
-}
-.rep-detail-vote-option--yes        { background: #047857; }
-.rep-detail-vote-option--no         { background: #b91c1c; }
-.rep-detail-vote-option--abstain    { background: #b45309; }
-.rep-detail-vote-option--absent     { background: #6b7280; }
-.rep-detail-vote-option--excused    { background: #6b7280; }
-.rep-detail-vote-option--not-voting { background: #6b7280; }
-.rep-detail-vote-option--other      { background: #6b7280; }
-
-.rep-detail-vote-result {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #4b5563;
-}
-.rep-detail-vote-result--pass { color: #047857; }
-.rep-detail-vote-result--fail { color: #b91c1c; }
-
-.rep-detail-vote-bill {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-  text-decoration: none;
-}
-.rep-detail-vote-bill-id {
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #2E3D5B;
-  text-decoration: underline;
-}
-.rep-detail-vote-bill:hover .rep-detail-vote-bill-id { color: #1f2937; }
-.rep-detail-vote-bill-title {
-  font-size: 0.875rem;
-  color: #4b5563;
-  line-height: 1.35;
-}
-
-.rep-detail-vote-truncated {
-  margin: 1rem 0 0;
-  font-size: 0.8125rem;
-  color: #6b7280;
+.rep-detail-involvement {
+  margin-top: 0.5rem;
 }

@@ -1,0 +1,298 @@
+/* Searchable, sortable, paginated table replacing the old "Bills
+   sponsored" + "Voting history" sections on RepDetail. One row per
+   bill where the rep has any involvement; columns surface the rep's
+   relationship (sponsorship, committee vote, council vote) plus the
+   bill's status and overall outcome. */
+
+.involvement-table-wrap {
+  --involvement-border: #e5e7eb;
+  --involvement-muted:  #6b7280;
+  --involvement-text:   #1f2937;
+  --involvement-navy:   #2E3D5B;
+}
+
+.involvement-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.involvement-search-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--involvement-text);
+}
+
+.involvement-search-input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9375rem;
+  border: 1px solid var(--involvement-border);
+  border-radius: 0.375rem;
+  background: #ffffff;
+}
+.involvement-search-input:focus {
+  outline: 2px solid var(--involvement-navy);
+  outline-offset: 1px;
+  border-color: var(--involvement-navy);
+}
+
+.involvement-toolbar-meta {
+  font-size: 0.8125rem;
+  color: var(--involvement-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Surfaced when an activity-pill filter is active, so users can
+   clear it without scrolling back up to the pill row. */
+.involvement-clear-filter {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: none;
+  border: 0;
+  color: var(--involvement-navy);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+.involvement-clear-filter:hover { color: var(--involvement-text); }
+.involvement-clear-filter:focus-visible {
+  outline: 2px solid var(--involvement-navy);
+  outline-offset: 2px;
+  border-radius: 0.125rem;
+}
+
+.involvement-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--involvement-muted);
+  background: #f9fafb;
+  border: 1px dashed var(--involvement-border);
+  border-radius: 0.5rem;
+}
+
+/* Table scrolls horizontally on narrow screens rather than collapsing.
+   `tabIndex={0}` on the wrapper makes it keyboard-scrollable, which
+   matters when the content overflows. */
+.involvement-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--involvement-border);
+  border-radius: 0.5rem;
+  background: #ffffff;
+}
+.involvement-table-scroll:focus-visible {
+  outline: 2px solid var(--involvement-navy);
+  outline-offset: 2px;
+}
+
+.involvement-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.involvement-table thead {
+  background: #f9fafb;
+  border-bottom: 1px solid var(--involvement-border);
+}
+
+.involvement-table th,
+.involvement-table td {
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.involvement-table th {
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--involvement-muted);
+  white-space: nowrap;
+}
+
+.involvement-th-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.involvement-th-button:hover { color: var(--involvement-text); }
+.involvement-th-button:focus-visible {
+  outline: 2px solid var(--involvement-navy);
+  outline-offset: 2px;
+  border-radius: 0.125rem;
+}
+
+.involvement-sort-indicator {
+  font-size: 0.625rem;
+  width: 0.75rem;
+  display: inline-block;
+}
+
+.involvement-table tbody tr {
+  border-top: 1px solid var(--involvement-border);
+}
+.involvement-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.involvement-cell-bill {
+  /* The first column is a row-header (`th scope="row"`) — strip the
+     thead font treatment since this cell is body content, not a label.
+     Just the identifier (e.g. "CB 121200") goes here; the bill's full
+     title is on the link's `title` attr as a hover tooltip and is
+     visible on the linked bill detail page. Keeps the column tight
+     enough to fit the rest of the table without horizontal scroll
+     on most viewports. */
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--involvement-text);
+  white-space: nowrap;
+}
+
+.involvement-bill-link {
+  font-weight: 700;
+  color: var(--involvement-navy);
+  text-decoration: underline;
+}
+.involvement-bill-link:hover { color: var(--involvement-text); }
+
+.involvement-cell-empty {
+  color: #9ca3af;
+}
+
+/* Status chip — variants match the legislation index palette
+   (api_views._STATUS_VARIANTS). */
+.involvement-status-chip {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+}
+.involvement-status-chip--green  { background: #d1fae5; color: #065f46; }
+.involvement-status-chip--red    { background: #fee2e2; color: #991b1b; }
+.involvement-status-chip--amber  { background: #fef3c7; color: #92400e; }
+.involvement-status-chip--blue   { background: #dbeafe; color: #1e40af; }
+.involvement-status-chip--gray   { background: #f3f4f6; color: #4b5563; }
+
+/* Sponsorship chip. Primary = filled navy, Cosponsor = outlined navy. */
+.involvement-sponsor-chip {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 0.25rem;
+}
+.involvement-sponsor-chip--primary {
+  background: var(--involvement-navy);
+  color: #ffffff;
+}
+.involvement-sponsor-chip--cosponsor {
+  background: #ffffff;
+  color: var(--involvement-navy);
+  border: 1px solid var(--involvement-navy);
+}
+
+/* Vote chips — same palette as RepDetail.css's voting history section
+   so the visual language stays consistent across the SPA. */
+.involvement-vote-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.involvement-vote-chip {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 0.25rem;
+  color: #ffffff;
+  background: #6b7280;
+  align-self: flex-start;
+}
+.involvement-vote-chip--yes        { background: #047857; }
+.involvement-vote-chip--no         { background: #b91c1c; }
+.involvement-vote-chip--abstain    { background: #b45309; }
+.involvement-vote-chip--absent     { background: #6b7280; }
+.involvement-vote-chip--excused    { background: #6b7280; }
+.involvement-vote-chip--not-voting { background: #6b7280; }
+.involvement-vote-chip--other      { background: #6b7280; }
+
+.involvement-vote-body {
+  font-size: 0.6875rem;
+  color: var(--involvement-muted);
+  line-height: 1.3;
+}
+
+.involvement-vote-extra {
+  font-size: 0.6875rem;
+  color: var(--involvement-navy);
+  text-decoration: underline;
+}
+
+.involvement-outcome {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.involvement-outcome--pass { color: #047857; }
+.involvement-outcome--fail { color: #b91c1c; }
+
+/* Pagination — pattern matches the legislation index. */
+.involvement-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.involvement-page-button {
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: 1px solid var(--involvement-navy);
+  border-radius: 0.375rem;
+  background: #ffffff;
+  color: var(--involvement-navy);
+  cursor: pointer;
+}
+.involvement-page-button:hover:not(:disabled) {
+  background: var(--involvement-navy);
+  color: #ffffff;
+}
+.involvement-page-button:focus-visible {
+  outline: 2px solid var(--involvement-navy);
+  outline-offset: 2px;
+}
+.involvement-page-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.involvement-page-status {
+  font-size: 0.875rem;
+  color: var(--involvement-muted);
+  font-variant-numeric: tabular-nums;
+}

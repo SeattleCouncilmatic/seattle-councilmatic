@@ -493,10 +493,8 @@ def get_rep_by_slug(slug: str) -> Optional[Dict[str, Any]]:
         return None
     name, slug_back, label, person_id = rows[0]
     rep = _rep_row_to_dict(name, slug_back, label, person_id)
-    bills, total = _get_sponsored_bills(name)
-    rep['sponsored_bills'] = bills
-    rep['sponsored_bills_total'] = total
     rep['voting_history'] = _get_voting_history(person_id)
+    rep['legislation_involvement'] = _get_legislation_involvement(person_id, name)
     return rep
 
 
@@ -514,30 +512,21 @@ _OPTION_LABELS = {
 }
 
 
-def _get_voting_history(person_id: str, limit: int = 25) -> Dict[str, Any]:
-    """Aggregate voting stats + the most recent N PersonVote rows for
-    this rep, with bill info attached. Filtering by `voter_id` (the OCD
-    Person primary key) rather than `voter_name` avoids the ambiguity
-    the bills sponsor query has with name collisions across former and
-    current members; the scraper sets `voter` whenever the name resolves
+def _get_voting_history(person_id: str) -> Dict[str, Any]:
+    """Aggregate lifetime voting stats — the at-a-glance breakdown
+    pill row above the legislation involvement table. Filters on
+    `voter_id` (the OCD Person primary key) rather than `voter_name`
+    so name collisions between former and current members can't leak
+    across reps; the scraper sets `voter` whenever the name resolves
     to a Person we've scraped.
 
-    Shape:
-        {
-          'total':     N,
-          'breakdown': {'yes': ..., 'no': ..., 'abstain': ..., ...},
-          'recent':    [{'date', 'option', 'option_label', 'result',
-                         'bill': {'identifier', 'title', 'slug'}}, ...],
-        }
-
-    `breakdown` only contains options the rep has actually cast — drops
-    zero entries on the API side so the frontend can iterate without
-    filtering. `recent` is capped at `limit` items, ordered most-recent
-    first; pre-scrape historical members get total=0 here."""
+    Returns `{total, breakdown: {option: count, ...}}`; `breakdown`
+    only contains options the rep has actually cast (zero entries
+    dropped server-side). Pre-scrape historical members produce
+    total=0 here."""
     if not person_id:
-        return {'total': 0, 'breakdown': {}, 'recent': []}
+        return {'total': 0, 'breakdown': {}}
 
-    # Aggregate all option counts in one query.
     breakdown_qs = (
         PersonVote.objects
         .filter(voter_id=person_id)
@@ -545,46 +534,7 @@ def _get_voting_history(person_id: str, limit: int = 25) -> Dict[str, Any]:
         .annotate(n=Count('id'))
     )
     breakdown = {row['option']: row['n'] for row in breakdown_qs}
-    total = sum(breakdown.values())
-    if total == 0:
-        return {'total': 0, 'breakdown': {}, 'recent': []}
-
-    # Most recent N votes. `vote_event.start_date` is an ISO-8601 string
-    # with a fixed-offset suffix; lexicographic ordering matches Pacific
-    # wall-clock chronology because the date prefix dominates the sort.
-    recent_qs = (
-        PersonVote.objects
-        .filter(voter_id=person_id)
-        .select_related('vote_event__bill__councilmatic_bill')
-        .order_by('-vote_event__start_date')
-        [:limit]
-    )
-
-    recent: List[Dict[str, Any]] = []
-    for pv in recent_qs:
-        ve = pv.vote_event
-        ocd_bill = ve.bill
-        cm_bill = getattr(ocd_bill, 'councilmatic_bill', None) if ocd_bill else None
-        if not cm_bill:
-            # Defensive — the scraper pre-filters out votes whose bill
-            # isn't in our DB, but skip cleanly if anything slips through.
-            continue
-        recent.append({
-            'date':         (ve.start_date or '')[:10],
-            'option':       pv.option,
-            'option_label': _OPTION_LABELS.get(pv.option, pv.option.title()),
-            'result':       ve.result,
-            'bill': {
-                'identifier': ocd_bill.identifier,
-                'title':      cm_bill.title or '',
-                'slug':       cm_bill.slug,
-            },
-        })
-    return {
-        'total':     total,
-        'breakdown': breakdown,
-        'recent':    recent,
-    }
+    return {'total': sum(breakdown.values()), 'breakdown': breakdown}
 
 
 # Mirrors `_normalise_status` in seattle_app/api_views.py — same status
@@ -597,56 +547,155 @@ def _normalise_status_lazy(raw: str) -> tuple[str, str]:
     return _normalise_status(raw)
 
 
-def _get_sponsored_bills(rep_name: str, limit: int = 10
-                         ) -> tuple[List[Dict[str, Any]], int]:
-    """Return up to `limit` bills sponsored by `rep_name` (most recent
-    activity first), plus the total count of all sponsored bills. Each
-    row matches the shape `LegislationCard.jsx` expects so the existing
-    card component renders them on `/reps/<slug>/`; the total powers a
-    "View all" link to the legislation index when `limit` is exceeded.
-    `is_primary` flags bills where the rep is a primary sponsor (vs.
-    cosponsor)."""
-    if not rep_name:
-        return [], 0
+# Bodies whose votes count as "council vote" rather than "committee
+# vote". The scraper sets `event_body_name` from Legistar's
+# `EventBodyName`; only the literal full-council body slots into the
+# council column.
+_COUNCIL_BODY = "City Council"
 
-    base = (
+
+def _vote_dict(person_vote: 'PersonVote') -> Dict[str, Any]:
+    ve = person_vote.vote_event
+    return {
+        'option':       person_vote.option,
+        'option_label': _OPTION_LABELS.get(person_vote.option, person_vote.option.title()),
+        'body_name':    (ve.extras or {}).get('event_body_name') or '',
+        'date':         (ve.start_date or '')[:10],
+        'result':       ve.result,
+    }
+
+
+def _get_legislation_involvement(person_id: str, name: str
+                                 ) -> List[Dict[str, Any]]:
+    """One row per bill where this rep has any involvement (sponsored
+    OR voted). Frontend renders this as a searchable, paginated table;
+    bills the rep neither sponsored nor voted on are excluded so the
+    page stays scoped to their own legislative footprint.
+
+    Vote events are bucketed by `event_body_name`: 'City Council' →
+    `council_vote`, anything else → `committee_vote`. For the rare
+    bills with multiple committee votes (budget bills, big zoning
+    packages — see WORK_LOG distribution: 6 of 330 bills have 3+
+    votes), the most-recent one fills `committee_vote` and
+    `extra_committee_votes` carries the count of older ones, which
+    the frontend renders as a "+N more" link to the bill detail page
+    for the full roll-call.
+
+    `outcome` is the result of the bill's most-recent VoteEvent (the
+    council vote when present, else the committee vote). Differs from
+    `status` (the bill's MatterStatusName lifecycle label): a bill
+    can have a passing council vote but still sit in 'Awaiting Mayor's
+    Signature' as its overall status.
+
+    Sponsorship: 'primary' beats 'cosponsor' if the rep holds both
+    roles on a bill (theoretically possible if the data has duplicate
+    sponsorship rows; in practice we see one sponsorship per
+    (bill, person)). Returns 'primary' / 'cosponsor' / None."""
+    if not person_id or not name:
+        return []
+
+    # 1. Sponsorships keyed by bill_id. Sponsorship.name is case-sensitive
+    #    in the DB but reps' names appear consistently — `iexact` mirrors
+    #    the legislation index sponsor filter for safety.
+    sponsorships_by_bill: Dict[str, str] = {}
+    name_lower = name.lower()
+    sponsorship_rows = (
         Bill.objects
-        .filter(sponsorships__name__iexact=rep_name)
-        .distinct()
+        .filter(sponsorships__name__iexact=name)
+        .prefetch_related('sponsorships')
     )
-    total = base.count()
-    bills = (
-        base
-        .annotate(latest_action_date=Max('actions__date'))
-        .order_by('-latest_action_date', '-identifier')
-        .prefetch_related('sponsorships', 'actions')
-        [:limit]
-    )
-
-    rep_name_lower = rep_name.lower()
-    results: List[Dict[str, Any]] = []
-    for bill in bills:
+    for bill in sponsorship_rows:
         is_primary = any(
-            s.primary and (s.entity_name or '').lower() == rep_name_lower
+            s.primary and (s.entity_name or '').lower() == name_lower
             for s in bill.sponsorships.all()
         )
-        # Earliest action date doubles as introduced date — same heuristic
-        # as legislation_index. Action `date` strings are ISO 8601 with
-        # optional time; slice to the YYYY-MM-DD prefix for display.
-        dates = [a.date for a in bill.actions.all() if a.date]
-        intro_date = min(dates)[:10] if dates else None
-        raw_status = bill.extras.get('MatterStatusName', '')
-        status_label, status_variant = _normalise_status_lazy(raw_status)
-        results.append({
-            'identifier':      bill.identifier,
-            'title':           bill.title,
-            'slug':            bill.slug,
-            'status':          status_label,
-            'status_variant': status_variant,
-            'date_introduced': intro_date,
-            'is_primary':      is_primary,
+        sponsorships_by_bill[bill.id] = 'primary' if is_primary else 'cosponsor'
+
+    # 2. Per-person votes joined to VoteEvent (for body name + result).
+    #    Order ascending so the latest vote of each kind overwrites
+    #    older ones in the bucket below — same lex-sort assumption as
+    #    `_get_voting_history`: ISO-8601 with fixed-offset suffix sorts
+    #    chronologically because the date prefix dominates.
+    pv_qs = (
+        PersonVote.objects
+        .filter(voter_id=person_id)
+        .select_related('vote_event')
+        .order_by('vote_event__start_date')
+    )
+
+    votes_by_bill: Dict[str, Dict[str, Any]] = {}
+    for pv in pv_qs:
+        ve = pv.vote_event
+        bill_id = ve.bill_id
+        if not bill_id:
+            continue
+        body = ((ve.extras or {}).get('event_body_name') or '').strip()
+        is_council = body == _COUNCIL_BODY
+        bucket = votes_by_bill.setdefault(bill_id, {
+            'committee_vote':         None,
+            'council_vote':           None,
+            'extra_committee_votes':  0,
+            'outcome':                None,
         })
-    return results, total
+        v = _vote_dict(pv)
+        if is_council:
+            bucket['council_vote'] = v
+        else:
+            if bucket['committee_vote'] is not None:
+                bucket['extra_committee_votes'] += 1
+            bucket['committee_vote'] = v
+        # Most-recent VoteEvent's result wins (qs is ordered ascending).
+        bucket['outcome'] = ve.result
+
+    # 3. Union of bill_ids and bulk-fetch metadata.
+    all_bill_ids = set(sponsorships_by_bill) | set(votes_by_bill)
+    if not all_bill_ids:
+        return []
+
+    bill_meta: Dict[str, Dict[str, Any]] = {}
+    bills = (
+        Bill.objects
+        .filter(id__in=all_bill_ids)
+        .annotate(latest_action_date=Max('actions__date'))
+    )
+    for b in bills:
+        raw_status = (b.extras or {}).get('MatterStatusName', '')
+        status_label, status_variant = _normalise_status_lazy(raw_status)
+        bill_meta[b.id] = {
+            'identifier':         b.identifier,
+            'title':              b.title or '',
+            'slug':               b.slug,
+            'status_label':       status_label,
+            'status_variant':     status_variant,
+            'latest_action_date': b.latest_action_date,
+        }
+
+    # 4. Compose rows and sort by most-recent activity first.
+    rows: List[Dict[str, Any]] = []
+    for bill_id in all_bill_ids:
+        meta = bill_meta.get(bill_id)
+        if not meta:
+            continue  # bill scrubbed since the join — skip cleanly
+        votes = votes_by_bill.get(bill_id, {})
+        rows.append({
+            'bill': {
+                'identifier': meta['identifier'],
+                'title':      meta['title'],
+                'slug':       meta['slug'],
+            },
+            'status': {
+                'label':   meta['status_label'],
+                'variant': meta['status_variant'],
+            },
+            'sponsorship':           sponsorships_by_bill.get(bill_id),
+            'committee_vote':        votes.get('committee_vote'),
+            'council_vote':          votes.get('council_vote'),
+            'extra_committee_votes': votes.get('extra_committee_votes', 0),
+            'outcome':               votes.get('outcome'),
+            'latest_action_date':    meta['latest_action_date'],
+        })
+    rows.sort(key=lambda r: r['latest_action_date'] or '', reverse=True)
+    return rows
 
 
 def get_district_with_reps(number: str) -> Optional[Dict[str, Any]]:
