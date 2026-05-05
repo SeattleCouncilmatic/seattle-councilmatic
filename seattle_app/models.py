@@ -10,6 +10,43 @@ import pytz
 app_timezone = pytz.timezone(settings.TIME_ZONE)
 
 
+class _GeneratedColumnAwareManager(models.Manager):
+    """Drops generated-column field names from the INSERT field list.
+
+    Migration 0014 made `MunicipalCodeSection.search_vector` a
+    `GENERATED ALWAYS AS ... STORED` tsvector at the DB level — its
+    value is computed from `section_number`, `title`, and `full_text`
+    by Postgres. Django's model state knows nothing about that
+    generation, so the default INSERT path includes a NULL value
+    for `search_vector` and Postgres rejects with:
+
+        cannot insert a non-DEFAULT value into column "search_vector"
+
+    This bites every code path that creates a row from scratch:
+    `Model.objects.create()`, `instance.save()` on a new object,
+    `bulk_create()`. Existing rows go through the UPDATE path which
+    happens to omit the field, which is why the bug was latent for
+    months — UPDATE-only re-parses didn't surface it; the first
+    INSERT in `parse_smc_pdf` did.
+
+    Fix: subclass the default manager and strip configured field
+    names from the INSERT field list before delegating. Affects
+    INSERTs only — UPDATEs are routed through `_update`, untouched.
+    Subclasses set `excluded_from_insert` to a tuple of field names.
+    """
+
+    excluded_from_insert: tuple[str, ...] = ()
+
+    def _insert(self, objs, fields, *args, **kwargs):
+        if self.excluded_from_insert:
+            fields = [f for f in fields if f.name not in self.excluded_from_insert]
+        return super()._insert(objs, fields, *args, **kwargs)
+
+
+class _MunicipalCodeSectionManager(_GeneratedColumnAwareManager):
+    excluded_from_insert = ("search_vector",)
+
+
 class MunicipalCodeSection(models.Model):
     """
     A section of the Seattle Municipal Code (SMC).
@@ -82,10 +119,23 @@ class MunicipalCodeSection(models.Model):
         auto_now_add=True
     )
     # PG-generated tsvector. Column is GENERATED ALWAYS AS ... STORED at the
-    # DB level (see migration 0014); Django never writes to it.
+    # DB level (see migration 0014); Django never writes to it. Custom
+    # manager below strips it from INSERT field lists so Django's
+    # default ORM path doesn't try to send NULL for it.
     search_vector = SearchVectorField(null=True, editable=False)
 
+    objects = _MunicipalCodeSectionManager()
+
     class Meta:
+        # `base_manager_name = "objects"` is the magic that makes
+        # Django route INSERTs through our custom manager. Without
+        # this, `Model._base_manager` falls back to a vanilla
+        # `Manager()` instance, the manager's `_insert` override is
+        # never called, and the search_vector exclusion silently
+        # does nothing. (Django 4.2 docs note this; the default-
+        # manager-as-base behavior some references describe is only
+        # for older versions.)
+        base_manager_name = "objects"
         ordering = ['title_number', 'chapter_number', 'section_number']
         unique_together = ['title_number', 'chapter_number', 'section_number']
         indexes = [
