@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import Header from './components/Header'
 import Footer from './components/Footer'
 import LegislationHero from './components/LegislationHero'
@@ -21,6 +22,25 @@ import NotFound from './components/NotFound'
 import useDocumentTitle from './hooks/useDocumentTitle'
 import './App.css'
 
+// React Router v7 `BrowserRouter` doesn't reset scroll on route change
+// (the data-router's `<ScrollRestoration />` would, but migrating
+// routers is a bigger change). Without this, navigating between
+// detail pages carries over the previous page's scroll position —
+// e.g., scrolling down `/legislation` then clicking a rep loaded
+// `/reps/<slug>` already scrolled past the portrait. Closes #156.
+//
+// Skips when there's a hash in the URL so deep links to anchors
+// (e.g., the skip-link's `#main-content`) still scroll to their
+// target instead of the top.
+function ScrollToTop() {
+  const { pathname, hash } = useLocation()
+  useEffect(() => {
+    if (hash) return
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+  }, [pathname, hash])
+  return null
+}
+
 function HomePage() {
   useDocumentTitle(null) // Just "Seattle Councilmatic" — site is the page subject.
   return (
@@ -34,6 +54,7 @@ function HomePage() {
 function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       {/* Skip-link for keyboard / screen-reader users — first
           focusable element on every page, visible only when focused.
           Lets users bypass the header + main nav to reach page content

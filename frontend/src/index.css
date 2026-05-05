@@ -18,6 +18,19 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Global box-sizing reset. Modern-framework default — `width: 100%`
+   plus padding stays inside the declared 100% rather than overflowing
+   it. Prevents the `.header-container` horizontal-scroll bug class
+   (closes #154) and any future recurrence. Two component files
+   (`MuniCodeIndex.css`, `Search.css`) previously declared this
+   locally; those rules are dropped now that the global default
+   covers them. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   min-width: 320px;
