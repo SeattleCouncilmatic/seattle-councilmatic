@@ -98,6 +98,20 @@
   font-size: 0.95rem;
 }
 
+/* "Serving since <Month Year>" — sits as its own line under the
+   district description. Body-baseline size (1rem) so it reads as
+   substantive rep info rather than caption text; date itself is
+   bolded for scanability. Color #1f2937 lands at ~10.8:1 on the
+   page background — well above WCAG AAA (7:1). */
+.rep-detail-tenure {
+  margin: 0 0 1rem;
+  color: #1f2937;
+  font-size: 1rem;
+}
+.rep-detail-tenure time {
+  font-weight: 600;
+}
+
 .rep-detail-contacts {
   display: flex;
   flex-direction: column;

@@ -355,6 +355,17 @@ def _rep_row_to_dict(name: str, slug: str, label: str, person_id: str) -> Dict[s
     if person:
         if person.image:
             rep_data['image'] = person.image
+        # Tenure start_date lives on the council-seat Membership row
+        # (label = the District/Position string). Surfaces as the raw
+        # ISO partial-date string; the frontend formats it to a
+        # human-readable "Serving since <Month Year>" line.
+        seat_membership = (
+            person.memberships
+            .filter(organization__name='Seattle City Council', label=label)
+            .first()
+        )
+        if seat_membership and seat_membership.start_date:
+            rep_data['tenure_start'] = seat_membership.start_date
         # Staff list lives on `Person.extras['staff']` as a JSON list
         # of `{name, title, email}` dicts — see seattle/people.py.
         staff = (person.extras or {}).get('staff') or []

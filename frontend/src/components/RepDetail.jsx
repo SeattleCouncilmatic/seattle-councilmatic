@@ -16,6 +16,21 @@ const optionSlug = (s) => s.replace(/\s+/g, '-')
 const optionTitle = (opt) =>
   opt === 'not voting' ? 'Not voting' : opt.charAt(0).toUpperCase() + opt.slice(1)
 
+// API ships `tenure_start` as an ISO partial date (`YYYY-MM-DD`,
+// `YYYY-MM`, or `YYYY`). Render as "January 2024" — month + year is
+// the right granularity for "serving since" since the exact day is
+// noise. The `T00:00:00` suffix forces local-time parsing so a
+// `2024-01-02` value doesn't shift to "December 2023" in browsers
+// west of UTC.
+function formatTenureStart(iso) {
+  if (!iso) return ''
+  const parts = iso.split('-')
+  if (parts.length === 1) return parts[0]  // bare year
+  const d = new Date(`${iso}T00:00:00`)
+  if (isNaN(d.getTime())) return iso
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+}
+
 export default function RepDetail() {
   const { slug } = useParams()
   const [data, setData] = useState(null)
@@ -104,6 +119,11 @@ export default function RepDetail() {
             <h1 className="rep-detail-h1">{data.name}</h1>
             {data.district_description && (
               <p className="rep-detail-sub">{data.district_description}</p>
+            )}
+            {data.tenure_start && (
+              <p className="rep-detail-tenure">
+                Serving since <time dateTime={data.tenure_start}>{formatTenureStart(data.tenure_start)}</time>
+              </p>
             )}
 
             <section className="rep-detail-contacts" aria-label="Contact">
