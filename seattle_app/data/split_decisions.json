@@ -1,0 +1,158 @@
+{
+  "Chiefof": {
+    "verdict": "split"
+  },
+  "Cityof": {
+    "verdict": "split"
+  },
+  "Departmentof": {
+    "verdict": "split"
+  },
+  "Directorof": {
+    "verdict": "split"
+  },
+  "Financeand": {
+    "verdict": "split"
+  },
+  "Forthekeytolettersandnumbersdesignatingallzoningdistricts": {
+    "verdict": "split"
+  },
+  "Greaterthan": {
+    "verdict": "split"
+  },
+  "Ifthe": {
+    "verdict": "split"
+  },
+  "Lowrise": {
+    "split": "Low rise",
+    "verdict": "fix"
+  },
+  "Officeof": {
+    "verdict": "split"
+  },
+  "Seesubsection": {
+    "verdict": "split"
+  },
+  "Subchapter": {
+    "verdict": "keep"
+  },
+  "Yesler": {
+    "verdict": "keep"
+  },
+  "affordability": {
+    "verdict": "keep"
+  },
+  "andthe": {
+    "verdict": "split"
+  },
+  "appbased": {
+    "split": "app-based",
+    "verdict": "fix"
+  },
+  "butnotlimitedto": {
+    "verdict": "split"
+  },
+  "bythe": {
+    "verdict": "split"
+  },
+  "centerline": {
+    "verdict": "keep"
+  },
+  "deferral": {
+    "verdict": "keep"
+  },
+  "departmentheadname": {
+    "split": "department head name",
+    "verdict": "fix"
+  },
+  "designee": {
+    "verdict": "keep"
+  },
+  "easement": {
+    "verdict": "keep"
+  },
+  "facie": {
+    "split": "fa cie",
+    "verdict": "fix"
+  },
+  "grantee": {
+    "verdict": "keep"
+  },
+  "grantee's": {
+    "split": "grantee's",
+    "verdict": "fix"
+  },
+  "herein": {
+    "verdict": "keep"
+  },
+  "incomes": {
+    "verdict": "keep"
+  },
+  "inform": {
+    "verdict": "keep"
+  },
+  "meansthe": {
+    "verdict": "split"
+  },
+  "moorage": {
+    "verdict": "keep"
+  },
+  "multifamily": {
+    "verdict": "keep"
+  },
+  "nonconforming": {
+    "verdict": "keep"
+  },
+  "nonresidential": {
+    "verdict": "keep"
+  },
+  "ofthe": {
+    "verdict": "split"
+  },
+  "ofthis": {
+    "verdict": "split"
+  },
+  "permittee": {
+    "verdict": "keep"
+  },
+  "pursuantto": {
+    "verdict": "split"
+  },
+  "rezone": {
+    "verdict": "keep"
+  },
+  "riparian": {
+    "verdict": "keep"
+  },
+  "seepageiiiofthe": {
+    "split": "see page iii of the",
+    "verdict": "fix"
+  },
+  "squarefeet": {
+    "verdict": "split"
+  },
+  "subchapter": {
+    "verdict": "keep"
+  },
+  "therefor": {
+    "verdict": "keep"
+  },
+  "therein": {
+    "verdict": "keep"
+  },
+  "thereof": {
+    "verdict": "keep"
+  },
+  "thereon": {
+    "verdict": "keep"
+  },
+  "thereto": {
+    "verdict": "keep"
+  },
+  "tothe": {
+    "verdict": "split"
+  },
+  "unexpired": {
+    "verdict": "keep"
+  }
+}
