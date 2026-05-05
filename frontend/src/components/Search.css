@@ -56,7 +56,6 @@
   border-radius: 0.5rem;
   background: #ffffff;
   color: #1f2937;
-  box-sizing: border-box;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .search-input:focus {
