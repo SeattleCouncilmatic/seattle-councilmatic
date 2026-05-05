@@ -48,6 +48,12 @@ anthropic>=0.40.0
 # Seattle Municipal Code PDF parsing
 pdfplumber>=0.11.0
 
+# Frequency-based word splitter for the SMC body-text cleanup pass.
+# pdfplumber's word grouping merges words on tight-kerning pages
+# ("TherequirementsofthisSection"); WordNinja's Viterbi splitter
+# breaks them apart using English word-frequency stats.
+wordninja>=2.0
+
 # Bill attachment text extraction (Word .docx)
 python-docx>=1.1.0
 
