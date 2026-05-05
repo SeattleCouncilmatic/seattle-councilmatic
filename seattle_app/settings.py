@@ -84,10 +84,17 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.cache.UpdateCacheMiddleware",
+    # Cache middleware emits Cache-Control: max-age=600 on every cacheable
+    # response. In dev (DEBUG=True) the cache backend is `dummy.DummyCache`
+    # so server-side caching is a no-op, but the headers still tell the
+    # browser to cache for 10 minutes — which makes admin-edit-then-
+    # refresh workflows confusing (saves persist, API returns fresh data,
+    # but the browser keeps showing the old response). Skip it entirely
+    # in dev. Closes #159.
+    *([] if DEBUG else ["django.middleware.cache.UpdateCacheMiddleware"]),
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
-    "django.middleware.cache.FetchFromCacheMiddleware",
+    *([] if DEBUG else ["django.middleware.cache.FetchFromCacheMiddleware"]),
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
