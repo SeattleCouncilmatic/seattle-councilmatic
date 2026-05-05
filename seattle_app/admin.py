@@ -42,36 +42,46 @@ class MembershipInline(admin.TabularInline):
 
 @admin.register(Person)
 class PersonAdmin(admin.ModelAdmin):
-    """Browse councilmembers and edit their tenure dates inline.
-
-    Person fields are scraper-managed (name, image, sort_name, etc.)
-    so they're read-only here. The MembershipInline below is where
-    editorial work happens — set `start_date` / `end_date` for the
-    council-seat membership and the rep detail page picks it up
-    immediately."""
-    list_display = ("name", "id")
+    """Browse councilmembers, with an inline showing their memberships
+    so you can edit tenure dates without bouncing to the Membership
+    admin. The Person record itself is scraper-managed and not
+    editable here — only the inline's `start_date` / `end_date`."""
+    list_display = ("name",)
     search_fields = ("name",)
-    readonly_fields = ("id", "name", "sort_name", "image", "gender",
-                       "biography", "birth_date", "death_date",
-                       "summary", "national_identity", "family_name",
-                       "given_name", "extras", "created_at", "updated_at")
+    fields = ("name",)
+    readonly_fields = ("name",)
     inlines = [MembershipInline]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Membership)
 class MembershipAdmin(admin.ModelAdmin):
     """Direct list view of all memberships — useful for finding e.g.
-    every "District N" membership at a glance and bulk-editing tenure
-    dates. Most fields are scraper-managed; `start_date` and `end_date`
-    are the editorial bits."""
+    every "District N" membership at a glance and editing tenure
+    dates. Form is intentionally minimal: only `start_date` and
+    `end_date` are editable; the rest of the row metadata is
+    scraper-managed and read-only context (rendered in the title /
+    breadcrumb, not as form fields, to avoid any cross-field
+    validation surprises with FKs that have `null=True, blank=False`
+    on the upstream OCD model)."""
     list_display = ("person_name", "organization_name", "label",
                     "role", "start_date", "end_date")
     list_filter = ("organization", "role")
     search_fields = ("person__name", "label")
-    readonly_fields = ("id", "person", "organization", "label", "role",
-                       "post", "on_behalf_of", "extras",
-                       "created_at", "updated_at")
-    fields = readonly_fields + ("start_date", "end_date")
+    fields = ("start_date", "end_date")
+
+    def has_add_permission(self, request):
+        # Memberships come from the scraper; admin is for editing
+        # tenure dates on existing rows, not creating new ones.
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
     @admin.display(description="Person", ordering="person__name")
     def person_name(self, obj):
@@ -79,16 +89,22 @@ class MembershipAdmin(admin.ModelAdmin):
 
     @admin.display(description="Organization", ordering="organization__name")
     def organization_name(self, obj):
-        return obj.organization.name if obj.organization else (obj.organization_name or "")
+        return obj.organization.name if obj.organization else ""
 
 
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
-    """Read-only browse — useful for confirming committee names + IDs
-    when filtering memberships in the Membership admin above."""
-    list_display = ("name", "classification", "id")
+    """Read-only browse — useful for confirming committee names when
+    filtering memberships in the Membership admin above. Nothing is
+    editable here; org metadata is fully scraper-managed."""
+    list_display = ("name", "classification")
     list_filter = ("classification",)
     search_fields = ("name",)
-    readonly_fields = ("id", "name", "classification", "parent",
-                       "founding_date", "dissolution_date",
-                       "image", "extras", "created_at", "updated_at")
+    fields = ("name", "classification")
+    readonly_fields = ("name", "classification")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
