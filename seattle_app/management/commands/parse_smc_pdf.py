@@ -1085,8 +1085,16 @@ class Command(BaseCommand):
             into a bag of bare codes (`X X X CCU CCU` / `P P P P P`) with
             no row labels attached.
         """
+        # x_tolerance bumped 2 → 3 to bridge the kerning gap on tight-
+        # set body pages (Title 21 utility rates, 22.805 stormwater,
+        # etc.) where neighboring words like
+        # "TherequirementsofthisSection" got merged into a single
+        # token. Section *titles* are emitted with looser kerning so
+        # 3 doesn't introduce title-side regressions; LLM summaries
+        # were already coping with the merged input but the on-page
+        # full_text rendering reads cleanly now. See #150.
         try:
-            words = page.extract_words(x_tolerance=2, y_tolerance=3)
+            words = page.extract_words(x_tolerance=3, y_tolerance=3)
         except Exception:
             return []
 
