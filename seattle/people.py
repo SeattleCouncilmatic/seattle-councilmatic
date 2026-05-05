@@ -4,8 +4,6 @@ from lxml import html as lxml_html
 import re
 import logging
 
-from seattle.tenures import lookup_start_date
-
 logger = logging.getLogger(__name__)
 
 
@@ -15,6 +13,27 @@ logger = logging.getLogger(__name__)
 # name on the URL — keep this dict in sync with the live site.
 PROFILE_SLUG_OVERRIDES = {
     "Robert Kettle": "bob-kettle",
+}
+
+
+# Per-member About-page subpath. Each office picks its own — most use
+# `/about-<firstname>` but Lin uses `/about-<full-slug>`. Add new
+# members here as they come in. Members not in this dict get no
+# tenure info parsed (the rep page renders no "Serving since" line
+# rather than show a wrong date). Some pages return 200 but lack the
+# structured tenure block (Rinck and Foster's offices haven't filled
+# it in as of 2026-05); the parser returns empty for those and the
+# DB row stays unset.
+ABOUT_PAGE_SLUGS = {
+    "Rob Saka":              "about-rob",
+    "Eddie Lin":             "about-eddie-lin",
+    "Joy Hollingsworth":     "about-joy",
+    "Maritza Rivera":        "about-maritza",
+    "Debora Juarez":         "about-debora",
+    "Dan Strauss":           "about-dan",
+    "Robert Kettle":         "about-robert",
+    "Alexis Mercedes Rinck": "about-alexis",
+    "Dionne Foster":         "about-dionne",
 }
 
 
@@ -158,6 +177,75 @@ def extract_photo_url(html_str: str) -> str | None:
     return "https://www.seattle.gov/" + m.group(0)
 
 
+_MONTH_NUMS = {
+    "january": 1, "february": 2, "march": 3, "april": 4,
+    "may": 5, "june": 6, "july": 7, "august": 8, "september": 9,
+    "october": 10, "november": 11, "december": 12,
+}
+_MONTH_DAYS = [0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+
+def _month_year_to_date(month_name: str, year: int, end_of_month: bool = False) -> str:
+    """'January 2024' → '2024-01-01' (start) or '2024-01-31' (end).
+    Uses 29 for Feb to handle the leap-year case without overcomplicating."""
+    m = _MONTH_NUMS.get(month_name.strip().lower())
+    if not m:
+        return ""
+    day = _MONTH_DAYS[m] if end_of_month else 1
+    return f"{year:04d}-{m:02d}-{day:02d}"
+
+
+# `<strong>Current term:</strong> January 2024 - December 2027`. Hyphen
+# variants in the wild include `-`, `–`, `—`, and ` - ` with surrounding
+# whitespace. The regex matches anything that isn't a letter or digit
+# between the two month-year halves.
+_TERM_RE = re.compile(
+    r"Current term:\s*</strong>\s*"
+    r"([A-Za-z]+)\s+(\d{4})"
+    r"\s*[^\dA-Za-z]+\s*"
+    r"([A-Za-z]+)\s+(\d{4})",
+    re.IGNORECASE,
+)
+# `<strong>In office since:</strong> 2024`. Sometimes followed by a
+# nbsp — match flexibly.
+_IN_OFFICE_RE = re.compile(
+    r"In office since:?\s*</strong>\s*(\d{4})",
+    re.IGNORECASE,
+)
+
+
+def extract_tenure(html_str: str) -> dict:
+    """Parse the `<strong>Council district:</strong> ...
+    <strong>In office since:</strong> ... <strong>Current term:</strong> ...`
+    block on a councilmember's `/about-<firstname>` page. Returns a
+    dict with `start_date` and `end_date` (both ISO 8601 `YYYY-MM-DD`)
+    when the structured "Current term" line is present, or just
+    `start_date` (year-only `YYYY`) when only "In office since" is
+    present, or `{}` when neither is found.
+
+    The block is rendered as inline `<strong>` labels separated by
+    `<br />` inside a single `<p>` — works directly on the HTML string
+    without needing lxml because the structure is rigid enough that a
+    targeted regex is more robust than DOM traversal (the surrounding
+    `<p>` is shared with the bio paragraph in some templates)."""
+    out: dict = {}
+    term = _TERM_RE.search(html_str)
+    if term:
+        start_month, start_year, end_month, end_year = term.groups()
+        sd = _month_year_to_date(start_month, int(start_year), end_of_month=False)
+        ed = _month_year_to_date(end_month, int(end_year), end_of_month=True)
+        if sd:
+            out["start_date"] = sd
+        if ed:
+            out["end_date"] = ed
+    if "start_date" not in out:
+        # Fall back to "In office since" year-only.
+        in_office = _IN_OFFICE_RE.search(html_str)
+        if in_office:
+            out["start_date"] = in_office.group(1)
+    return out
+
+
 def extract_contact_details(html_str: str) -> dict:
     """Parse the Contact Us tile on a per-member seattle.gov profile
     page. Returns a dict with any of `phone`, `fax`, `email`,
@@ -200,20 +288,29 @@ def extract_contact_details(html_str: str) -> dict:
 
 class SeattlePersonScraper(Scraper):
 
-    def _fetch_member_extras(self, profile_url: str) -> tuple[dict, list[dict], str | None, list[dict]]:
-        """Fetch the per-member detail page for contacts + photo, and
-        the `/committees-and-calendar` and `/staff` subpages.
+    def _fetch_member_extras(self, profile_url: str, name: str
+                             ) -> tuple[dict, list[dict], str | None, list[dict], dict]:
+        """Fetch the per-member detail page for contacts + photo, the
+        `/committees-and-calendar` and `/staff` subpages, and the
+        `/about-<firstname>` page for tenure dates.
 
-        Returns (contacts_dict, committees_list, photo_url, staff_list).
-        All can be empty/None when the corresponding fetch returns
-        non-200 or the page lacks the expected block. `allow_redirects=False`
-        because seattle.gov 301s former-member URLs to their successor
-        (`sara-nelson` → `dionne-foster`); only a 200 means the URL
-        really belongs to this person."""
+        Returns (contacts_dict, committees_list, photo_url, staff_list,
+        tenure_dict). All can be empty/None when the corresponding
+        fetch returns non-200 or the page lacks the expected block.
+        `allow_redirects=False` because seattle.gov 301s former-member
+        URLs to their successor (`sara-nelson` → `dionne-foster`); only
+        a 200 means the URL really belongs to this person.
+
+        About-page subpath comes from `ABOUT_PAGE_SLUGS` since each
+        office picks its own (`/about-joy`, `/about-eddie-lin`, etc.).
+        Members not in the dict get no tenure scrape — the membership
+        row stays unset, which is the right fallback for someone who
+        was just sworn in and hasn't had their About page populated."""
         contacts: dict = {}
         committees: list[dict] = []
         photo_url: str | None = None
         staff: list[dict] = []
+        tenure: dict = {}
         try:
             r = requests.get(profile_url, timeout=10, allow_redirects=False)
             if r.status_code == 200:
@@ -235,7 +332,16 @@ class SeattlePersonScraper(Scraper):
                 staff = extract_staff(r.text)
         except requests.RequestException as e:
             logger.warning(f"Could not fetch staff for {profile_url}: {e}")
-        return contacts, committees, photo_url, staff
+        about_sub = ABOUT_PAGE_SLUGS.get(name)
+        if about_sub:
+            try:
+                r = requests.get(f"{profile_url}/{about_sub}",
+                                 timeout=10, allow_redirects=False)
+                if r.status_code == 200:
+                    tenure = extract_tenure(r.text)
+            except requests.RequestException as e:
+                logger.warning(f"Could not fetch about page for {profile_url}: {e}")
+        return contacts, committees, photo_url, staff, tenure
 
     def scrape(self):
         """Scrape Seattle City Council members from seattle.gov.
@@ -266,7 +372,9 @@ class SeattlePersonScraper(Scraper):
             district_type, number, name = match.group(1), match.group(2), match.group(3).strip()
             district = f"{district_type} {number}"
             profile_url = f"{url}/{profile_slug(name)}"
-            contacts, committees, photo_url, staff = self._fetch_member_extras(profile_url)
+            contacts, committees, photo_url, staff, tenure = self._fetch_member_extras(
+                profile_url, name
+            )
             members_data.append({
                 "name": name,
                 "district": district,
@@ -275,6 +383,7 @@ class SeattlePersonScraper(Scraper):
                 "committees_raw": committees,
                 "photo_url": photo_url,
                 "staff": staff,
+                "tenure": tenure,
             })
 
         # Build canonical_committees map: committee names on seattle.gov
@@ -314,16 +423,22 @@ class SeattlePersonScraper(Scraper):
                 # records, search them, link them to bills, etc.) — just
                 # display data attached to the rep.
                 person.extras["staff"] = m["staff"]
-            # Tenure start date comes from a hardcoded dict —
-            # `seattle/tenures.py`. Legistar's people endpoint doesn't
-            # expose dates and seattle.gov bio prose is too varied to
-            # parse reliably. None for entries we haven't verified yet
-            # (the membership row gets no start_date, which is better
-            # than shipping a guess).
-            start_date = lookup_start_date(name, district)
-            membership_kwargs = {"role": "Councilmember", "label": district}
-            if start_date:
-                membership_kwargs["start_date"] = start_date
+            # Tenure dates parsed from the per-member /about-* page on
+            # seattle.gov ("In office since: 2024 / Current term:
+            # January 2024 - December 2027"). Members without the
+            # structured block (e.g. recently-sworn-in at-large
+            # members whose offices haven't filled their About page)
+            # get no dates here — those rows can be set via the
+            # `/admin/opencivicdata/membership/` admin as a fallback.
+            membership_kwargs = {
+                "role": "Councilmember",
+                "label": district,
+            }
+            tenure = m["tenure"]
+            if tenure.get("start_date"):
+                membership_kwargs["start_date"] = tenure["start_date"]
+            if tenure.get("end_date"):
+                membership_kwargs["end_date"] = tenure["end_date"]
             person.add_membership("Seattle City Council", **membership_kwargs)
             person.add_source(url)
             person.add_link(m["profile_url"], note="City Council profile")
