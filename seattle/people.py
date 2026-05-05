@@ -294,28 +294,35 @@ def extract_contact_details(html_str: str) -> dict:
 class SeattlePersonScraper(Scraper):
 
     def _fetch_member_extras(self, profile_url: str, name: str
-                             ) -> tuple[dict, list[dict], str | None, list[dict], dict]:
-        """Fetch the per-member detail page for contacts + photo, the
-        `/committees-and-calendar` and `/staff` subpages, and the
-        `/about-<firstname>` page for tenure dates.
+                             ) -> tuple[dict, list[dict], str | None, list[dict]]:
+        """Fetch the per-member detail page for contacts + photo, and
+        the `/committees-and-calendar` and `/staff` subpages.
 
-        Returns (contacts_dict, committees_list, photo_url, staff_list,
-        tenure_dict). All can be empty/None when the corresponding
-        fetch returns non-200 or the page lacks the expected block.
-        `allow_redirects=False` because seattle.gov 301s former-member
-        URLs to their successor (`sara-nelson` → `dionne-foster`); only
-        a 200 means the URL really belongs to this person.
+        Returns (contacts_dict, committees_list, photo_url, staff_list).
+        All can be empty/None when the corresponding fetch returns
+        non-200 or the page lacks the expected block. `allow_redirects=False`
+        because seattle.gov 301s former-member URLs to their successor
+        (`sara-nelson` → `dionne-foster`); only a 200 means the URL
+        really belongs to this person.
 
-        About-page subpath comes from `ABOUT_PAGE_SLUGS` since each
-        office picks its own (`/about-joy`, `/about-eddie-lin`, etc.).
-        Members not in the dict get no tenure scrape — the membership
-        row stays unset, which is the right fallback for someone who
-        was just sworn in and hasn't had their About page populated."""
+        Tenure dates were briefly scraped here too (extract_tenure on
+        the About page), but pupa's MembershipImporter.get_object
+        includes start_date in its lookup spec — passing one to
+        add_membership creates a new row instead of updating the
+        existing dateless one. Result: every scrape was minting
+        duplicate council-seat memberships. Tenure data now lives in
+        the Django admin (Membership rows are editable there); the
+        scraper stays out of that field. extract_tenure remains
+        importable in case a future implementation wants to seed
+        admin defaults via a separate post-import step.
+        The `name` parameter is kept on the signature even though
+        the About-page fetch is gone, for future use and so the
+        caller doesn't have to thread it conditionally."""
+        del name  # currently unused; kept on signature for future use
         contacts: dict = {}
         committees: list[dict] = []
         photo_url: str | None = None
         staff: list[dict] = []
-        tenure: dict = {}
         try:
             r = requests.get(profile_url, timeout=10, allow_redirects=False)
             if r.status_code == 200:
@@ -337,16 +344,7 @@ class SeattlePersonScraper(Scraper):
                 staff = extract_staff(r.text)
         except requests.RequestException as e:
             logger.warning(f"Could not fetch staff for {profile_url}: {e}")
-        about_sub = ABOUT_PAGE_SLUGS.get(name)
-        if about_sub:
-            try:
-                r = requests.get(f"{profile_url}/{about_sub}",
-                                 timeout=10, allow_redirects=False)
-                if r.status_code == 200:
-                    tenure = extract_tenure(r.text)
-            except requests.RequestException as e:
-                logger.warning(f"Could not fetch about page for {profile_url}: {e}")
-        return contacts, committees, photo_url, staff, tenure
+        return contacts, committees, photo_url, staff
 
     def scrape(self):
         """Scrape Seattle City Council members from seattle.gov.
@@ -377,7 +375,7 @@ class SeattlePersonScraper(Scraper):
             district_type, number, name = match.group(1), match.group(2), match.group(3).strip()
             district = f"{district_type} {number}"
             profile_url = f"{url}/{profile_slug(name)}"
-            contacts, committees, photo_url, staff, tenure = self._fetch_member_extras(
+            contacts, committees, photo_url, staff = self._fetch_member_extras(
                 profile_url, name
             )
             members_data.append({
@@ -388,7 +386,6 @@ class SeattlePersonScraper(Scraper):
                 "committees_raw": committees,
                 "photo_url": photo_url,
                 "staff": staff,
-                "tenure": tenure,
             })
 
         # Build canonical_committees map: committee names on seattle.gov
@@ -428,23 +425,19 @@ class SeattlePersonScraper(Scraper):
                 # records, search them, link them to bills, etc.) — just
                 # display data attached to the rep.
                 person.extras["staff"] = m["staff"]
-            # Tenure dates parsed from the per-member /about-* page on
-            # seattle.gov ("In office since: 2024 / Current term:
-            # January 2024 - December 2027"). Members without the
-            # structured block (e.g. recently-sworn-in at-large
-            # members whose offices haven't filled their About page)
-            # get no dates here — those rows can be set via the
-            # `/admin/opencivicdata/membership/` admin as a fallback.
-            membership_kwargs = {
-                "role": "Councilmember",
-                "label": district,
-            }
-            tenure = m["tenure"]
-            if tenure.get("start_date"):
-                membership_kwargs["start_date"] = tenure["start_date"]
-            if tenure.get("end_date"):
-                membership_kwargs["end_date"] = tenure["end_date"]
-            person.add_membership("Seattle City Council", **membership_kwargs)
+            # Tenure dates (`start_date` / `end_date`) are intentionally
+            # NOT passed here — pupa's MembershipImporter.get_object
+            # uses start_date as part of its uniqueness key, so passing
+            # one to add_membership creates a *new* row instead of
+            # updating the existing dateless one. Result: every scrape
+            # was minting duplicates. The data lives in the Django
+            # admin (`/admin/core/membership/`) where it's editable
+            # without needing a deploy.
+            person.add_membership(
+                "Seattle City Council",
+                role="Councilmember",
+                label=district,
+            )
             person.add_source(url)
             person.add_link(m["profile_url"], note="City Council profile")
 
