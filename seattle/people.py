@@ -218,31 +218,36 @@ def extract_tenure(html_str: str) -> dict:
     """Parse the `<strong>Council district:</strong> ...
     <strong>In office since:</strong> ... <strong>Current term:</strong> ...`
     block on a councilmember's `/about-<firstname>` page. Returns a
-    dict with `start_date` and `end_date` (both ISO 8601 `YYYY-MM-DD`)
-    when the structured "Current term" line is present, or just
-    `start_date` (year-only `YYYY`) when only "In office since" is
-    present, or `{}` when neither is found.
+    dict with `start_date` and/or `end_date`.
+
+    Field semantics on the live page:
+      * "In office since: YYYY" — first year of *continuous* service.
+        For Strauss this is 2020 (originally elected 2019, took office
+        Jan 6, 2020) even though his current term runs 2024-2027.
+        This is what "Serving since…" should reflect on the rep page.
+      * "Current term: <Month YYYY> - <Month YYYY>" — bounds of the
+        current term, NOT continuous service.
+
+    So `start_date` comes from "In office since" (`YYYY-01-01`, since
+    Seattle inaugurations are early January) and `end_date` from the
+    current-term end. Either can be missing — at-large members and
+    mid-term replacements may have an About page that lacks the
+    structured block entirely; admin overrides cover those.
 
     The block is rendered as inline `<strong>` labels separated by
-    `<br />` inside a single `<p>` — works directly on the HTML string
-    without needing lxml because the structure is rigid enough that a
-    targeted regex is more robust than DOM traversal (the surrounding
-    `<p>` is shared with the bio paragraph in some templates)."""
+    `<br />` inside a single `<p>` — targeted regex is more robust
+    than DOM traversal because the surrounding `<p>` is shared with
+    the bio paragraph in some templates."""
     out: dict = {}
+    in_office = _IN_OFFICE_RE.search(html_str)
+    if in_office:
+        out["start_date"] = f"{in_office.group(1)}-01-01"
     term = _TERM_RE.search(html_str)
     if term:
-        start_month, start_year, end_month, end_year = term.groups()
-        sd = _month_year_to_date(start_month, int(start_year), end_of_month=False)
+        _, _, end_month, end_year = term.groups()
         ed = _month_year_to_date(end_month, int(end_year), end_of_month=True)
-        if sd:
-            out["start_date"] = sd
         if ed:
             out["end_date"] = ed
-    if "start_date" not in out:
-        # Fall back to "In office since" year-only.
-        in_office = _IN_OFFICE_RE.search(html_str)
-        if in_office:
-            out["start_date"] = in_office.group(1)
     return out
 
 
