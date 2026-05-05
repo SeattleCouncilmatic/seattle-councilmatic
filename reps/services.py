@@ -359,10 +359,19 @@ def _rep_row_to_dict(name: str, slug: str, label: str, person_id: str) -> Dict[s
         # (label = the District/Position string). Surfaces as the raw
         # ISO partial-date string; the frontend formats it to a
         # human-readable "Serving since <Month Year>" line.
-        seat_membership = (
-            person.memberships
-            .filter(organization__name='Seattle City Council', label=label)
-            .first()
+        # Defensive: if duplicate rows exist (e.g. from a transient
+        # scraper bug — see `dedup_council_memberships`), prefer the
+        # one that has a date set so the UI doesn't render blank
+        # while we're cleaning up.
+        seat_memberships = list(
+            person.memberships.filter(
+                organization__name='Seattle City Council',
+                label=label,
+            )
+        )
+        seat_membership = next(
+            (m for m in seat_memberships if m.start_date),
+            seat_memberships[0] if seat_memberships else None,
         )
         if seat_membership and seat_membership.start_date:
             rep_data['tenure_start'] = seat_membership.start_date
