@@ -4,6 +4,8 @@ from lxml import html as lxml_html
 import re
 import logging
 
+from seattle.tenures import lookup_start_date
+
 logger = logging.getLogger(__name__)
 
 
@@ -312,11 +314,17 @@ class SeattlePersonScraper(Scraper):
                 # records, search them, link them to bills, etc.) — just
                 # display data attached to the rep.
                 person.extras["staff"] = m["staff"]
-            person.add_membership(
-                "Seattle City Council",
-                role="Councilmember",
-                label=district,
-            )
+            # Tenure start date comes from a hardcoded dict —
+            # `seattle/tenures.py`. Legistar's people endpoint doesn't
+            # expose dates and seattle.gov bio prose is too varied to
+            # parse reliably. None for entries we haven't verified yet
+            # (the membership row gets no start_date, which is better
+            # than shipping a guess).
+            start_date = lookup_start_date(name, district)
+            membership_kwargs = {"role": "Councilmember", "label": district}
+            if start_date:
+                membership_kwargs["start_date"] = start_date
+            person.add_membership("Seattle City Council", **membership_kwargs)
             person.add_source(url)
             person.add_link(m["profile_url"], note="City Council profile")
 

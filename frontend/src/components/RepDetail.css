@@ -98,6 +98,12 @@
   font-size: 0.95rem;
 }
 
+.rep-detail-tenure {
+  margin: -0.625rem 0 1rem;  /* pull up to sit closer to the district description */
+  color: #4b5563;
+  font-size: 0.875rem;
+}
+
 .rep-detail-contacts {
   display: flex;
   flex-direction: column;
