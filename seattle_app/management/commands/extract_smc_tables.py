@@ -1,0 +1,484 @@
+"""Extract SMC table bodies via Claude Vision (issue #151).
+
+Background
+==========
+
+`parse_smc_pdf` captures table headers (caption + column headers) when
+it sees a tabular layout, but the body cells get dispersed as
+free-floating text in the surrounding paragraphs. Result: 176 tables
+across 86 sections have markdown table syntax but at most 1-2 body
+rows; the rest of the data is scattered.
+
+pdfplumber's built-in `extract_tables()` doesn't help — the SMC PDF
+doesn't use ruled lines around tables, and the columnar body-text
+layout fools whitespace-based heuristics (a 2026-05-06 spike
+confirmed: rule-based extraction returns 0 tables on representative
+sections like 6.420.100, 22.805.070, 23.41.004).
+
+This command sends the relevant PDF page(s) as images to Claude Haiku
+4.5, which extracts structured tables (title, header rows, body rows,
+footnotes), then splices proper markdown back into `full_text`.
+
+Cost: ~$0.005-0.01/section at Haiku rates; ~$0.50-2 for the full
+corpus of 86 affected sections.
+
+Usage
+=====
+
+::
+
+    # Single section (good for validation)
+    python manage.py extract_smc_tables --section 6.420.100
+
+    # Full corpus (skips sections that already have ≥3 body rows)
+    python manage.py extract_smc_tables --all
+
+    # Smoke run
+    python manage.py extract_smc_tables --all --limit 5 --dry-run
+
+    # Try a different model (when Haiku misses something)
+    python manage.py extract_smc_tables --section 23.47A.004 --model claude-sonnet-4-6
+
+Idempotent — re-runs skip sections whose tables already have body data.
+"""
+
+from __future__ import annotations
+
+import base64
+import io
+import json
+import logging
+import re
+from dataclasses import dataclass
+
+import anthropic
+import pdfplumber
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
+
+from seattle_app.models import MunicipalCodeSection
+
+logger = logging.getLogger(__name__)
+
+
+DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+
+# Pages are rendered at 150 DPI — empirically a good balance of legibility
+# (small-font cells in 23.47A.004's permission matrix still readable) and
+# token cost (~1700 image tokens per page).
+RENDER_RESOLUTION = 150
+
+# Body-row threshold for "needs extraction." Sections whose existing
+# tables have at least this many body rows are treated as already-good
+# and skipped. Most broken tables today have 0-2 body rows; well-formed
+# ones (post-extraction) have many more.
+GOOD_TABLE_BODY_ROWS = 3
+
+# Anthropic max_tokens for the response. The 23.47A.004 use-permissions
+# matrix is the worst case (multi-page, many rows × many columns); 8K
+# tokens covers it with margin.
+MAX_TOKENS = 8192
+
+
+SYSTEM_PROMPT = """You are extracting tables from pages of the Seattle \
+Municipal Code PDF.
+
+The PDF uses a 2-column body-text layout. Most pages are prose; a small \
+fraction contain real data tables (rate tables, license requirements, \
+dimensional standards, use-permission matrices). DO NOT treat the prose \
+two-column body-text layout as a table.
+
+When pages are provided in sequence and a table spans multiple pages, \
+return it as ONE table with all body rows merged in page order — don't \
+emit duplicate "Table A" entries for continuation pages.
+
+For each REAL data table, return:
+- title: the table's caption (e.g. "Table A for 6.420.100 License \
+Requirements for Operation of Power Boilers and Steam Engines")
+- header_rows: column header rows (sometimes multi-row)
+- body_rows: data rows
+- footnotes: any footnote text directly tied to the table
+
+Each row is an array of cell strings. All rows in a single table must \
+have the same number of cells; pad with empty strings where the source \
+shows merged or blank cells. Section-divider rows (like \
+"A. All Boilers" spanning the whole row) should put the label in cell \
+zero and use empty strings for the rest, preserving the column count.
+
+JOIN line-break-hyphenated words: "Primaryelec- tion" → "Primary \
+election", "max-imum" → "maximum". Keep numbers, dollar amounts, and \
+abbreviations as printed. Preserve superscript markers as caret notation \
+(e.g. "X^a, b").
+
+If no real data tables are present, return tables: []."""
+
+
+USER_PROMPT = (
+    "Extract the real data tables visible in the attached PDF page(s). "
+    "Return ONLY a JSON object with shape "
+    '{"tables": [{"title": str, "header_rows": [[str, ...]], '
+    '"body_rows": [[str, ...]], "footnotes": [str, ...]}]}. No prose '
+    "outside the JSON."
+)
+
+
+# Markdown table row: starts and ends with `|` after stripping whitespace.
+_TABLE_ROW_RE = re.compile(r"^\s*\|.*\|\s*$")
+# Separator row cell — `---`, `:---`, `:---:`, etc.
+_TABLE_SEP_CELL_RE = re.compile(r"^:?-+:?$")
+
+
+@dataclass
+class TableBlock:
+    """Span of consecutive markdown-table-syntax lines in `full_text`."""
+    start_line: int  # inclusive
+    end_line: int    # inclusive
+    body_row_count: int
+
+
+def _scan_table_blocks(full_text: str) -> list[TableBlock]:
+    """Find contiguous runs of `| ... |` lines in full_text. Each run is
+    one block; consecutive blocks separated by non-table lines are
+    distinct entries.
+    """
+    lines = full_text.split("\n")
+    blocks: list[TableBlock] = []
+    cur_start: int | None = None
+    cur_rows: list[list[str]] = []
+    for i, line in enumerate(lines):
+        if _TABLE_ROW_RE.match(line):
+            if cur_start is None:
+                cur_start = i
+                cur_rows = []
+            cells = [c.strip() for c in line.strip().lstrip("|").rstrip("|").split("|")]
+            cur_rows.append(cells)
+        else:
+            if cur_start is not None:
+                sep_idx = next(
+                    (j for j, r in enumerate(cur_rows)
+                     if r and all(_TABLE_SEP_CELL_RE.match(c) for c in r)),
+                    -1,
+                )
+                body = max(0, len(cur_rows) - sep_idx - 1) if sep_idx >= 0 else 0
+                blocks.append(TableBlock(cur_start, i - 1, body))
+                cur_start = None
+                cur_rows = []
+    if cur_start is not None:
+        sep_idx = next(
+            (j for j, r in enumerate(cur_rows)
+             if r and all(_TABLE_SEP_CELL_RE.match(c) for c in r)),
+            -1,
+        )
+        body = max(0, len(cur_rows) - sep_idx - 1) if sep_idx >= 0 else 0
+        blocks.append(TableBlock(cur_start, len(lines) - 1, body))
+    return blocks
+
+
+def _section_page_range(section: MunicipalCodeSection) -> tuple[int, int] | None:
+    """Return (start_page, end_page) inclusive for `section`, where
+    end_page is the page before the next section's start. Returns None
+    if `source_pdf_page` isn't set."""
+    start = section.source_pdf_page
+    if not start:
+        return None
+    next_section = (
+        MunicipalCodeSection.objects
+        .filter(source_pdf_page__gt=start)
+        .order_by("source_pdf_page")
+        .only("source_pdf_page")
+        .first()
+    )
+    end = (next_section.source_pdf_page - 1) if next_section else start + 5
+    # Cap span at 8 pages — protects against missing-next-section cases
+    # where we'd otherwise scan to the end of the PDF.
+    end = min(end, start + 7)
+    return start, end
+
+
+def _render_page_b64(page) -> str:
+    img = page.to_image(resolution=RENDER_RESOLUTION)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def _strip_json_fences(text: str) -> str:
+    return re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
+
+
+def _normalize_cell_counts(rows: list[list[str]]) -> list[list[str]]:
+    """Pad every row to the max width with empty strings."""
+    if not rows:
+        return rows
+    width = max(len(r) for r in rows)
+    return [r + [""] * (width - len(r)) for r in rows]
+
+
+def _escape_cell(s: str) -> str:
+    """Escape pipes and collapse internal newlines so a cell is safe for
+    a single-line markdown table row."""
+    return s.replace("\\", "\\\\").replace("|", "\\|").replace("\n", " ").strip()
+
+
+def _render_table_md(table: dict) -> str:
+    """Format a structured table as markdown. Caller is responsible for
+    normalizing column counts; this just emits the rows."""
+    title = table.get("title") or "Table"
+    headers = table.get("header_rows") or []
+    body = table.get("body_rows") or []
+    footnotes = table.get("footnotes") or []
+
+    width = max(
+        [len(r) for r in headers] +
+        [len(r) for r in body] +
+        [1],
+    )
+
+    def emit_row(cells):
+        padded = (cells + [""] * width)[:width]
+        return "| " + " | ".join(_escape_cell(c) for c in padded) + " |"
+
+    out = []
+    # Caption row spans full width; title in cell 0, blanks elsewhere.
+    out.append(emit_row([title]))
+    for h in headers:
+        out.append(emit_row(h))
+    out.append("| " + " | ".join(["---"] * width) + " |")
+    for b in body:
+        out.append(emit_row(b))
+    for fn in footnotes:
+        out.append(f"_{fn.strip()}_")
+    return "\n".join(out)
+
+
+def _splice_tables(full_text: str, tables_md: list[str]) -> str:
+    """Replace the contiguous table-region in `full_text` (from the first
+    `|` line to the last) with the joined `tables_md`. If multiple
+    table blocks exist with non-table content between them, that
+    intervening content is dropped — those are typically the "orphan
+    body cells" the parser emitted when it lost the table body."""
+    lines = full_text.split("\n")
+    table_line_idxs = [i for i, line in enumerate(lines) if _TABLE_ROW_RE.match(line)]
+    if not table_line_idxs:
+        return full_text  # caller should have skipped this section
+    first = table_line_idxs[0]
+    last = table_line_idxs[-1]
+    new_block = "\n\n".join(tables_md)
+    rebuilt = lines[:first] + [new_block] + lines[last + 1:]
+    return "\n".join(rebuilt)
+
+
+def _merge_continuation_tables(tables: list[dict]) -> list[dict]:
+    """Tables emitted across multiple pages sometimes come back as
+    multiple entries with the same "Table X" prefix. Merge them by
+    matching the leading "Table [letter]" prefix, concatenating body
+    rows in order. Also drops empty-body tables (continuation
+    artifacts where Haiku saw the header but no rows)."""
+    by_key: dict[str, dict] = {}
+    order: list[str] = []
+    for t in tables:
+        title = (t.get("title") or "").strip()
+        m = re.match(r"(Table\s+[A-Z]+)", title)
+        key = m.group(1).upper() if m else title.upper()
+        if key in by_key:
+            existing = by_key[key]
+            existing["body_rows"].extend(t.get("body_rows") or [])
+            for fn in (t.get("footnotes") or []):
+                if fn not in existing["footnotes"]:
+                    existing["footnotes"].append(fn)
+        else:
+            by_key[key] = {
+                "title": title,
+                "header_rows": list(t.get("header_rows") or []),
+                "body_rows": list(t.get("body_rows") or []),
+                "footnotes": list(t.get("footnotes") or []),
+            }
+            order.append(key)
+    return [by_key[k] for k in order if by_key[k]["body_rows"]]
+
+
+class Command(BaseCommand):
+    help = "Extract SMC table bodies via Claude Vision and splice into full_text."
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--section",
+            help="Process this single section number (e.g. 6.420.100).",
+        )
+        parser.add_argument(
+            "--all",
+            action="store_true",
+            help="Process every section that has broken table syntax.",
+        )
+        parser.add_argument(
+            "--limit",
+            type=int,
+            default=None,
+            help="Stop after processing N sections.",
+        )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Print what would change; don't write to the DB.",
+        )
+        parser.add_argument(
+            "--model",
+            default=DEFAULT_MODEL,
+            help=f"Anthropic model id (default: {DEFAULT_MODEL}).",
+        )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Re-process sections that already look fixed (≥3 body rows).",
+        )
+
+    def handle(self, *args, **options):
+        if not options["section"] and not options["all"]:
+            raise CommandError("Pass --section <N> or --all.")
+        if not settings.ANTHROPIC_API_KEY:
+            raise CommandError("ANTHROPIC_API_KEY is not configured.")
+
+        sections = self._select_sections(options)
+        if not sections:
+            self.stdout.write(self.style.NOTICE("No sections need extraction."))
+            return
+
+        client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        model = options["model"]
+        dry = options["dry_run"]
+
+        self.stdout.write(f"Processing {len(sections)} section(s) with {model}...")
+
+        with pdfplumber.open(settings.SMC_PDF_PATH) as pdf:
+            for i, section in enumerate(sections):
+                self._process_section(client, model, pdf, section, dry)
+
+    def _select_sections(self, options) -> list[MunicipalCodeSection]:
+        """Pick sections to process. Either the single one requested, or
+        all sections with broken table syntax."""
+        if options["section"]:
+            try:
+                s = MunicipalCodeSection.objects.get(section_number=options["section"])
+            except MunicipalCodeSection.DoesNotExist:
+                raise CommandError(f"No section {options['section']!r}.")
+            return [s]
+
+        # --all path: filter to sections with broken tables.
+        qs = (
+            MunicipalCodeSection.objects
+            .filter(full_text__contains="| ---")
+            .order_by("section_number")
+        )
+        force = options["force"]
+        limit = options["limit"]
+        out: list[MunicipalCodeSection] = []
+        for s in qs:
+            blocks = _scan_table_blocks(s.full_text)
+            max_body = max((b.body_row_count for b in blocks), default=0)
+            if not force and max_body >= GOOD_TABLE_BODY_ROWS:
+                continue
+            out.append(s)
+            if limit and len(out) >= limit:
+                break
+        return out
+
+    def _process_section(self, client, model, pdf, section, dry):
+        sn = section.section_number
+        page_range = _section_page_range(section)
+        if not page_range:
+            self.stderr.write(self.style.WARNING(
+                f"  {sn}: source_pdf_page not set; skipping"
+            ))
+            return
+        start, end = page_range
+        page_count = end - start + 1
+
+        self.stdout.write(f"\n=== {sn} (pages {start}-{end}, {page_count} page(s)) ===")
+
+        # Render every page in range. Each page becomes one image content
+        # block; the model sees the full section context and can resolve
+        # cross-page table continuations natively.
+        try:
+            images = []
+            for page_num in range(start, end + 1):
+                page = pdf.pages[page_num - 1]
+                images.append(_render_page_b64(page))
+        except IndexError:
+            self.stderr.write(self.style.WARNING(
+                f"  {sn}: page out of range; skipping"
+            ))
+            return
+
+        try:
+            tables = self._extract_tables(client, model, images)
+        except Exception as e:
+            self.stderr.write(self.style.ERROR(
+                f"  {sn}: extraction failed ({type(e).__name__}: {e}); skipping"
+            ))
+            return
+
+        tables = _merge_continuation_tables(tables)
+        if not tables:
+            self.stdout.write(self.style.WARNING(
+                f"  {sn}: model returned 0 tables — leaving full_text unchanged"
+            ))
+            return
+
+        # Normalize cell counts within each table.
+        for t in tables:
+            t["header_rows"] = _normalize_cell_counts(t["header_rows"])
+            t["body_rows"] = _normalize_cell_counts(t["body_rows"])
+
+        tables_md = [_render_table_md(t) for t in tables]
+        new_full_text = _splice_tables(section.full_text, tables_md)
+
+        # Report.
+        self.stdout.write(f"  extracted {len(tables)} table(s):")
+        for t in tables:
+            self.stdout.write(
+                f"    {t['title'][:80]} — "
+                f"{len(t['header_rows'])} header / "
+                f"{len(t['body_rows'])} body / "
+                f"{len(t['footnotes'])} footnotes"
+            )
+
+        if dry:
+            self.stdout.write(self.style.NOTICE("  (--dry-run; not writing)"))
+            return
+
+        section.full_text = new_full_text
+        section.save(update_fields=["full_text"])
+        self.stdout.write(self.style.SUCCESS(f"  saved."))
+
+    def _extract_tables(self, client, model, page_images_b64: list[str]) -> list[dict]:
+        content = []
+        for b64 in page_images_b64:
+            content.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": b64,
+                },
+            })
+        content.append({"type": "text", "text": USER_PROMPT})
+
+        resp = client.messages.create(
+            model=model,
+            max_tokens=MAX_TOKENS,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": content}],
+        )
+        text = "".join(b.text for b in resp.content if b.type == "text")
+        cleaned = _strip_json_fences(text)
+        try:
+            data = json.loads(cleaned)
+        except json.JSONDecodeError:
+            # Some models wrap the JSON in prose despite instructions; try
+            # to grab the outer object.
+            m = re.search(r"\{.*\}", cleaned, re.S)
+            if not m:
+                raise
+            data = json.loads(m.group(0))
+
+        return data.get("tables") or []
