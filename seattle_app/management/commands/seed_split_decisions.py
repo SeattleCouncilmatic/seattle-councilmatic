@@ -172,7 +172,7 @@ class Command(BaseCommand):
         if not settings.ANTHROPIC_API_KEY:
             raise CommandError("ANTHROPIC_API_KEY is not configured.")
         client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-        model = settings.CLAUDE_CODE_SECTION_MODEL  # haiku-tier model in dev
+        model = settings.CLAUDE_CODE_SECTION_MODEL  # sonnet-tier by default
 
         for i in range(0, len(unreviewed), BATCH_SIZE):
             chunk = unreviewed[i : i + BATCH_SIZE]
