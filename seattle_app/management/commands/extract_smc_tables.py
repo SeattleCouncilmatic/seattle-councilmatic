@@ -93,6 +93,12 @@ When pages are provided in sequence and a table spans multiple pages, \
 return it as ONE table with all body rows merged in page order — don't \
 emit duplicate "Table A" entries for continuation pages.
 
+Tables with DIFFERENT titles are ALWAYS separate tables, even when they \
+appear on the same page or directly adjacent. "Table A" vs "Table B" vs \
+"Table B-1" vs "Table B-2" are distinct — emit one entry per distinct \
+title with rows scoped to that table only. Do NOT merge rows from \
+different tables into one entry.
+
 For each REAL data table, return:
 - title: the table's caption (e.g. "Table A for 6.420.100 License \
 Requirements for Operation of Power Boilers and Steam Engines")
@@ -203,10 +209,16 @@ def _needs_extraction(section: MunicipalCodeSection) -> bool:
     return bool(own_table_re.search(text))
 
 
-def _section_page_range(section: MunicipalCodeSection) -> tuple[int, int] | None:
+def _section_page_range(section: MunicipalCodeSection, pdf=None) -> tuple[int, int] | None:
     """Return (start_page, end_page) inclusive for `section`, where
     end_page is the page before the next section's start. Returns None
-    if `source_pdf_page` isn't set."""
+    if `source_pdf_page` isn't set.
+
+    If `pdf` is supplied, probe one page past the natural end: if it
+    still references this section by number (table continuation), extend
+    the range to include it. Tables routinely span across the boundary
+    where the next section begins — see 22.900B.020 (Table B-2 spilled
+    onto page 2664, the start of 22.900B.030)."""
     start = section.source_pdf_page
     if not start:
         return None
@@ -221,6 +233,17 @@ def _section_page_range(section: MunicipalCodeSection) -> tuple[int, int] | None
     # Cap span at 8 pages — protects against missing-next-section cases
     # where we'd otherwise scan to the end of the PDF.
     end = min(end, start + 7)
+
+    # Continuation probe: if the page just past `end` still mentions
+    # this section's number, the section's table likely spilled over.
+    if pdf is not None and end < start + 7 and end < len(pdf.pages):
+        try:
+            probe_text = pdf.pages[end].extract_text() or ""
+            if section.section_number in probe_text and "Table" in probe_text:
+                end += 1
+        except Exception:
+            pass
+
     return start, end
 
 
@@ -441,7 +464,7 @@ class Command(BaseCommand):
 
     def _process_section(self, client, model, pdf, section, dry):
         sn = section.section_number
-        page_range = _section_page_range(section)
+        page_range = _section_page_range(section, pdf=pdf)
         if not page_range:
             self.stderr.write(self.style.WARNING(
                 f"  {sn}: source_pdf_page not set; skipping"
