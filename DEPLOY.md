@@ -218,22 +218,36 @@ the next cron tick.
 
 ### Restore from backup
 
-```
+The DB role and database name are read from `.env`
+(`POSTGRES_USER` / `POSTGRES_DB`); the commands below pull them out so
+this works whatever names you set. Don't hard-code `postgres` here —
+the prod defaults are `councilmatic_app` / `councilmatic`, and a
+runbook that targets `postgres`/`postgres` would silently no-op against
+those.
+
+```bash
 cd /opt/seattle_councilmatic
+set -a && . ./.env && set +a   # exports POSTGRES_USER, POSTGRES_DB, etc.
 LATEST=$(ls -t backups/seattle_*.dump | head -1)
 
+# Stop the app + scheduler so nothing writes mid-restore.
+docker compose -f docker-compose.prod.yml stop app scheduler
+
 # Drop and recreate the DB (wipes current data — only do this if
-# you've already lost it).
+# you've already lost it). Runs as the postgres superuser, which the
+# image creates implicitly even when POSTGRES_USER is non-default.
 docker compose -f docker-compose.prod.yml exec postgres \
-    dropdb -U postgres postgres
+    dropdb -U postgres "$POSTGRES_DB"
 docker compose -f docker-compose.prod.yml exec postgres \
-    createdb -U postgres postgres
+    createdb -U postgres -O "$POSTGRES_USER" "$POSTGRES_DB"
 
 # Pipe the dump in. -j 2 parallelizes the restore (CPX21 has 3 vCPU).
 docker compose -f docker-compose.prod.yml exec -T postgres \
-    pg_restore -U postgres -d postgres -j 2 < "$LATEST"
+    pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" -j 2 < "$LATEST"
 
-# Re-run migrations in case the dump is older than the schema.
+# Re-run migrations in case the dump is older than the schema, then
+# bring services back up.
+docker compose -f docker-compose.prod.yml start app scheduler
 docker compose -f docker-compose.prod.yml exec app \
     python manage.py migrate
 ```
