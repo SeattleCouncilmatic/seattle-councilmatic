@@ -55,6 +55,7 @@ import anthropic
 import pdfplumber
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
+from django.db.models import Q
 
 from seattle_app.models import MunicipalCodeSection
 
@@ -174,6 +175,34 @@ def _scan_table_blocks(full_text: str) -> list[TableBlock]:
     return blocks
 
 
+def _needs_extraction(section: MunicipalCodeSection) -> bool:
+    """Return True if the section's `full_text` looks like it needs
+    Vision-based table extraction.
+
+    Two failure modes the parser produces:
+
+    * Has markdown table syntax (``| --- |``) but the body is too thin
+      (1-2 rows or fewer). The body cells got dispersed as orphan
+      paragraphs around the markdown block.
+    * Has table content captured as text-only (no markdown syntax) by
+      PR #59's earlier table-aware extraction. Detect via the
+      ``Table A for <this section's number>`` reference pattern in
+      prose. Cross-references to *other* sections' tables don't count
+      — they're SMC navigation links, not evidence that this section
+      has its own broken table.
+
+    Sections that already have a markdown table block with at least
+    ``GOOD_TABLE_BODY_ROWS`` body rows are considered fixed.
+    """
+    text = section.full_text or ""
+    blocks = _scan_table_blocks(text)
+    if blocks:
+        max_body = max(b.body_row_count for b in blocks)
+        return max_body < GOOD_TABLE_BODY_ROWS
+    own_table_re = re.compile(r"Table [A-Z] for " + re.escape(section.section_number))
+    return bool(own_table_re.search(text))
+
+
 def _section_page_range(section: MunicipalCodeSection) -> tuple[int, int] | None:
     """Return (start_page, end_page) inclusive for `section`, where
     end_page is the page before the next section's start. Returns None
@@ -256,16 +285,32 @@ def _splice_tables(full_text: str, tables_md: list[str]) -> str:
     `|` line to the last) with the joined `tables_md`. If multiple
     table blocks exist with non-table content between them, that
     intervening content is dropped — those are typically the "orphan
-    body cells" the parser emitted when it lost the table body."""
+    body cells" the parser emitted when it lost the table body.
+
+    If `full_text` has no existing `|...|` lines (the section's tables
+    were captured by PR #59's text-extraction path rather than as
+    markdown — see 23.47A.004, 23.54.015), append the new markdown at
+    a sensible insertion point: just before the trailing ordinance
+    citation block (`(Ord. NNNNNN, …)`) if one exists, otherwise at
+    the end of the section text."""
+    new_block = "\n\n".join(tables_md)
     lines = full_text.split("\n")
     table_line_idxs = [i for i, line in enumerate(lines) if _TABLE_ROW_RE.match(line)]
-    if not table_line_idxs:
-        return full_text  # caller should have skipped this section
-    first = table_line_idxs[0]
-    last = table_line_idxs[-1]
-    new_block = "\n\n".join(tables_md)
-    rebuilt = lines[:first] + [new_block] + lines[last + 1:]
-    return "\n".join(rebuilt)
+    if table_line_idxs:
+        first = table_line_idxs[0]
+        last = table_line_idxs[-1]
+        rebuilt = lines[:first] + [new_block] + lines[last + 1:]
+        return "\n".join(rebuilt)
+
+    # No existing markdown — append. The trailing ordinance-citation
+    # block is the natural separator: tables go before it, citations
+    # stay at the end.
+    cite_match = re.search(r"\n\(Ord\.\s+\d", full_text)
+    if cite_match:
+        head = full_text[: cite_match.start()].rstrip()
+        tail = full_text[cite_match.start():]
+        return f"{head}\n\n{new_block}\n{tail}"
+    return f"{full_text.rstrip()}\n\n{new_block}\n"
 
 
 def _merge_continuation_tables(tables: list[dict]) -> list[dict]:
@@ -355,7 +400,19 @@ class Command(BaseCommand):
 
     def _select_sections(self, options) -> list[MunicipalCodeSection]:
         """Pick sections to process. Either the single one requested, or
-        all sections with broken table syntax."""
+        every section with table content that needs Vision extraction.
+
+        Two populations qualify for `--all`:
+
+        * Sections with a markdown table block that has too few body
+          rows (the 86 sections produced by the parser's general
+          markdown-table path — these have ``| ---`` syntax but bodies
+          got dispersed as orphan paragraphs).
+        * Sections with table content captured as text-only by PR #59's
+          earlier table-aware extraction (23.47A.004 / 23.54.015 and
+          similar) — these reference their own table by name (``Table A
+          for 23.47A.004 …``) but never produced markdown syntax.
+        """
         if options["section"]:
             try:
                 s = MunicipalCodeSection.objects.get(section_number=options["section"])
@@ -363,19 +420,19 @@ class Command(BaseCommand):
                 raise CommandError(f"No section {options['section']!r}.")
             return [s]
 
-        # --all path: filter to sections with broken tables.
         qs = (
             MunicipalCodeSection.objects
-            .filter(full_text__contains="| ---")
+            .filter(
+                Q(full_text__contains="| ---")
+                | Q(full_text__regex=r"Table [A-Z] for ")
+            )
             .order_by("section_number")
         )
         force = options["force"]
         limit = options["limit"]
         out: list[MunicipalCodeSection] = []
         for s in qs:
-            blocks = _scan_table_blocks(s.full_text)
-            max_body = max((b.body_row_count for b in blocks), default=0)
-            if not force and max_body >= GOOD_TABLE_BODY_ROWS:
+            if not force and not _needs_extraction(s):
                 continue
             out.append(s)
             if limit and len(out) >= limit:
