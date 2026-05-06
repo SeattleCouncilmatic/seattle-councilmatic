@@ -87,12 +87,18 @@ Built on:
 - [pdfplumber](https://github.com/jsvine/pdfplumber) — SMC PDF extraction
 - [Anthropic Claude](https://www.anthropic.com/) — plain-language summaries
 - [React](https://react.dev/) + [Vite](https://vitejs.dev/) — SPA frontend
+- [Leaflet](https://leafletjs.com/) — interactive maps
 
 Data sources:
 
 - [Seattle City Council](https://www.seattle.gov/council)
 - [Seattle Legistar](https://seattle.legistar.com/)
 - [Seattle Municipal Code (PDF)](https://www.seattle.gov/cityclerk/codes/seattle-municipal-code) (linked from every SMC page)
+
+Map tiles:
+
+- Basemap tiles by [CARTO](https://carto.com/attributions) (Voyager raster), under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)
+- Map data from [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, under [ODbL](https://opendatacommons.org/licenses/odbl/)
 
 ## License
 
