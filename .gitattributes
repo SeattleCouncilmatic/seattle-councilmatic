@@ -4,3 +4,9 @@
 *.sh text eol=lf
 docker-entrypoint.sh text eol=lf
 scheduler-crontab text eol=lf
+
+# Generated lookup table — collapse in PR diffs and exclude from
+# language stats. Regeneratable via `seed_split_decisions`, but
+# committed so the cleanup pipeline is deterministic from a fresh
+# clone (no API spend required).
+seattle_app/data/split_decisions.json linguist-generated=true
