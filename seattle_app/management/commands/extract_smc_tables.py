@@ -303,7 +303,56 @@ def _render_table_md(table: dict) -> str:
     return "\n".join(out)
 
 
-def _splice_tables(full_text: str, tables_md: list[str]) -> str:
+_MIN_CELL_MATCH_LEN = 5
+
+
+def _orphan_cells_set(tables: list[dict]) -> set[str]:
+    """Cell strings (≥ ``_MIN_CELL_MATCH_LEN`` chars) extracted from the
+    structured tables, used to recognize the parser's dispersed
+    leftovers in prose. Skips trivial cells like ``""`` or ``"P"``."""
+    out: set[str] = set()
+    for t in tables:
+        for row in (t.get("header_rows") or []) + (t.get("body_rows") or []):
+            for c in row:
+                cell = c.strip()
+                if len(cell) >= _MIN_CELL_MATCH_LEN:
+                    out.add(cell)
+    return out
+
+
+def _strip_orphan_lines(lines: list[str], from_idx: int, cells: set[str]) -> list[str]:
+    """Remove lines starting at ``from_idx`` whose content is dominated by
+    table-cell substrings (the parser's broken-table fallout). Stop at
+    the first line that doesn't look like cell content — that's where
+    real prose resumes.
+
+    Returns a new list with orphan lines elided. Blank lines inside the
+    orphan run are also removed; they preserve no useful structure."""
+    if not cells:
+        return lines
+    keep = lines[:from_idx]
+    i = from_idx
+    while i < len(lines):
+        line = lines[i].strip()
+        if not line:
+            # Empty lines inside the orphan run are dropped silently.
+            # Once we exit the run we'll re-add a single separating
+            # blank.
+            i += 1
+            continue
+        if any(c in line for c in cells):
+            i += 1
+            continue
+        break
+    # Re-attach a single blank line if anything remains to keep
+    # paragraph spacing intact.
+    if i < len(lines):
+        keep.append("")
+        keep.extend(lines[i:])
+    return keep
+
+
+def _splice_tables(full_text: str, tables: list[dict], tables_md: list[str]) -> str:
     """Replace the contiguous table-region in `full_text` (from the first
     `|` line to the last) with the joined `tables_md`. If multiple
     table blocks exist with non-table content between them, that
@@ -315,25 +364,64 @@ def _splice_tables(full_text: str, tables_md: list[str]) -> str:
     markdown — see 23.47A.004, 23.54.015), append the new markdown at
     a sensible insertion point: just before the trailing ordinance
     citation block (`(Ord. NNNNNN, …)`) if one exists, otherwise at
-    the end of the section text."""
+    the end of the section text.
+
+    After splicing in either path, scan past the new markdown for
+    "orphan" lines whose content is dominated by cell strings from
+    the extracted tables — those are the parser's leftover dispersed
+    body cells (e.g. 22.900B.020's `8½" × 11"  $0.85 per printed page`
+    that lived in prose alongside the broken markdown). Strip them
+    so the section doesn't double-render the same data."""
     new_block = "\n\n".join(tables_md)
+    new_block_lines = new_block.split("\n")
+    cells = _orphan_cells_set(tables)
     lines = full_text.split("\n")
     table_line_idxs = [i for i, line in enumerate(lines) if _TABLE_ROW_RE.match(line)]
+
     if table_line_idxs:
         first = table_line_idxs[0]
         last = table_line_idxs[-1]
-        rebuilt = lines[:first] + [new_block] + lines[last + 1:]
-        return "\n".join(rebuilt)
+        # Splice in the new block, then strip orphans starting just
+        # past where the new block ends.
+        head = lines[:first]
+        tail = lines[last + 1:]
+        rebuilt = head + new_block_lines + tail
+        cleaned = _strip_orphan_lines(rebuilt, len(head) + len(new_block_lines), cells)
+        return "\n".join(cleaned)
 
-    # No existing markdown — append. The trailing ordinance-citation
-    # block is the natural separator: tables go before it, citations
-    # stay at the end.
+    # No existing markdown — append before the trailing ordinance-
+    # citation block when one exists, otherwise at the end.
     cite_match = re.search(r"\n\(Ord\.\s+\d", full_text)
     if cite_match:
-        head = full_text[: cite_match.start()].rstrip()
-        tail = full_text[cite_match.start():]
-        return f"{head}\n\n{new_block}\n{tail}"
-    return f"{full_text.rstrip()}\n\n{new_block}\n"
+        head_text = full_text[: cite_match.start()].rstrip()
+        tail_text = full_text[cite_match.start():].lstrip("\n")
+        # Strip orphans from the head before reattaching the citation
+        # tail. Walk backward through head_text for cell-heavy lines.
+        head_lines = head_text.split("\n")
+        head_lines = _strip_trailing_orphans(head_lines, cells)
+        return "\n".join(head_lines) + "\n\n" + new_block + "\n" + tail_text
+    head_lines = full_text.rstrip().split("\n")
+    head_lines = _strip_trailing_orphans(head_lines, cells)
+    return "\n".join(head_lines) + "\n\n" + new_block + "\n"
+
+
+def _strip_trailing_orphans(lines: list[str], cells: set[str]) -> list[str]:
+    """Walk backward through ``lines`` removing trailing orphan-cell
+    lines (no `|...|` markdown present, so orphans live at the end of
+    the body before the citation footer or EOF)."""
+    if not cells:
+        return lines
+    end = len(lines)
+    while end > 0:
+        line = lines[end - 1].strip()
+        if not line:
+            end -= 1
+            continue
+        if any(c in line for c in cells):
+            end -= 1
+            continue
+        break
+    return lines[:end]
 
 
 def _merge_continuation_tables(tables: list[dict]) -> list[dict]:
@@ -510,7 +598,7 @@ class Command(BaseCommand):
             t["body_rows"] = _normalize_cell_counts(t["body_rows"])
 
         tables_md = [_render_table_md(t) for t in tables]
-        new_full_text = _splice_tables(section.full_text, tables_md)
+        new_full_text = _splice_tables(section.full_text, tables, tables_md)
 
         # Report.
         self.stdout.write(f"  extracted {len(tables)} table(s):")
