@@ -182,9 +182,13 @@ def _scan_table_blocks(full_text: str) -> list[TableBlock]:
     return blocks
 
 
-# Matches one "table code" — the letter (and optional `-N` suffix) Markdown
-# tables are conventionally identified by, e.g. "A", "B", "B-1", "A-2".
-_TABLE_CODE_RE = re.compile(r"Table\s+([A-Z][\w-]{0,5})")
+# Matches one "table code" — a letter and optional `-N`/`.N` suffix
+# where N is at most 2 digits. Matches "A", "B", "B-1", "A.2".
+# Excludes form-style identifiers like "Table C-4915" (a Washington
+# State Department of Ecology form code referenced in 22.602.045) that
+# would otherwise pollute the expected-codes set.
+_TABLE_CODE_PATTERN = r"[A-Z](?:[-.]\d{1,2})?"
+_TABLE_CODE_RE = re.compile(r"Table\s+(" + _TABLE_CODE_PATTERN + r")")
 
 
 def _expected_table_codes(section: MunicipalCodeSection) -> set[str]:
@@ -195,9 +199,10 @@ def _expected_table_codes(section: MunicipalCodeSection) -> set[str]:
     appearing in a different section) don't count — we anchor on this
     section's number."""
     pat = re.compile(
-        r"Table\s+([A-Z][\w-]{0,5})\s+for\s+" + re.escape(section.section_number)
+        r"Table\s+(" + _TABLE_CODE_PATTERN + r")\s+for\s+"
+        + re.escape(section.section_number)
     )
-    return {m.group(1).rstrip("-") for m in pat.finditer(section.full_text or "")}
+    return {m.group(1) for m in pat.finditer(section.full_text or "")}
 
 
 def _found_table_codes(tables: list[dict]) -> set[str]:
@@ -491,7 +496,7 @@ def _merge_continuation_tables(tables: list[dict]) -> list[dict]:
     order: list[str] = []
     for t in tables:
         title = (t.get("title") or "").strip()
-        m = re.match(r"(Table\s+[A-Z][\w-]{0,5})", title)
+        m = re.match(r"(Table\s+" + _TABLE_CODE_PATTERN + r")\b", title)
         key = m.group(1).upper() if m else title.upper()
         if key in by_key:
             existing = by_key[key]
