@@ -101,6 +101,7 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data       # Let's Encrypt certs + ACME state
       - caddy_config:/config
+      - ./_data:/app/_data:ro
     restart: unless-stopped
 
 volumes:
