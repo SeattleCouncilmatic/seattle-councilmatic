@@ -182,6 +182,33 @@ def _scan_table_blocks(full_text: str) -> list[TableBlock]:
     return blocks
 
 
+# Matches a section number anywhere — `2.04.634`, `23.47A.004`,
+# `22.900D.150`. Used to detect when a table title belongs to a
+# different section than the one we're processing.
+_SN_REF_RE = re.compile(r"\bfor\s+(\d+\.\d+[A-Z]*\.\d+)\b")
+
+
+def _scope_tables_to_section(tables: list[dict], section_number: str) -> list[dict]:
+    """Drop tables whose title explicitly references a DIFFERENT
+    section's number. Cross-section pollution happens when the
+    page-range probe pulls in a page shared with the next section
+    (see 22.900D.150 vs 22.900D.160 — Table D-16 belongs to 160 but
+    its caption appears on a page included in 150's range).
+
+    Tables without a `for <section_number>` reference in the title are
+    kept — ambiguous, almost always ours by virtue of being on our
+    page range."""
+    out: list[dict] = []
+    for t in tables:
+        title = t.get("title") or ""
+        m = _SN_REF_RE.search(title)
+        if m and m.group(1) != section_number:
+            # Title explicitly references another section. Drop.
+            continue
+        out.append(t)
+    return out
+
+
 # Matches one "table code" — a letter and optional `-N`/`.N` suffix
 # where N is at most 2 digits. Matches "A", "B", "B-1", "A.2".
 # Excludes form-style identifiers like "Table C-4915" (a Washington
@@ -647,6 +674,7 @@ class Command(BaseCommand):
             ))
             return
 
+        tables = _scope_tables_to_section(tables, sn)
         tables = _merge_continuation_tables(tables)
         used_model = model
 
@@ -667,6 +695,7 @@ class Command(BaseCommand):
             ))
             try:
                 sonnet_tables = self._extract_tables(client, FALLBACK_MODEL, images)
+                sonnet_tables = _scope_tables_to_section(sonnet_tables, sn)
                 sonnet_tables = _merge_continuation_tables(sonnet_tables)
             except Exception as e:
                 self.stderr.write(self.style.WARNING(
