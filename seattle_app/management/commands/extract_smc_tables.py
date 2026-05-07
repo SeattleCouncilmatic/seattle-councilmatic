@@ -63,6 +63,7 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+FALLBACK_MODEL = "claude-sonnet-4-6"
 
 # Pages are rendered at 150 DPI — empirically a good balance of legibility
 # (small-font cells in 23.47A.004's permission matrix still readable) and
@@ -179,6 +180,56 @@ def _scan_table_blocks(full_text: str) -> list[TableBlock]:
         body = max(0, len(cur_rows) - sep_idx - 1) if sep_idx >= 0 else 0
         blocks.append(TableBlock(cur_start, len(lines) - 1, body))
     return blocks
+
+
+# Matches one "table code" — the letter (and optional `-N` suffix) Markdown
+# tables are conventionally identified by, e.g. "A", "B", "B-1", "A-2".
+_TABLE_CODE_RE = re.compile(r"Table\s+([A-Z][\w-]{0,5})")
+
+
+def _expected_table_codes(section: MunicipalCodeSection) -> set[str]:
+    """Find all `Table X for <this section>` references in the section's
+    prose. Returns the table codes (e.g. ``{'A'}``, ``{'B-1', 'B-2'}``).
+
+    Cross-references to OTHER sections' tables (``Table A for 23.47A.004``
+    appearing in a different section) don't count — we anchor on this
+    section's number."""
+    pat = re.compile(
+        r"Table\s+([A-Z][\w-]{0,5})\s+for\s+" + re.escape(section.section_number)
+    )
+    return {m.group(1).rstrip("-") for m in pat.finditer(section.full_text or "")}
+
+
+def _found_table_codes(tables: list[dict]) -> set[str]:
+    """Extract the table codes from extracted tables' titles."""
+    out: set[str] = set()
+    for t in tables:
+        m = _TABLE_CODE_RE.search(t.get("title") or "")
+        if m:
+            out.add(m.group(1).rstrip("-"))
+    return out
+
+
+def _needs_fallback(section: MunicipalCodeSection, tables: list[dict]) -> tuple[bool, str]:
+    """Decide whether to retry with the heavier model. Returns
+    ``(should_retry, reason)``.
+
+    Two triggers:
+
+    * Haiku returned no tables at all from a section that explicitly
+      references its own tables in prose.
+    * Haiku returned fewer distinct table codes than the section
+      references — typical merged-tables case (B-1 + B-2 collapsed into
+      one "B-1" entry; section text mentions B-2 separately).
+    """
+    expected = _expected_table_codes(section)
+    found = _found_table_codes(tables)
+    if not tables and expected:
+        return True, f"haiku returned 0 tables but section mentions {sorted(expected)}"
+    missing = expected - found
+    if missing:
+        return True, f"missing table codes: {sorted(missing)} (haiku found {sorted(found)})"
+    return False, ""
 
 
 def _needs_extraction(section: MunicipalCodeSection) -> bool:
@@ -427,14 +478,20 @@ def _strip_trailing_orphans(lines: list[str], cells: set[str]) -> list[str]:
 def _merge_continuation_tables(tables: list[dict]) -> list[dict]:
     """Tables emitted across multiple pages sometimes come back as
     multiple entries with the same "Table X" prefix. Merge them by
-    matching the leading "Table [letter]" prefix, concatenating body
-    rows in order. Also drops empty-body tables (continuation
-    artifacts where Haiku saw the header but no rows)."""
+    matching the leading "Table [code]" prefix (where code is a letter
+    plus any `-N` / `.N` suffix), concatenating body rows in order.
+    Also drops empty-body tables (continuation artifacts where the
+    model saw the header but no rows).
+
+    The code-with-suffix match is critical for sections like
+    22.900B.020 where Table B-1 and Table B-2 are distinct tables —
+    a bare-letter match would collapse them.
+    """
     by_key: dict[str, dict] = {}
     order: list[str] = []
     for t in tables:
         title = (t.get("title") or "").strip()
-        m = re.match(r"(Table\s+[A-Z]+)", title)
+        m = re.match(r"(Table\s+[A-Z][\w-]{0,5})", title)
         key = m.group(1).upper() if m else title.upper()
         if key in by_key:
             existing = by_key[key]
@@ -506,7 +563,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Processing {len(sections)} section(s) with {model}...")
 
         with pdfplumber.open(settings.SMC_PDF_PATH) as pdf:
-            for i, section in enumerate(sections):
+            for section in sections:
                 self._process_section(client, model, pdf, section, dry)
 
     def _select_sections(self, options) -> list[MunicipalCodeSection]:
@@ -586,6 +643,43 @@ class Command(BaseCommand):
             return
 
         tables = _merge_continuation_tables(tables)
+        used_model = model
+
+        # Sonnet fallback for two failure modes Haiku exhibits on tricky
+        # multi-table sections:
+        #   * Returns 0 tables when the section's prose explicitly names
+        #     its own tables (Vision didn't recognize the layout).
+        #   * Returns fewer distinct tables than referenced — typically
+        #     "Table B-1" + "Table B-2" merged into one entry, with
+        #     "Table B-2" still mentioned in the section's prose.
+        # Skip the fallback entirely when the user explicitly chose a
+        # model via --model.
+        retry, reason = _needs_fallback(section, tables)
+        user_chose_model = model != DEFAULT_MODEL
+        if retry and not user_chose_model:
+            self.stdout.write(self.style.NOTICE(
+                f"  {sn}: falling back to {FALLBACK_MODEL} — {reason}"
+            ))
+            try:
+                sonnet_tables = self._extract_tables(client, FALLBACK_MODEL, images)
+                sonnet_tables = _merge_continuation_tables(sonnet_tables)
+            except Exception as e:
+                self.stderr.write(self.style.WARNING(
+                    f"  {sn}: fallback failed ({type(e).__name__}: {e}); using Haiku output"
+                ))
+                sonnet_tables = []
+            if sonnet_tables:
+                # Take Sonnet's result if it covers strictly more table
+                # codes than Haiku — the merged-tables case where Haiku
+                # collapsed two tables into one. If Sonnet covers fewer
+                # or the same, keep Haiku's output (it's not worse and
+                # might have richer body content per table).
+                sonnet_codes = _found_table_codes(sonnet_tables)
+                haiku_codes = _found_table_codes(tables)
+                if len(sonnet_codes) > len(haiku_codes) or (not tables and sonnet_tables):
+                    tables = sonnet_tables
+                    used_model = FALLBACK_MODEL
+
         if not tables:
             self.stdout.write(self.style.WARNING(
                 f"  {sn}: model returned 0 tables — leaving full_text unchanged"
@@ -600,8 +694,9 @@ class Command(BaseCommand):
         tables_md = [_render_table_md(t) for t in tables]
         new_full_text = _splice_tables(section.full_text, tables, tables_md)
 
-        # Report.
-        self.stdout.write(f"  extracted {len(tables)} table(s):")
+        # Report (note which model produced the kept output).
+        model_tag = " (sonnet fallback)" if used_model == FALLBACK_MODEL else ""
+        self.stdout.write(f"  extracted {len(tables)} table(s){model_tag}:")
         for t in tables:
             self.stdout.write(
                 f"    {t['title'][:80]} — "
