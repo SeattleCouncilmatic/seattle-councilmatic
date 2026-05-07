@@ -41,6 +41,18 @@ Parser corpus state (post-fix re-parse 2026-04-26 after `93cb885`): 7,435 sectio
 
 ## Done
 
+### Parser — strip residual table dumps from Vision-extracted sections — committed 2026-05-07
+
+Follow-up to #167 (Vision table extraction). 20 sections still rendered with the parser's broken table-as-text dump above the new markdown table — the orphan-strip heuristic in `_splice_tables` was too weak to catch them. Worst offender: 23.47A.004 (~10 KB of mangled text above the use-permission matrix); also 22.602.045 (30 KB), 23.49.242, 25.11.050, etc.
+
+**Why the original orphan-strip missed them.** `_strip_trailing_orphans` walks backward through the head text, removing lines whose content contains a 5+-char cell substring from the extracted table, and stops at the first non-match. The failure mode: the parser-broken dump is interleaved with footnote-text fragments (`'21A' / 'recycling use that is located on the same...'`) that don't match any structured cell — the backward walk halts on the first such line and leaves the rest of the dump in place. On 23.47A.004 it stripped 0 of 275 dump lines.
+
+**Fix.** Switch the no-existing-markdown branch of `_splice_tables` to a structural-marker chop: find the first occurrence of either a standalone `Table [A-Z](?:[-.]\d{1,2})? for$` line or a `Footnotes to Table [A-Z]` line, and remove everything from there. Both markers are unique to the parser's column-major dump output — verified zero false positives across 7,429 sections (in legitimate prose `Table A for` is always followed by the section number on the same line, never appears as a standalone). The cell-substring backward walk stays as a fallback when no structural marker is present.
+
+**Second bug:** Vision returned KEY/legend cell-code definitions (e.g. `^10= Permitted, business establishments limited to 10,000 square feet…`) inside the `footnotes` array on 23.47A.004, producing a duplicate KEY block that rendered alongside the legitimate `_KEY_` heading. Filter at extract time and during the cleanup pass: drop footnote entries matching `^\^[A-Z0-9][A-Z0-9-]{0,8}\s*=\s` (caret-prefix is the discriminator — caretless `_N = ..._` lines are the legitimate KEY rendering on 14 other sections that have no separate `_KEY_` heading and need to keep them). Prompt also updated to discourage the model from emitting KEY entries as footnotes in the first place.
+
+**Backfill.** New `--clean-existing` flag on `extract_smc_tables` re-applies both strips to already-saved `full_text` rows without calling Vision. Idempotent. 20 sections updated in this pass; ~80 KB of mangled text removed corpus-wide.
+
 ### Ops — production deployment scaffold for Hetzner — committed 2026-05-03
 
 First-time production deploy artifacts for `www.seattlecouncilmatic.org` on a Hetzner CPX21 (3 vCPU / 4 GB / 80 GB). One-VPS layout: Caddy + gunicorn + PostGIS + scheduler all in `docker-compose.prod.yml` on the same host.

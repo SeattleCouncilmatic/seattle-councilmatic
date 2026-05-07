@@ -105,7 +105,12 @@ For each REAL data table, return:
 Requirements for Operation of Power Boilers and Steam Engines")
 - header_rows: column header rows (sometimes multi-row)
 - body_rows: data rows
-- footnotes: any footnote text directly tied to the table
+- footnotes: ONLY numbered superscript notes directly tied to the table \
+(e.g. "^1 In pedestrian-designated zones..."). Do NOT include KEY/legend \
+entries that define cell codes (e.g. "P = Permitted", "X = Prohibited", \
+"10 = Permitted, business establishments limited to 10,000 square feet"). \
+KEY entries are not footnotes — omit them entirely; the section text \
+preserves them separately.
 
 Each row is an array of cell strings. All rows in a single table must \
 have the same number of cells; pad with empty strings where the source \
@@ -386,6 +391,84 @@ def _render_table_md(table: dict) -> str:
     return "\n".join(out)
 
 
+# A "footnote" string the model returned that's actually a KEY/legend cell-
+# code definition mistakenly given a superscript prefix: `^N=` style with a
+# short code (letter or 1-2 digit number, optionally with a `-N` suffix)
+# followed by ` = ` and the definition text. The legitimate `_KEY_`
+# block (which has entries WITHOUT the caret) is left alone — the caret
+# prefix is what identifies the bogus duplicate that appears in the
+# footnotes section above the real KEY block (see 23.47A.004).
+_LEGEND_FOOTNOTE_RE = re.compile(r"^\s*\^[A-Z0-9][A-Z0-9-]{0,8}\s*=\s")
+# Same pattern wrapped in the renderer's `_<text>_` italic markers — used
+# to scrub already-saved `full_text` rows during the cleanup pass.
+_LEGEND_RENDERED_RE = re.compile(
+    r"^_\s*\^[A-Z0-9][A-Z0-9-]{0,8}\s*=\s.*_\s*$"
+)
+
+
+def _drop_legend_footnotes(footnotes: list[str]) -> list[str]:
+    return [fn for fn in footnotes if not _LEGEND_FOOTNOTE_RE.match(fn or "")]
+
+
+def _clean_existing_full_text(full_text: str) -> str:
+    """Apply the new strips to a `full_text` value already in the DB.
+
+    Two operations:
+
+    * Chop the parser-broken table dump out of the prose BEFORE the
+      first markdown table block (Issue 1).
+    * Drop rendered footnote lines that are actually KEY/legend
+      entries — `_^10= Permitted, ..._` style — from the post-table
+      tail (Issue 2).
+
+    Returns the original text unchanged if neither pattern is found, or
+    if no markdown table is present (Vision either hasn't run or
+    returned 0 tables — nothing safe to do)."""
+    lines = full_text.split("\n")
+    # Markdown table starts at the first pipe line (the title row, before
+    # any header / separator rows). Anchoring on the separator would
+    # orphan the title and header rows above it.
+    has_separator = any(
+        _TABLE_ROW_RE.match(line) and "---" in line for line in lines
+    )
+    if not has_separator:
+        return full_text
+    first_md = next(
+        i for i, line in enumerate(lines) if _TABLE_ROW_RE.match(line)
+    )
+
+    head = "\n".join(lines[:first_md])
+    rest_lines = lines[first_md:]
+    changed = False
+
+    dump_start = _find_dump_start(head)
+    if dump_start is not None:
+        head = head[:dump_start].rstrip()
+        changed = True
+
+    cleaned_rest = [line for line in rest_lines
+                    if not _LEGEND_RENDERED_RE.match(line)]
+    if len(cleaned_rest) != len(rest_lines):
+        changed = True
+        # Collapse any run of 2+ blank lines the filter left behind.
+        collapsed: list[str] = []
+        blank_run = 0
+        for line in cleaned_rest:
+            if line.strip() == "":
+                blank_run += 1
+                if blank_run > 1:
+                    continue
+            else:
+                blank_run = 0
+            collapsed.append(line)
+        cleaned_rest = collapsed
+
+    if not changed:
+        return full_text
+
+    return head + "\n\n" + "\n".join(cleaned_rest)
+
+
 _MIN_CELL_MATCH_LEN = 5
 
 
@@ -435,6 +518,30 @@ def _strip_orphan_lines(lines: list[str], from_idx: int, cells: set[str]) -> lis
     return keep
 
 
+# Standalone "Table X for" line — the parser emits this when a multi-page
+# table layout was captured column-major and the multi-line caption (e.g.
+# "Table A for / 23.47A.004 / Uses in Commercial zones / Uses") got broken
+# into separate lines. In legitimate prose "Table A for" is always followed
+# by the section number on the same line, so a bare "Table A for$" is a
+# reliable dump-start marker. Verified zero false positives across 7,429
+# sections (no wrap case begins a line with "Table X for" + nothing else).
+_DUMP_HEADER_RE = re.compile(r"^Table [A-Z](?:[-.]\d{1,2})? for\s*$", re.MULTILINE)
+# "Footnotes to Table X" — parser-emitted footer for a captured-as-text
+# table's footnote block.
+_DUMP_FOOTER_RE = re.compile(r"^Footnotes to Table [A-Z]", re.MULTILINE)
+
+
+def _find_dump_start(text: str) -> int | None:
+    """Return the offset where the parser-broken table dump begins in
+    ``text``, or None if no structural marker is present. We anchor on
+    the first occurrence of either marker so the entire dump (header
+    rows, body fragments, KEY block, footnote fragments) gets chopped
+    in one cut, regardless of which marker comes first."""
+    candidates = [m.start() for rx in (_DUMP_HEADER_RE, _DUMP_FOOTER_RE)
+                  if (m := rx.search(text))]
+    return min(candidates) if candidates else None
+
+
 def _splice_tables(full_text: str, tables: list[dict], tables_md: list[str]) -> str:
     """Replace the contiguous table-region in `full_text` (from the first
     `|` line to the last) with the joined `tables_md`. If multiple
@@ -472,20 +579,30 @@ def _splice_tables(full_text: str, tables: list[dict], tables_md: list[str]) -> 
         cleaned = _strip_orphan_lines(rebuilt, len(head) + len(new_block_lines), cells)
         return "\n".join(cleaned)
 
-    # No existing markdown — append before the trailing ordinance-
-    # citation block when one exists, otherwise at the end.
+    # No existing markdown — split into head/tail at the citation, then
+    # chop the parser-broken table dump from head_text.
     cite_match = re.search(r"\n\(Ord\.\s+\d", full_text)
     if cite_match:
         head_text = full_text[: cite_match.start()].rstrip()
-        tail_text = full_text[cite_match.start():].lstrip("\n")
-        # Strip orphans from the head before reattaching the citation
-        # tail. Walk backward through head_text for cell-heavy lines.
-        head_lines = head_text.split("\n")
-        head_lines = _strip_trailing_orphans(head_lines, cells)
-        return "\n".join(head_lines) + "\n\n" + new_block + "\n" + tail_text
-    head_lines = full_text.rstrip().split("\n")
-    head_lines = _strip_trailing_orphans(head_lines, cells)
-    return "\n".join(head_lines) + "\n\n" + new_block + "\n"
+        tail_text = "\n" + full_text[cite_match.start():].lstrip("\n")
+    else:
+        head_text = full_text.rstrip()
+        tail_text = ""
+
+    # Prefer the structural-marker chop over the cell-substring backward
+    # walk. The walk gives up too early on dumps interleaved with
+    # footnote-text fragments (the cells set doesn't include footnote
+    # prose, so backward iteration halts at the first footnote
+    # fragment and leaves the rest of the dump in place — see
+    # 23.47A.004, where the walk stripped 0 lines of a 275-line dump).
+    dump_start = _find_dump_start(head_text)
+    if dump_start is not None:
+        head_text = head_text[:dump_start].rstrip()
+    else:
+        head_lines = _strip_trailing_orphans(head_text.split("\n"), cells)
+        head_text = "\n".join(head_lines)
+
+    return head_text + "\n\n" + new_block + tail_text + "\n"
 
 
 def _strip_trailing_orphans(lines: list[str], cells: set[str]) -> list[str]:
@@ -576,10 +693,24 @@ class Command(BaseCommand):
             action="store_true",
             help="Re-process sections that already look fixed (≥3 body rows).",
         )
+        parser.add_argument(
+            "--clean-existing",
+            action="store_true",
+            help=(
+                "Don't call Vision; instead scan every section in the DB "
+                "for residual parser-broken table dumps above the markdown "
+                "table or KEY-as-footnote rendered lines after it, and "
+                "rewrite full_text in place. Use after the extraction "
+                "logic changes to backfill already-extracted sections."
+            ),
+        )
 
     def handle(self, *args, **options):
+        if options["clean_existing"]:
+            self._clean_existing(options)
+            return
         if not options["section"] and not options["all"]:
-            raise CommandError("Pass --section <N> or --all.")
+            raise CommandError("Pass --section <N>, --all, or --clean-existing.")
         if not settings.ANTHROPIC_API_KEY:
             raise CommandError("ANTHROPIC_API_KEY is not configured.")
 
@@ -597,6 +728,38 @@ class Command(BaseCommand):
         with pdfplumber.open(settings.SMC_PDF_PATH) as pdf:
             for section in sections:
                 self._process_section(client, model, pdf, section, dry)
+
+    def _clean_existing(self, options):
+        """Backfill pass: re-strip parser-broken dumps and KEY-as-footnote
+        lines from sections already in the DB. Idempotent — sections
+        without either pattern are left alone."""
+        dry = options["dry_run"]
+        section_filter = options.get("section")
+        qs = MunicipalCodeSection.objects.exclude(full_text="").exclude(full_text__isnull=True)
+        if section_filter:
+            qs = qs.filter(section_number=section_filter)
+        qs = qs.only("id", "section_number", "full_text").order_by("section_number")
+
+        changed = 0
+        scanned = 0
+        for s in qs:
+            scanned += 1
+            new_text = _clean_existing_full_text(s.full_text)
+            if new_text == s.full_text:
+                continue
+            delta = len(s.full_text) - len(new_text)
+            self.stdout.write(
+                f"  {s.section_number}: stripped {delta} chars "
+                f"({len(s.full_text)} → {len(new_text)})"
+            )
+            changed += 1
+            if not dry:
+                s.full_text = new_text
+                s.save(update_fields=["full_text"])
+        verb = "would update" if dry else "updated"
+        self.stdout.write(self.style.SUCCESS(
+            f"\nScanned {scanned} section(s); {verb} {changed}."
+        ))
 
     def _select_sections(self, options) -> list[MunicipalCodeSection]:
         """Pick sections to process. Either the single one requested, or
@@ -720,10 +883,12 @@ class Command(BaseCommand):
             ))
             return
 
-        # Normalize cell counts within each table.
+        # Normalize cell counts within each table; drop KEY/legend entries
+        # the model occasionally returns inside `footnotes`.
         for t in tables:
             t["header_rows"] = _normalize_cell_counts(t["header_rows"])
             t["body_rows"] = _normalize_cell_counts(t["body_rows"])
+            t["footnotes"] = _drop_legend_footnotes(t.get("footnotes") or [])
 
         tables_md = [_render_table_md(t) for t in tables]
         new_full_text = _splice_tables(section.full_text, tables, tables_md)
