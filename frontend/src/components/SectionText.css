@@ -23,3 +23,45 @@
   color: #374151;
   margin-right: 0.25rem;
 }
+
+.smc-text-table-wrap {
+  margin: 1em 0;
+  overflow-x: auto;
+}
+
+.smc-text-table-wrap:focus-visible {
+  outline: 2px solid #2E3D5B;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.smc-text-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.95rem;
+}
+
+.smc-text-table th,
+.smc-text-table td {
+  border: 1px solid #d1d5db;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.smc-text-table th {
+  background-color: #f3f4f6;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.smc-text-table tbody tr:nth-child(even) td {
+  background-color: #fafafa;
+}
+
+.smc-text-footnote {
+  font-size: 0.9rem;
+  color: #4b5563;
+  font-style: italic;
+  margin: 0.25em 0;
+}
