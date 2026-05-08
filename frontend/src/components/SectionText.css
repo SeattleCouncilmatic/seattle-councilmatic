@@ -65,3 +65,23 @@
   font-style: italic;
   margin: 0.25em 0;
 }
+
+.smc-text-figure {
+  margin: 1.25em auto;
+  text-align: center;
+}
+
+.smc-text-figure img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.smc-text-figure figcaption {
+  font-size: 0.9rem;
+  color: #4b5563;
+  font-style: italic;
+  margin-top: 0.5em;
+}
