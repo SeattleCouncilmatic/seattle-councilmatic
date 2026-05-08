@@ -31,6 +31,12 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Anchor-link jumps smooth-scroll instead of snapping. Overridden
+     by the prefers-reduced-motion media query below. */
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   min-width: 320px;
