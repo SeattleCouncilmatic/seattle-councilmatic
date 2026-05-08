@@ -105,6 +105,36 @@
   letter-spacing: 0.03em;
 }
 
+/* Clickable variant of the badge used for in-page jump links on narrow
+   screens. Reuses the chapter-page chip aesthetic so the affordance
+   reads consistently. Hidden ≥768 px because the layout becomes either
+   side-by-side (≥1024 px) or short enough to scroll naturally. */
+.smc-summary-jump {
+  display: none;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  background: #e0e7ff;
+  color: #3730a3;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  margin-bottom: 0.75rem;
+}
+.smc-summary-jump:hover {
+  background: #c7d2fe;
+}
+.smc-summary-jump:focus-visible {
+  outline: 2px solid #3730a3;
+  outline-offset: 2px;
+}
+@media (max-width: 767px) {
+  .smc-summary-jump {
+    display: inline-block;
+  }
+}
+
 .smc-empty {
   color: #6b7280;
   font-style: italic;
