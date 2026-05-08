@@ -41,6 +41,23 @@ Parser corpus state (post-fix re-parse 2026-04-26 after `93cb885`): 7,435 sectio
 
 ## Done
 
+### Parser — recover section titles truncated by line wrap — committed 2026-05-08
+
+Spot-fix from prod: `23.47A.009` rendered with title `"Standardsapplicabletospecific"` and the missing word `"areas"` as a stray first body line. Scan found 978 sections in the same shape — the parser's `SECTION_RE` (`parse_smc_pdf.py:20`) captures one line of `<num> <title>`, and the existing soft-hyphen fold (`parse_smc_pdf.py:973`) only fires when the title ends with `-`. Non-hyphenated wraps (most of them) slipped through, with the wrap-leftover word becoming body line 0.
+
+**New `recover_truncated_titles` post-process command.** Two-tier acceptance:
+
+- **Tier 1** — title ends with a truncation indicator (em-dash, comma, slash, open-paren, or a preposition/conjunction/article like "of", "and", "the"). Strong signal of a wrapped heading; merge the next continuation line.
+- **Tier 2** — title doesn't show a truncation marker, but the first body line is short (≤30 chars) AND lowercase-starting AND not a body-prose opener. Catches the 23.47A.009-shape (`"…specific" + "areas"`).
+
+Per-line acceptance check rejects: enumeration markers (`A.` / `1.` / `a.`), section/chapter/subchapter headings, lines ending in sentence-final punctuation, lines whose first word is a capitalized body-prose subject opener (`The`, `Any`, `Whenever`, `If`, `As`, `For`, …). The reject list dropped the candidate count from 3,780 to 919 — the difference is body sentences like `"The Director is authorized to administer and"` that look identical lexically but aren't title fragments.
+
+**Multi-line wraps converge in one run.** Greedy single-pass absorption was over-pulling: a complete title `"Single subject requirement"` followed by body `"met / In accordance with RCW…"` would absorb 4 lines. Fix: stop after the first continuation that itself doesn't end mid-phrase (no truncation marker), AND wrap the per-section call in a fixed-point loop so multi-line em-dash chains (`"Excess weight—Logging" / "trucks—Special permits—" / "County or City permits—" / "Fees—…"`) reach convergence in one CLI invocation. Total updated: **978 sections**, idempotent on re-run.
+
+Word-merge artifacts in the merged title (`"Standardsapplicabletospecific areas"`) are NOT addressed here — they're a parser-side issue (pdfplumber column-merging on tight-kerning pages) tracked separately by `clean_section_full_text` (#150). The verdict file doesn't currently cover title-only tokens; out of scope for this fix.
+
+**Parser-side prevention deferred.** The post-process is idempotent and cheap to re-run, so `parse_smc_pdf` stays untouched. Future re-parses would regress 978 titles, then this command restores them — acceptable tradeoff vs. the regression risk of editing the section-detection path.
+
 ### Parser — extract and inline SMC figures, recover §23.48.235 — committed 2026-05-07
 
 Closes #170 (figure extraction) and #152 (missing 23.48.235 "Upper-Level Setbacks"). 75 sections corpus-wide reference figures by caption ("Map A for …", "Exhibit B for …") but the parser stripped the captions as section boundaries and never extracted the images. Most affected: Title 23 zoning, where setback diagrams and zone-boundary maps are load-bearing for comprehension.
