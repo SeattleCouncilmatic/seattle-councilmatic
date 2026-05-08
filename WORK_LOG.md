@@ -41,6 +41,34 @@ Parser corpus state (post-fix re-parse 2026-04-26 after `93cb885`): 7,435 sectio
 
 ## Done
 
+### Parser — extract and inline SMC figures, recover §23.48.235 — committed 2026-05-07
+
+Closes #170 (figure extraction) and #152 (missing 23.48.235 "Upper-Level Setbacks"). 75 sections corpus-wide reference figures by caption ("Map A for …", "Exhibit B for …") but the parser stripped the captions as section boundaries and never extracted the images. Most affected: Title 23 zoning, where setback diagrams and zone-boundary maps are load-bearing for comprehension.
+
+**Discovery scan (2026-05-07).** 100-page Title 23 sample plus full-PDF survey: 632 image-bearing PDF pages corpus-wide, 140 with standard captions across 75 sections. ~95% are Title 23. pdfplumber's `page.images` returns one clean image bbox per figure. Zero caption-no-image hits in the strict-caption sample, so embedded raster (not vector) is the dominant figure form. **No LLM Vision needed** — pure pdfplumber.
+
+**New management command `extract_smc_figures`** (`seattle_app/management/commands/extract_smc_figures.py`):
+
+* Walks the PDF with `page.flush_cache()` after every page so memory stays flat (the earlier figure-survey scan blew up at 6.86 GiB without this — see #169 postmortem).
+* Permissive caption regex tolerates pdfplumber word-merging artifacts (`ExhibitAfor 23.60A.188`) and inline descriptive titles (`Map A for 23.50A.190 Designated Industrial Streets`).
+* Crops `page.images[0]` bbox with 6 pt padding, renders at 150 DPI, saves under `seattle_app/static/smc-figures/<section-slug>/<caption-slug>.png`.
+* **Strict splice** replaces only standalone caption lines with markdown image links — rejects mid-sentence prose references like `"as shown in Exhibit B for 23.48.235"` which look identical lexically. Caption canonicalized to `"<Prefix> <Code> for <Section>"` so the splice matches both bare-caption layouts and caption-with-title layouts.
+* **Fallback append** when no clean caption line exists in the section's `full_text` (the parser sometimes broke captions into multi-line fragments — see 23.48.235's bleed-over). Inserts the image link before the trailing ordinance citation, or at the end if no citation.
+* `--section X` page-range optimization: looks up X's `source_pdf_page` and limits the scan to that window. Without it, every dev iteration paid for a 25-minute full-PDF walk.
+
+**§23.48.235 recovery side effect.** The parser couldn't detect the section (number lives only in the running header, title appears below a figure caption rather than next to the section number). Its content leaked into 23.48.230's `full_text` as a 1.8 KB tail. Recovery path:
+
+1. Find the bleed-marker `for 23.48.235` in 23.48.230's `full_text`.
+2. Slice 23.48.230 at that line; create new `MunicipalCodeSection` row for 23.48.235 with `title='Upper-Level Setbacks'`, `source_pdf_page=3015`.
+3. Strip the running headers and broken caption/title fragments that pdfplumber's column-major capture left in the bleed-over (`Exhibit A`, `Stepped Upper-Level`, `Zone`, `for 23.48.235`, `23.48.235 LANDUSECODE`, etc.) — hard-coded patterns since this is a one-off.
+4. Splice Map A at the top (clean caption found); fall back to appending Exhibits A/B/C before the citation.
+
+**Frontend.** New `IMAGE_RE` in `SectionText.jsx` recognizes `![alt](url)` as a `figure` block; renders as `<figure><img loading="lazy"/><figcaption/></figure>`. CSS in `SectionText.css` adds `.smc-text-figure` with center alignment, max-width: 100%, and `figcaption` italic styling matching the existing footnote palette.
+
+**Out of scope (filed as follow-up):** 492 image-bearing pages corpus-wide DON'T have a standard caption — most are PDF front-matter "Instruction Sheet" artifacts (skipped), but ~30 are real multi-page attachment series like 5.72.030's neighborhood maps where the "caption" is just the neighborhood name. Those need section-context heuristics, not standard caption matching.
+
+**Backfill / deploy.** `python manage.py extract_smc_figures` produces all PNGs under `seattle_app/static/smc-figures/` and updates `MunicipalCodeSection.full_text` for the 75 affected sections. Idempotent — reruns are no-ops. PNGs are committed (~5 MB total) so prod doesn't need to re-run extraction; running the command on prod just re-splices the markdown image links into `full_text`.
+
 ### Parser — strip residual table dumps from Vision-extracted sections — committed 2026-05-07
 
 Follow-up to #167 (Vision table extraction). 20 sections still rendered with the parser's broken table-as-text dump above the new markdown table — the orphan-strip heuristic in `_splice_tables` was too weak to catch them. Worst offender: 23.47A.004 (~10 KB of mangled text above the use-permission matrix); also 22.602.045 (30 KB), 23.49.242, 25.11.050, etc.

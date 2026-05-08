@@ -20,6 +20,11 @@ const TABLE_SEP_CELL_RE = /^:?-+:?$/
 // `_text_` lines just below the table). Render as <em> paragraphs.
 const FOOTNOTE_RE = /^_(.+)_\s*$/
 
+// Markdown image: `![alt text](url)`. Emitted by extract_smc_figures
+// at the position of the original figure caption. We render as a
+// <figure> with <img> + <figcaption>.
+const IMAGE_RE = /^!\[([^\]]*)\]\(([^)]+)\)\s*$/
+
 function markerLevel(marker) {
   if (!marker) return 0
   if (/^[A-Z]\./.test(marker)) return 1
@@ -98,6 +103,12 @@ function blockify(text) {
       flushPara()
       continue
     }
+    const imgMatch = line.match(IMAGE_RE)
+    if (imgMatch) {
+      flushPara()
+      blocks.push({ type: 'figure', alt: imgMatch[1], src: imgMatch[2] })
+      continue
+    }
     const fnMatch = line.match(FOOTNOTE_RE)
     if (fnMatch) {
       flushPara()
@@ -159,6 +170,14 @@ export default function SectionText({ text, billRefs }) {
       {blocks.map((b, i) => {
         if (b.type === 'table') {
           return <Table key={i} header={b.header} body={b.body} billRefs={billRefs} />
+        }
+        if (b.type === 'figure') {
+          return (
+            <figure key={i} className="smc-text-figure">
+              <img src={b.src} alt={b.alt} loading="lazy" />
+              {b.alt && <figcaption>{b.alt}</figcaption>}
+            </figure>
+          )
         }
         if (b.type === 'footnote') {
           return (
