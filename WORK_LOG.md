@@ -41,6 +41,18 @@ Parser corpus state (post-fix re-parse 2026-04-26 after `93cb885`): 7,435 sectio
 
 ## Done
 
+### Reps — scrape councilmember bios from seattle.gov About pages — committed 2026-05-10
+
+Phase 1a of #147 (LLM rep summary card). New `RepBio` model (`reps/models.py`) — one row per `core.Person`, raw prose only. Resisted splitting the prose into `education` / `professional_background` columns because bio shape varies wildly across reps (Eddie Lin and Dionne Foster come back as a single `<p>`; Juarez/Rinck/Hollingsworth span 4-5); the LLM synthesis pass extracts structured pieces at prompt time, so re-scrapes stay cheap (whole-prose UPSERT) and the prompt can evolve without schema churn.
+
+**URL pattern is a subpath, not a sibling.** First dry-run revealed 100% 404s — `scrape_rep_bios` was building `/council/<about-slug>` (e.g. `/council/about-rob`) when the real layout is `/council/members/<profile-slug>/<about-slug>` (e.g. `/council/members/rob-saka/about-rob`). The `ABOUT_PAGE_SLUGS` dict in `seattle/people.py` had been authored as a *subpath under each member's profile* (its docstring at line 19 says so), but the new scrape command read the slug as a top-level path. Fixed to compose `_HOST + /council/members/ + profile_slug(name) + / + about_slug`. Lesson: dry-run before opening the PR, even when the URL building looks "obvious" — the constants here are subpaths whose context lives in another module's docstring.
+
+**Tenure-block skip via `<strong>` label sniff.** `extract_bio` walks `<p>` elements in the page's `<main>`, keeping paragraphs ≥50 chars. The first paragraph on most About pages is the structured tenure block (`<strong>In office since:</strong> …` / `<strong>Council district:</strong> …`), which is owned by `extract_tenure` and shouldn't double-render in the bio. Skip is by `<strong>` text matching one of `("in office since", "council district", "current term")` — purely a content sniff, not a CSS class, because seattle.gov templates vary in markup but the strong-labeled tenure fields are uniform.
+
+**9 of 11 reps populated**; Mark Solomon and Sara Nelson have no published About page and stay out of `ABOUT_PAGE_SLUGS`. Same posture as the existing tenure scrape — explicit dict membership rather than guessing.
+
+**Scheduling.** Idempotent UPSERT by `person_id`, 2 s polite delay between requests. Safe to wire to a monthly cron once #147 phase 2 (LLM synthesis) lands and we know the cadence the summary pipeline wants.
+
 ### Parser — recover section titles truncated by line wrap — committed 2026-05-08
 
 Spot-fix from prod: `23.47A.009` rendered with title `"Standardsapplicabletospecific"` and the missing word `"areas"` as a stray first body line. Scan found 978 sections in the same shape — the parser's `SECTION_RE` (`parse_smc_pdf.py:20`) captures one line of `<num> <title>`, and the existing soft-hyphen fold (`parse_smc_pdf.py:973`) only fires when the title ends with `-`. Non-hyphenated wraps (most of them) slipped through, with the wrap-leftover word becoming body line 0.

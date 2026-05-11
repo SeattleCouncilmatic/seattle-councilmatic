@@ -1,5 +1,18 @@
 from django.contrib.gis import admin
-from .models import District
+from .models import District, RepBio
+
+
+@admin.register(RepBio)
+class RepBioAdmin(admin.ModelAdmin):
+    """Read-mostly admin for scraped rep bios. Edits are allowed so
+    curators can fix extraction artifacts, but the next
+    ``scrape_rep_bios`` run will overwrite them — `scraped_at` shows
+    when that's likely to happen next."""
+
+    list_display = ("person", "source_url", "scraped_at")
+    search_fields = ("person__name",)
+    readonly_fields = ("scraped_at", "created_at")
+    fields = ("person", "bio", "source_url", "scraped_at", "created_at")
 
 
 @admin.register(District)
