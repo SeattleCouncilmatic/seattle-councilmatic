@@ -515,7 +515,25 @@ def get_rep_by_slug(slug: str) -> Optional[Dict[str, Any]]:
     rep = _rep_row_to_dict(name, slug_back, label, person_id)
     rep['voting_history'] = _get_voting_history(person_id)
     rep['legislation_involvement'] = _get_legislation_involvement(person_id, name)
+    rep['summary'] = _get_rep_summary(person_id)
     return rep
+
+
+def _get_rep_summary(person_id: str) -> Optional[Dict[str, Any]]:
+    """Surfaces the LLM-generated rep summary card content. Returns
+    None when no summary has been generated yet (the frontend hides
+    the card slot rather than showing an empty state). The bio prose
+    that fed the summary is not exposed separately — its substantive
+    bits are already in the summary."""
+    from reps.models import RepSummary
+    s = RepSummary.objects.filter(person_id=person_id).first()
+    if not s:
+        return None
+    return {
+        'text': s.summary,
+        'generated_at': s.generated_at.isoformat(),
+        'model': s.model_version,
+    }
 
 
 # Pupa's standard vote-option keys → display labels. The keys come from

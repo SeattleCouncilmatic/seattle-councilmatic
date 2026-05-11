@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { Phone, Mail, Printer, MapPin, ExternalLink, Clock } from 'lucide-react'
 import NotFound from './NotFound'
 import LegislationInvolvementTable from './LegislationInvolvementTable'
+import RepSummaryCard from './RepSummaryCard'
 import useDocumentTitle from '../hooks/useDocumentTitle'
 import './RepDetail.css'
 
@@ -239,6 +240,8 @@ export default function RepDetail() {
           </header>
 
           <div className="rep-detail-main">
+            <RepSummaryCard summary={data.summary} repName={data.name} />
+
             {hasActivity && (
               <section className="rep-detail-vote-stats" aria-label="Lifetime activity totals — click a pill to filter the table below">
                 <ul className="rep-detail-vote-breakdown">

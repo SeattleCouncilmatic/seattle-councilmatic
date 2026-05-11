@@ -1,0 +1,42 @@
+.rep-summary-card {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem 1.25rem 0.875rem;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-radius: 0.5rem;
+}
+
+.rep-summary-card-h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 0.75rem;
+}
+
+.rep-summary-card-body {
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: #1f2937;
+}
+
+.rep-summary-card-p {
+  margin: 0 0 0.75rem;
+}
+
+.rep-summary-card-p:last-child {
+  margin-bottom: 0;
+}
+
+/* Generation provenance — small print at the bottom of the card so
+   readers know the prose is LLM-synthesized from structured stats
+   rather than authored by staff. Tone-down color contrast keeps it
+   from competing with the body but stays above WCAG AA (4.5:1) on
+   the card's #f9fafb background. */
+.rep-summary-card-footer {
+  margin-top: 0.875rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #6b7280;
+}

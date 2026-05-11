@@ -42,6 +42,63 @@ class RepBio(models.Model):
         return f"Bio for {self.person.name}"
 
 
+class RepSummary(models.Model):
+    """LLM-generated 2-3 paragraph summary of a councilmember's tenure,
+    committees, sponsorship themes, and voting record. One row per
+    person; issue #147 phase 2.
+
+    The prose is synthesized from a structured stats snapshot — bio
+    text, tenure dates, committee assignments, top sponsorship issue
+    areas (from ``Bill.subject``), and aggregated vote-pattern stats.
+    ``stats_snapshot`` records what was passed to the model so future
+    re-runs are reproducible without re-aggregating from scratch.
+
+    Re-summarization is idempotent — ``summarize_reps`` upserts by
+    ``person_id``."""
+
+    person = models.OneToOneField(
+        "core.Person",
+        on_delete=models.CASCADE,
+        related_name="rep_summary",
+        help_text="OCD Person this summary belongs to.",
+    )
+    summary = models.TextField(
+        help_text="2-3 paragraph plain-prose synthesis. Paragraphs joined "
+        "with '\\n\\n'.",
+    )
+    stats_snapshot = models.JSONField(
+        default=dict,
+        help_text="Structured stats dict that was passed to the model — "
+        "tenure, committees, sponsorship aggregates, voting record.",
+    )
+    model_version = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Claude model that generated the summary "
+        "(e.g. 'claude-sonnet-4-6-...').",
+    )
+    summary_batch_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Anthropic Batch ID this summary came from. Empty for "
+        "summaries generated outside a batch (e.g. ad-hoc retries).",
+    )
+    generated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Last time the summary was (re-)generated.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Rep LLM summary"
+        verbose_name_plural = "Rep LLM summaries"
+
+    def __str__(self):
+        return f"Summary for {self.person.name}"
+
+
 class District(models.Model):
     """
     Represents a Seattle City Council district with its geographic boundary.
