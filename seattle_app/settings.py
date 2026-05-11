@@ -239,6 +239,11 @@ CLAUDE_LEGISLATION_MODEL = os.getenv("CLAUDE_LEGISLATION_MODEL", "claude-sonnet-
 CLAUDE_BOOTSTRAP_MODEL = os.getenv("CLAUDE_BOOTSTRAP_MODEL", "claude-opus-4-7")
 # Sonnet: balanced cost/quality for interactive chat.
 CLAUDE_CHAT_MODEL = os.getenv("CLAUDE_CHAT_MODEL", "claude-sonnet-4-6")
+# Sonnet: short structured-JSON tagging task (1-3 enum tags per bill).
+# Inputs are tiny (title + first 2k chars of bill text); cached system
+# prompt makes per-bill cost cents. Haiku 4.5 likely sufficient too —
+# revisit if Sonnet cost becomes meaningful at corpus scale.
+CLAUDE_BILL_TAG_MODEL = os.getenv("CLAUDE_BILL_TAG_MODEL", "claude-sonnet-4-6")
 
 # Content Security Policy settings
 # In development, allow localhost resources

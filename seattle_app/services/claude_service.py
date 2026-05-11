@@ -102,6 +102,89 @@ LEGISLATION_OUTPUT_SCHEMA = {
 }
 
 
+BILL_TAG_VOCABULARY = (
+    "Land Use & Zoning",
+    "Public Safety",
+    "Transportation",
+    "Waterfront",
+    "Seattle Center",
+    "Housing",
+    "Climate & Environment",
+    "Budget & Taxes",
+    "Labor",
+    "Economic Development",
+    "Civil Rights",
+    "Health & Human Services",
+    "Arts & Culture",
+    "Parks & Public Spaces",
+    "Utilities",
+    "Education & Libraries",
+    "Governance",
+    "Elections",
+    "Neighborhoods & Community",
+    "Tribal Relations",
+)
+
+
+BILL_TAG_SYSTEM_PROMPT = (
+    "You are a legislative analyst tagging Seattle City Council bills with "
+    "issue-area labels. For each bill, choose 1 to 3 tags from this controlled "
+    "vocabulary, ordered by relevance (most relevant first):\n\n"
+    + "\n".join(f"  - {t}" for t in BILL_TAG_VOCABULARY)
+    + "\n\nGuidance:\n"
+    "  - Pick the *substantive* topic, not the procedural shell.\n"
+    "  - 'Budget & Taxes' is reserved for bills that are *substantively "
+    "about* budget allocation, taxation, levies, tax-increment financing, "
+    "ballot measures to fund city programs, or fiscal policy. Do NOT add "
+    "it as a secondary tag merely because money is involved as a mechanism "
+    "for accomplishing the bill's actual topic. A contract authorization, "
+    "routine appropriation tied to a specific program, fee or rate "
+    "adjustment, or property surplus disposition takes the topic tag (e.g. "
+    "'Utilities' for a water-rate adjustment; 'Transportation' for a "
+    "streetcar funding ordinance; 'Seattle Center' for parking-charge "
+    "amendments), not 'Budget & Taxes'. An ordinance appropriating money "
+    "to pay claims for a given week IS 'Budget & Taxes'; a property-tax "
+    "ballot proposition IS 'Budget & Taxes'.\n"
+    "  - 'Utilities' covers Seattle City Light (electric) and Seattle Public "
+    "Utilities (water/sewer/garbage/drainage). Bills authorizing City Light "
+    "or SPU contracts, easements, or rate-setting are 'Utilities'.\n"
+    "  - 'Land Use & Zoning' is the regulatory framework (zoning code, "
+    "design review, permits). 'Housing' is housing supply, affordability, "
+    "tenant protections, and homelessness prevention. A rezone enabling "
+    "more multifamily housing is both.\n"
+    "  - 'Health & Human Services' covers homelessness response, behavioral "
+    "health, food assistance, and public health.\n"
+    "  - 'Tribal Relations' is government-to-government work with sovereign "
+    "tribal nations. Bills about Native Communities programs without a "
+    "government-to-government angle are 'Civil Rights' or 'Health & Human "
+    "Services' as appropriate.\n"
+    "  - Be conservative on secondary tags. If a bill is squarely about one "
+    "topic, return one tag. Two or three tags only when the bill genuinely "
+    "spans them.\n"
+    "  - Use only the exact vocabulary strings above; do not invent new tags."
+)
+
+
+BILL_TAG_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "tags": {
+            "type": "array",
+            "description": (
+                "1 to 3 issue-area tags from the controlled vocabulary, "
+                "ordered by relevance (most relevant first). Cardinality "
+                "is enforced via the system prompt and post-processing — "
+                "Anthropic's schema validator rejects minItems/maxItems "
+                "on array types."
+            ),
+            "items": {"type": "string", "enum": list(BILL_TAG_VOCABULARY)},
+        },
+    },
+    "required": ["tags"],
+    "additionalProperties": False,
+}
+
+
 @dataclass
 class SectionContext:
     """Lightweight value object for LLM input (decouples service from ORM)."""
