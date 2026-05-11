@@ -244,6 +244,10 @@ CLAUDE_CHAT_MODEL = os.getenv("CLAUDE_CHAT_MODEL", "claude-sonnet-4-6")
 # prompt makes per-bill cost cents. Haiku 4.5 likely sufficient too —
 # revisit if Sonnet cost becomes meaningful at corpus scale.
 CLAUDE_BILL_TAG_MODEL = os.getenv("CLAUDE_BILL_TAG_MODEL", "claude-sonnet-4-6")
+# Sonnet: 2-3 paragraph rep summary card synthesizing tenure, committees,
+# sponsorship portfolio, voting record, and bio prose. Per-rep input is
+# ~2-4 KB; cached system prompt makes the 9-rep batch cost trivial.
+CLAUDE_REP_SUMMARY_MODEL = os.getenv("CLAUDE_REP_SUMMARY_MODEL", "claude-sonnet-4-6")
 
 # Content Security Policy settings
 # In development, allow localhost resources

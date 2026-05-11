@@ -41,6 +41,37 @@ Parser corpus state (post-fix re-parse 2026-04-26 after `93cb885`): 7,435 sectio
 
 ## Done
 
+### Reps — LLM-generated rep summary card on RepDetail — committed 2026-05-11
+
+Closes #147. New `RepSummary` model + Batch command + frontend card render a 2-3 paragraph plain-prose synthesis above the lifetime-vote pill row on each councilmember's detail page. The prose blends structured stats (tenure, committees, sponsorship breakdown by issue area, voting record) with bio context. All 9 currently-serving members tagged in one Batch run after smoke-validating Hollingsworth and Juarez.
+
+**Phase prereqs handled in-PR rather than as separate cleanup work.**
+
+- *Bill issue-area tags* (#147 phase 1b) shipped just before this in PR #176; the rep stats aggregator depends on `Bill.subject` being non-empty.
+- *Council-term backfill* — the OCD scraper had `Membership.start_date` populated for Strauss/Hollingsworth/Rivera/Saka/Kettle but blank for the four mid-term members (Rinck, Juarez, Foster, Lin). Rather than degrade the prompt to "currently serving" for those four, hardcoded the term dates from Legistar's [Department Detail page](https://seattle.legistar.com/DepartmentDetail.aspx?ID=28340&GUID=E46BCBAD-A6DB-4A4B-AC5E-D2D659A4F94D&Mode=MainBody) into a new `backfill_council_terms` mgmt command. Idempotent — only writes when the existing field is empty unless `--force`. Re-run when membership changes.
+
+**Three data-quality bugs surfaced and fixed.**
+
+- *`_tenure_context` was filtering out populated rows.* The OCD scraper sometimes emits two membership rows per (person, seat): one with start/end dates, one without. The original filter `end_date=""` excluded the populated one, so even Strauss (ten-year veteran with `start_date=2020-01-01` in the DB) came back with `start_date=None`. Switched to "active membership = `end_date` is empty OR `end_date >= today`" plus a sort that prefers populated rows when both exist.
+- *Sponsorship aggregation was double-counting bills.* `BillSponsorship` can have multiple rows per (person, bill) combo — different sponsorship classifications, scrape-re-run residue. The naive `sum(s for s in sponsorships if s.primary)` produced inflated counts; e.g. Juarez's 9 unique primary-sponsored bills came back as 10. Switched to deduping by `bill_id` via a set, and capturing each bill's tags only once for the issue-area histogram.
+- *Stale bio risk.* Juarez returned to council in mid-2025 to fill out Cathy Moore's term, but seattle.gov's About page still says she "retired from public office in 2023." Without explicit guarding, the LLM could parrot the bio's tenure claim and contradict the structured `serving since 2025-07-28`. Fix lives in the system prompt: "Prefer the structured stats over the bio when they conflict... bios may be stale (e.g. a member who returned to office after a prior term may have a bio that still describes them as retired). Trust the membership, sponsorship, and voting facts." Verified on Juarez — the summary correctly leads with "serving since July 2025" and treats her prior Council Presidency as past-tense biographical context.
+
+**Prompt design — what worked.**
+
+- Lead the model with seat + tenure facts up front in the user content, then committees, then sponsorship breakdown JSON. Bio prose comes last as `"bio": "<text>"` so the model treats it as flavor on top of facts, not the spine.
+- Explicit per-paragraph guidance ("first paragraph: seat + committees; second: sponsorship; third (optional): voting record + background"). Without this the model occasionally led with bio prose and buried the seat.
+- Explicit Budget & Taxes guard: "'Budget & Taxes' as a top tag often reflects the member's role on a finance/appropriations committee handling routine fiscal authorizations — frame it that way rather than implying tax policy is their personal focus area." Otherwise Strauss's 135 Budget & Taxes-tagged primary sponsorships (78% of his portfolio because he chairs Finance) read as "he focuses on tax policy" — wrong characterization. The guard correctly produces "this heavy concentration reflects his role chairing the Finance committee, which routinely processes fiscal authorizations."
+- Explicit no-political-leanings rule (per #147): "Do not speculate on political alignment, motivations, ideology, or how a member 'really' feels. Do not infer a member's party, faction, or coalition." Verified: zero summaries editorialize across all 9.
+- 250-word soft cap — Rivera came in at 264 words, which is fine. Tightening to a hard cap risked compressing meaningful content for marginal benefit.
+
+**`output_config.format.schema` — single string output.** Schema is just `{summary: string}`. Tried adding a structured `key_themes: array` field initially but YAGNI: the prose handles theme calls naturally and a separate structured field would have required UI work to render and divergence-handling when the prose mentioned a theme not in the structured list.
+
+**Frontend.** New `<RepSummaryCard>` component slotted at the top of the right-column main area in `RepDetail.jsx`, above the existing `rep-detail-vote-stats` pill row. Subtle gray-background card with a 12px footer disclosing AI-generated provenance + generation date (per AUDIT_FINDINGS conventions: 4.5:1 contrast on the `#f9fafb` background; `<section>` with `aria-labelledby` on the H2). Hidden when `data.summary` is null — Solomon and Nelson are `is_current=False` and never get a summary, so their detail pages render unchanged.
+
+**Cost.** ~$0.03 total for the 9-rep run end-to-end (Sonnet 4.6 + Batch + cached system prompt). Re-running monthly via cron is trivial; can wire to the scheduler once the cadence question gets answered.
+
+**`is_current=True` + `Seattle City Council` membership** is the source-of-truth filter (mirrors `reps.services._query_current_council_members`). The earlier rep-bio scrape (PR #175) used the broader `links__note='City Council profile'` filter and pulled bios for Solomon and Nelson too — those `RepBio` rows are dead weight now but harmless. Worth a one-line filter swap in `scrape_rep_bios` later if anyone notices.
+
 ### Parser — tag bills with issue-area labels via Claude Batch — committed 2026-05-11
 
 Phase 1b of #147 (LLM rep summary card). The rep-summary prompt needs structured "top issue areas by sponsorship" counts per councilmember, and `Bill.subject` (an OCD `ArrayField` already on the model) was empty across all 387 bills — the OCD scraper doesn't pull subjects from seattle.gov. New `tag_bill_issue_areas` Batch command assigns 1-3 tags from a 20-item controlled vocabulary, persists to `Bill.subject` (no schema change), and mirrors the existing `summarize_legislation` two-phase pattern (state file in `data/`, submit then poll-and-process). All 387 bills tagged in two Batch runs (smoke + tightened-prompt re-tag); cost was a few cents end-to-end via the cached system prompt.
