@@ -1,6 +1,47 @@
 from django.contrib.gis.db import models
 
 
+class RepBio(models.Model):
+    """Biographical prose scraped from a council member's seattle.gov
+    ``/about-<firstname>`` page. One row per person.
+
+    Kept as raw text rather than split into ``education`` /
+    ``professional_background`` columns — bio shape varies across
+    reps, and the LLM summary pipeline (issue #147 / Phase 2) extracts
+    structured pieces at synthesis time. That keeps re-scrapes cheap
+    (whole-prose UPSERT) and lets the prompt evolve without schema
+    churn.
+
+    Re-scraping is idempotent — ``scrape_rep_bios`` re-runs UPSERT
+    by ``person_id``."""
+
+    person = models.OneToOneField(
+        "core.Person",
+        on_delete=models.CASCADE,
+        related_name="rep_bio",
+        help_text="OCD Person this bio belongs to.",
+    )
+    bio = models.TextField(
+        help_text="Biographical prose, paragraphs joined with '\\n\\n'.",
+    )
+    source_url = models.URLField(
+        max_length=500,
+        help_text="seattle.gov URL the bio was scraped from.",
+    )
+    scraped_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Last time the bio was (re-)scraped.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Rep biographical text"
+        verbose_name_plural = "Rep biographical texts"
+
+    def __str__(self):
+        return f"Bio for {self.person.name}"
+
+
 class District(models.Model):
     """
     Represents a Seattle City Council district with its geographic boundary.

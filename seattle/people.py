@@ -251,6 +251,53 @@ def extract_tenure(html_str: str) -> dict:
     return out
 
 
+def extract_bio(html_str: str) -> str | None:
+    """Pull the biographical prose from a councilmember's About page.
+
+    Strategy: walk all ``<p>`` elements inside the main content area,
+    keep paragraphs longer than 50 chars that aren't part of the
+    structured tenure block (those carry ``<strong>`` labels like
+    ``In office since:`` / ``Council district:`` and are owned by
+    ``extract_tenure``). Joins the remaining paragraphs with a blank
+    line so downstream renderers / the rep-summary LLM see distinct
+    paragraphs.
+
+    Returns ``None`` if no qualifying prose is found (page structure
+    changed, page is purely structured info, etc.). Callers decide
+    whether that's a hard error or just "bio pending."
+    """
+    h = lxml_html.fromstring(html_str)
+    main = (
+        h.xpath('//main')
+        or h.xpath('//div[contains(@class, "ContentComponent")]')
+        or [h]
+    )
+    paras = main[0].xpath('.//p')
+
+    bio_paras: list[str] = []
+    for p in paras:
+        text = " ".join(p.text_content().split())  # collapse whitespace
+        if len(text) < 50:
+            continue
+        # Skip the tenure block — its <strong> labels are owned by
+        # extract_tenure. Some templates render the tenure block in the
+        # same <p> as the bio's first paragraph; in that case the
+        # paragraph still surfaces, just shortened by 50-char filter
+        # rarely (depends on bio length). Tradeoff: cleaner skip beats
+        # capturing tenure-as-bio.
+        strong_text = " ".join(p.xpath(".//strong/text()")).lower()
+        if any(
+            label in strong_text
+            for label in ("in office since", "council district", "current term")
+        ):
+            continue
+        bio_paras.append(text)
+
+    if not bio_paras:
+        return None
+    return "\n\n".join(bio_paras)
+
+
 def extract_contact_details(html_str: str) -> dict:
     """Parse the Contact Us tile on a per-member seattle.gov profile
     page. Returns a dict with any of `phone`, `fax`, `email`,
