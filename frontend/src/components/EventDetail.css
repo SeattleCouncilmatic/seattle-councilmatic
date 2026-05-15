@@ -326,6 +326,17 @@
   font-family: monospace;
 }
 
+a.evt-agenda-file--link {
+  color: #2E3D5B;
+  text-decoration: underline;
+}
+
+a.evt-agenda-file--link:hover,
+a.evt-agenda-file--link:focus-visible {
+  color: #1f2a40;
+  text-decoration-thickness: 2px;
+}
+
 .evt-agenda-status {
   font-size: 0.75rem;
   color: #6b7280;

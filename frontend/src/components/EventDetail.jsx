@@ -93,7 +93,15 @@ function AgendaItemRow({ item, index }) {
             <span className="evt-agenda-title">{titleNode}</span>
           </div>
           <div className="evt-agenda-meta">
-            {matter_file && <span className="evt-agenda-file">{matter_file}</span>}
+            {matter_file && (
+              bill_slug ? (
+                <Link to={`/legislation/${bill_slug}`} className="evt-agenda-file evt-agenda-file--link">
+                  {matter_file}
+                </Link>
+              ) : (
+                <span className="evt-agenda-file">{matter_file}</span>
+              )
+            )}
             {matter_status && <span className="evt-agenda-status">{matter_status}</span>}
             {action_text && <span className="evt-agenda-action">{action_text}</span>}
           </div>
