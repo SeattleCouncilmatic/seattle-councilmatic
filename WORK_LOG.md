@@ -45,6 +45,27 @@ Parser corpus state (post-fix re-parse 2026-04-26 after `93cb885`): 7,435 sectio
 
 ## Done
 
+### Events — LLM-generated meeting summary card on EventDetail — committed 2026-05-16
+
+Closes #149. New `EventSummary` model + `summarize_events` Batch command + `<EventSummaryCard>` React component render a two-tier synthesis on each Full Council `EventDetail`: a 2-4 paragraph meeting overview always visible, plus a collapsible per-agenda-item summary list with chapter-timestamp anchors. All 18 YTD Full Council meetings from Jan 2026 summarized in one Batch run after smoke-validating one meeting and fixing the chunker-LLM label round-trip.
+
+**Two-tier output in a single LLM call.** Considered separate calls for overview vs. per-item summaries; rejected because (a) single-call lets the cached system prompt amortize across both outputs, (b) keeps voice/style consistent between the two tiers, (c) the model has the full transcript in context for both and can choose what to elevate vs. compress. Output schema is `{overview, item_summaries: [{label, summary}]}` — `start_seconds` is re-attached locally at upsert time from the chunker's output.
+
+**Chunker handles two real Seattle Channel data-quality issues** (surfaced and recorded in PR #184's WORK_LOG entry; fix landed in `seattle_app/services/event_chunker.py`):
+
+- *Stale chapter markers* — 4/21's page lists items past the actual meeting end (CMS copy-paste from a different meeting). Chunker drops markers whose `start_seconds` exceeds the SRT's last entry's end-time. 4/21 went from 6 raw markers to 2 valid chunks; the prompt context records what was dropped via the validated chapter list.
+- *Duplicate chapter timestamps* — 4/14 has two markers at `data-seek="7103"` (CB 121185 + CB 121187). Chunker merges adjacent same-start markers with a `" + "` separator in the label, and the merged chunk uses the union of their text windows. Worked first try.
+
+**Label round-trip fix.** First smoke had a subtle bug — when the chunker produced a merged label like `"CB 121185 + CB 121187: ..."` and the LLM returned `"CB 121185 + CB 121187: ..."` with slightly different whitespace, the `chunk_by_label.get(label)` lookup at upsert time fell through and the persisted item lost its `start_seconds`. Fixed by switching the primary matching strategy to zip-by-index (the prompt instructs the LLM to return items in the same order as the input chapter list, so positional matching is robust to label drift), with fuzzy substring matching as a fallback when cardinality doesn't match. Verified on 4/14's re-run: all 10 items including the merged duplicate landed with valid `start_seconds`.
+
+**Auto-caption name disambiguation works.** The captioner garbles proper nouns ("CAROLINE" for "Carolyn", "WRINGE" for "Rinck"). Roster context passed to the prompt: nine current councilmembers with their seats. The prompt explicitly instructs the model to cross-reference garbled names against the roster and silently correct. Spot-checked across 3 meetings (1/6 organizational, 3/17 immigration/privacy, 4/28 ICE permanent ban hearing) — every councilmember mentioned by the summaries was spelled correctly despite the all-caps source text, and vote counts (7-0, 5-3 with names of dissenters, etc.) matched the actual outcomes.
+
+**Speaker attribution is conservative.** Prompt rule: cite a councilmember only when the transcript explicitly names them. The `>>` marker shows speaker change but doesn't identify; don't infer attribution from procedural conventions (chair always opens, motion-makers often named) unless the transcript backs it up. Trades some signal for trustworthiness — summaries say "the bill's sponsor noted" rather than fabricating which councilmember spoke when only `>>` is in the transcript.
+
+**Cost.** ~$0.10/meeting × 18 = ~$1.80 backfill via Sonnet 4.6 + Batch + cached system prompt. Going forward, a new Full Council meeting (typically Tuesday) gets a transcript a few days later then a summary in a single command run, ~$0.10. Could be wired into the scheduler once cadence is decided.
+
+**Frontend.** New `<EventSummaryCard>` slotted at the top of `EventDetail.jsx`'s main column (above the existing Agenda Items list). Overview paragraphs always visible; per-item summaries collapse behind a `<details>` disclosure ("Show per-item summaries (N)") so the card stays compact on first impression. Each item row shows the label + start-time pill + 1-3 sentence summary. Native `<details>` for keyboard accessibility (no custom focus management needed); 4.5:1 contrast on the card's `#f9fafb` background; AI-provenance footer.
+
 ### Events — extract Seattle Channel SRT transcripts for council meetings — committed 2026-05-16
 
 Phase 1 of #149 (council meeting transcripts and summaries). New `EventTranscript` model + `extract_event_transcripts` mgmt command pull captioned SRT transcripts from Seattle Channel for Full Council meetings, walking the chain `Event → Legistar MeetingDetail → Seattle Channel video page → SRT download`. 18 past meetings from Jan 2026 onward extracted clean on first run (0 errors).

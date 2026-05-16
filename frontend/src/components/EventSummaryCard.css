@@ -1,0 +1,167 @@
+/* Indigo palette matches the legislation Plain-language summary card
+   (`.leg-summary-card` in LegislationDetail.css) so LLM-generated
+   content reads as a single coordinated system across surfaces. */
+.evt-summary-card {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem 1.25rem 0.875rem;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  border-radius: 0.5rem;
+}
+
+.evt-summary-card-h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #3730a3;
+  margin: 0 0 0.75rem;
+}
+
+.evt-summary-card-body {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  /* Deep indigo body text on the indigo card — matches `.leg-summary-prose`. */
+  color: #1e1b4b;
+}
+
+.evt-summary-card-p {
+  margin: 0 0 0.75rem;
+  max-width: 70ch;
+}
+
+.evt-summary-card-p:last-child {
+  margin-bottom: 0;
+}
+
+/* Inline bill-reference links inside the prose. Underlined +
+   indigo-700 so they read as actionable without breaking the body
+   rhythm. */
+.evt-summary-card-billref {
+  color: #4338ca;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.evt-summary-card-billref:hover,
+.evt-summary-card-billref:focus-visible {
+  color: #3730a3;
+  text-decoration-thickness: 2px;
+}
+
+/* "Watch the full meeting" link — between the overview and the
+   per-item disclosure. Slightly smaller than body, indigo-700, kept
+   on its own line for scannability. */
+.evt-summary-card-watch {
+  margin: 0.875rem 0 0;
+  font-size: 0.875rem;
+}
+
+.evt-summary-card-watch a {
+  color: #4338ca;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.evt-summary-card-watch a:hover,
+.evt-summary-card-watch a:focus-visible {
+  color: #3730a3;
+  text-decoration-thickness: 2px;
+}
+
+/* Per-item disclosure. <details> handles keyboard focus natively;
+   just style the marker / hover to match the rest of the card. */
+.evt-summary-card-items {
+  margin-top: 1rem;
+  border-top: 1px solid #c7d2fe;
+  padding-top: 0.75rem;
+}
+
+.evt-summary-card-items-toggle {
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #3730a3;
+  padding: 0.25rem 0;
+  user-select: none;
+}
+
+.evt-summary-card-items-toggle:hover {
+  color: #1e1b4b;
+}
+
+.evt-summary-card-item-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.evt-summary-card-item {
+  margin: 0 0 0.875rem;
+  padding-bottom: 0.875rem;
+  border-bottom: 1px dotted #c7d2fe;
+}
+
+.evt-summary-card-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.evt-summary-card-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.375rem;
+}
+
+.evt-summary-card-item-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e1b4b;
+  line-height: 1.35;
+}
+
+/* Timestamp pill — when video_url is available, the pill becomes a
+   link that opens the MP4 at the chapter's start time via the
+   #t=<seconds> HTML5 fragment. Browsers that don't honor the
+   fragment fall back to playing from start. */
+.evt-summary-card-item-ts {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: #4338ca;
+  background: #ffffff;
+  border: 1px solid #c7d2fe;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+}
+
+.evt-summary-card-item-ts--link {
+  text-decoration: none;
+}
+
+.evt-summary-card-item-ts--link:hover,
+.evt-summary-card-item-ts--link:focus-visible {
+  background: #e0e7ff;
+  border-color: #a5b4fc;
+  color: #312e81;
+}
+
+.evt-summary-card-item-summary {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #1e1b4b;
+}
+
+/* AI-provenance footer. #4338ca on #eef2ff hits ~7:1 contrast
+   (WCAG AA pass at small text); matches `.leg-summary-meta`. */
+.evt-summary-card-footer {
+  margin-top: 0.875rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid #c7d2fe;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #4338ca;
+}

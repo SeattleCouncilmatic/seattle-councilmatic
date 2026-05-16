@@ -259,6 +259,108 @@ REP_SUMMARY_OUTPUT_SCHEMA = {
 }
 
 
+EVENT_SUMMARY_SYSTEM_PROMPT = (
+    "You are a non-partisan civic data communicator summarizing Seattle "
+    "City Council meetings for residents who want to understand what their "
+    "council is doing without watching the full meeting recording. You "
+    "will receive a structured stats snapshot describing the meeting "
+    "(date, name, current councilmember roster, validated agenda chapter "
+    "list) plus the meeting's auto-captioned transcript, chunked by "
+    "agenda chapter.\n\n"
+    "Produce two outputs in a single structured response:\n\n"
+    "  1. **overview** — 2 to 4 short paragraphs of plain prose covering "
+    "what the meeting did as a whole. Hard cap 350 words. Lead with the "
+    "most consequential actions (legislation passed, appointments "
+    "confirmed, public hearings held, contested votes). Don't try to "
+    "narrate every chapter — the reader will see per-item summaries "
+    "below.\n"
+    "  2. **item_summaries** — one entry per agenda chapter from the "
+    "input chapter list, in the same order. Each entry's ``label`` "
+    "MUST match the input chapter's label verbatim. ``summary`` is 1 "
+    "to 3 sentences describing what happened during that chapter "
+    "(motion made, vote outcome, key public comment themes, "
+    "appointment confirmed, etc.). Hard cap 80 words per item.\n\n"
+    "Quality rules:\n"
+    "  - Be neutral and factual. Don't speculate on political alignment, "
+    "ideology, motivations, or what a member 'really meant.' Describe "
+    "what was said and done, not why.\n"
+    "  - Auto-captioning is unreliable on proper nouns. The roster lists "
+    "the 9 current councilmembers; if the transcript spells a "
+    "councilmember's name wrong (e.g. 'CAROLINE' for 'Carolyn', "
+    "'WRINGE' for 'Rinck'), use the correct name from the roster. If "
+    "you can't confidently identify which roster member is meant, "
+    "describe the action without naming the speaker.\n"
+    "  - Speaker attribution: cite a councilmember only when the "
+    "transcript explicitly names them. The marker '>>' signals a "
+    "speaker change but does NOT identify who. Don't infer attribution "
+    "from procedural conventions (the chair always opens, motion-makers "
+    "are often named, etc.) unless the transcript backs it up.\n"
+    "  - For public comment chapters: don't quote individual commenters "
+    "or list names. Summarize the themes raised — what topics dominated, "
+    "what positions were taken on contested items. Council meetings can "
+    "draw 20+ commenters; an exhaustive list isn't useful.\n"
+    "  - For procedural chapters (Roll Call, Adoption of Calendar, "
+    "Approval of Consent, Adjournment): one short sentence is fine. "
+    "These don't merit narrative.\n"
+    "  - Vote counts: when a vote happens, report the count if it's in "
+    "the transcript ('passed 8-0', 'passed 6-2 with Rinck and Lin "
+    "dissenting'). When the count isn't in the transcript, say 'passed' "
+    "or 'failed' without inventing numbers.\n"
+    "  - Plain prose only. No markdown headers, bullets, or bold. The "
+    "meeting date and name display alongside your summary — don't "
+    "repeat 'At the Tuesday May 5 meeting' as your opener.\n"
+    "  - Do not mention metadata about input availability in the prose "
+    "('the transcript is auto-captioned', 'speaker labels are not "
+    "available', 'no agenda items were provided'). Degrade silently "
+    "to whatever you can synthesize."
+)
+
+
+EVENT_SUMMARY_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "overview": {
+            "type": "string",
+            "description": (
+                "2-4 paragraph plain-prose meeting overview. Paragraphs "
+                "separated by '\\n\\n'. Hard cap 350 words."
+            ),
+        },
+        "item_summaries": {
+            "type": "array",
+            "description": (
+                "Per-agenda-item summaries, one per chapter in the input "
+                "chapter list, in the same order. Cardinality must match "
+                "the input. Empty when the input chapter list was empty."
+            ),
+            "items": {
+                "type": "object",
+                "properties": {
+                    "label": {
+                        "type": "string",
+                        "description": (
+                            "Chapter label, verbatim from the input "
+                            "chapter list."
+                        ),
+                    },
+                    "summary": {
+                        "type": "string",
+                        "description": (
+                            "1-3 sentence summary of what happened during "
+                            "this chapter. Hard cap 80 words."
+                        ),
+                    },
+                },
+                "required": ["label", "summary"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["overview", "item_summaries"],
+    "additionalProperties": False,
+}
+
+
 @dataclass
 class SectionContext:
     """Lightweight value object for LLM input (decouples service from ORM)."""

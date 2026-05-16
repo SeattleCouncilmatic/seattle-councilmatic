@@ -436,6 +436,80 @@ class EventTranscript(models.Model):
         return f"Transcript for {self.event} ({n:,} chars)"
 
 
+class EventSummary(models.Model):
+    """LLM-generated summary of a council meeting. One row per ``Event``,
+    synthesized from the ``EventTranscript.transcript_text`` plus the
+    meeting's agenda items and the current councilmember roster as
+    structured prompt context (the roster lets the model cross-reference
+    garbled auto-caption names against the real people who could plausibly
+    have spoken).
+
+    Two-tier shape:
+      - ``overview`` is the 2-4 paragraph plain-prose meeting summary
+        that the EventDetail card displays by default.
+      - ``item_summaries`` is a list of ``{label, start_seconds, summary}``
+        dicts, one per agenda-item chapter from the SRT chunker. The
+        frontend renders these as collapsible sections under the overview.
+
+    ``stats_snapshot`` records the structured context that was passed to
+    the LLM (agenda items, roster, validated chapter list) so a future
+    re-generation against the same inputs is reproducible without
+    re-aggregating. Re-summarization is idempotent — ``summarize_events``
+    UPSERTs by ``event_id``."""
+
+    event = models.OneToOneField(
+        Event,
+        on_delete=models.CASCADE,
+        related_name="llm_summary",
+        help_text="The council meeting this summary belongs to.",
+    )
+    overview = models.TextField(
+        help_text="2-4 paragraph plain-prose meeting overview.",
+    )
+    item_summaries = models.JSONField(
+        default=list,
+        help_text=(
+            "Per-agenda-item summaries: list of "
+            "{label, start_seconds, summary} dicts ordered by time."
+        ),
+    )
+    stats_snapshot = models.JSONField(
+        default=dict,
+        help_text=(
+            "Structured prompt context passed to the LLM — agenda items, "
+            "councilmember roster, validated chapter list. Reproducibility "
+            "audit trail."
+        ),
+    )
+    model_version = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Claude model that generated the summary.",
+    )
+    summary_batch_id = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text=(
+            "Anthropic Message Batches ID this summary came from. "
+            "Empty for synchronous one-off retries."
+        ),
+    )
+    generated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Last time the summary was (re-)generated.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Event LLM Summary"
+        verbose_name_plural = "Event LLM Summaries"
+
+    def __str__(self):
+        return f"Summary for {self.event}"
+
+
 class SeattleBill(Bill):
     """
     Extend the base Bill model for city-specific functionality.

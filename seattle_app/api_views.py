@@ -594,7 +594,57 @@ def event_detail(request, slug):
         'minutes_file_url': event.extras.get('minutes_file_url'),
         'minutes_status':   event.extras.get('minutes_status'),
         'agenda_items':     agenda_items,
+        'llm_summary':      _event_llm_summary(event),
     })
+
+
+_BILL_REF_RE = re.compile(r'\b(?:CB|Res|Ord|CF) \d+\b')
+
+
+def _event_llm_summary(event):
+    """Surfaces the LLM-generated meeting summary card content.
+    Returns None when no summary has been generated yet (frontend
+    hides the card slot rather than showing an empty state).
+
+    ``video_url`` is pulled from the EventTranscript and exposed so
+    the card can deep-link to specific points in the recording via
+    HTML5 video fragment timestamps (``#t=<seconds>``).
+
+    ``bill_refs`` is a pre-resolved ``{identifier: slug}`` mapping
+    for any bill identifier mentioned in the overview or per-item
+    summaries (e.g. ``CB 121181``, ``Res 32196``). Resolving server-
+    side lets the frontend linkify with one map lookup instead of
+    chasing N async requests per render."""
+    from seattle_app.models import EventSummary, EventTranscript
+    s = EventSummary.objects.filter(event_id=event.id).first()
+    if not s:
+        return None
+
+    transcript = EventTranscript.objects.filter(event_id=event.id).only('video_url').first()
+    video_url = transcript.video_url if transcript else ''
+
+    # Collect identifiers across overview + per-item summaries + per-item
+    # labels (chunker labels include bill identifiers like "CB 121188:
+    # relating to..."). One DB query resolves all of them.
+    haystack_parts = [s.overview]
+    for item in (s.item_summaries or []):
+        haystack_parts.append(item.get('label') or '')
+        haystack_parts.append(item.get('summary') or '')
+    haystack = '\n'.join(haystack_parts)
+    identifiers = set(_BILL_REF_RE.findall(haystack))
+    bill_refs = {}
+    if identifiers:
+        for b in Bill.objects.filter(identifier__in=identifiers).only('identifier', 'slug'):
+            bill_refs[b.identifier] = b.slug
+
+    return {
+        'overview':       s.overview,
+        'item_summaries': s.item_summaries,
+        'video_url':      video_url,
+        'bill_refs':      bill_refs,
+        'generated_at':   s.generated_at.isoformat(),
+        'model':          s.model_version,
+    }
 
 
 @require_GET

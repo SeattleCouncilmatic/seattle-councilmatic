@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useLocation, Link } from 'react-router-dom'
 import NotFound from './NotFound'
+import EventSummaryCard from './EventSummaryCard'
 import useDocumentTitle from '../hooks/useDocumentTitle'
 import './EventDetail.css'
 
@@ -244,8 +245,9 @@ export default function EventDetail() {
             </section>
           </aside>
 
-          {/* Main: agenda items */}
+          {/* Main: LLM summary card + agenda items */}
           <section className="evt-detail-main">
+            <EventSummaryCard summary={event.llm_summary} />
             <h2 className="evt-detail-section-title">Agenda Items</h2>
             {substantiveItems.length === 0 ? (
               <p className="evt-detail-empty">
