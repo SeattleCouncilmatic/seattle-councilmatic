@@ -248,6 +248,12 @@ CLAUDE_BILL_TAG_MODEL = os.getenv("CLAUDE_BILL_TAG_MODEL", "claude-sonnet-4-6")
 # sponsorship portfolio, voting record, and bio prose. Per-rep input is
 # ~2-4 KB; cached system prompt makes the 9-rep batch cost trivial.
 CLAUDE_REP_SUMMARY_MODEL = os.getenv("CLAUDE_REP_SUMMARY_MODEL", "claude-sonnet-4-6")
+# Sonnet: meeting overview + per-agenda-item summaries from the
+# captioned transcript + roster + chapter list. Per-meeting input is
+# ~30-100 KB (auto-captioned SRT text); two-tier structured output
+# (overview + array of item summaries) in a single call so prompt
+# caching applies once per meeting.
+CLAUDE_EVENT_SUMMARY_MODEL = os.getenv("CLAUDE_EVENT_SUMMARY_MODEL", "claude-sonnet-4-6")
 
 # Content Security Policy settings
 # In development, allow localhost resources
