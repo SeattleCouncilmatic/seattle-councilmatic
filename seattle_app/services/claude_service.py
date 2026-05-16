@@ -229,7 +229,14 @@ REP_SUMMARY_SYSTEM_PROMPT = (
     "popular, controversial, or aligned with any other body. Stick to "
     "what they do.\n"
     "  - If the bio is empty (no seattle.gov About page exists), skip "
-    "the background paragraph rather than padding the summary."
+    "the background paragraph rather than padding the summary.\n"
+    "  - Do not mention metadata about input availability in the prose "
+    "(e.g. 'subject tags are unavailable', 'no biographical information "
+    "from seattle.gov is available', 'no notable dissents are on record "
+    "in the current dataset'). Degrade silently to whatever you can "
+    "synthesize from the data you do have. Empty issue-area breakdowns "
+    "should be handled by describing sponsorships from their titles "
+    "alone; empty bios by simply omitting the background paragraph."
 )
 
 

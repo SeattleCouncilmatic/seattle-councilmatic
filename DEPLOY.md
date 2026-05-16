@@ -182,6 +182,31 @@ changed.
 Zero-downtime is NOT a goal of this setup — gunicorn restarts mean
 ~2-5s of 502s during deploys. Acceptable for this site's traffic.
 
+### Post-deploy data population
+
+Some PRs ship management commands that populate LLM-derived data
+(rep bios, bill issue-area tags, rep summaries). The container
+restart applies migrations automatically but does NOT run these
+populations — they're one-off, sometimes API-paying, and gated by
+deploy-time judgment.
+
+Check the PR description for any "after merge:" steps. Currently:
+
+| Command | When to run | Idempotent? |
+| --- | --- | --- |
+| `python manage.py scrape_rep_bios` | After membership changes; bios on seattle.gov change rarely | Yes — UPSERTs by `person_id` |
+| `python manage.py backfill_council_terms` | When a member is sworn in, resigns, or is replaced | Yes — only writes when existing field is empty unless `--force` |
+| `python manage.py tag_bill_issue_areas` | New bills tag automatically when this command runs without `--force`; re-run with `--force` only when the prompt or vocabulary changes | Yes — UPSERTs by `bill_id`. Two-phase: submit, wait ~10-30 min, re-run to poll + persist |
+| `python manage.py summarize_reps` | After any of `scrape_rep_bios`, `backfill_council_terms`, or `tag_bill_issue_areas` runs against changed data; or when membership changes | Yes — UPSERTs by `person_id`. Two-phase: submit, wait ~5-10 min, re-run to poll + persist. Pass `--force` to regenerate existing rows |
+
+Forgetting these steps is the most common reason prod data quality
+diverges from dev — see WORK_LOG entry on the rep-summary launch
+postmortem (2026-05-11).
+
+**For new LLM-data PRs:** add a one-line entry to this table in the
+same PR. Don't ship a populator command without documenting when to
+run it on prod.
+
 ### View logs
 
 ```

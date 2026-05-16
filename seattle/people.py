@@ -37,6 +37,21 @@ ABOUT_PAGE_SLUGS = {
 }
 
 
+# Canonical committee names by URL slug. The scraper picks "first-seen
+# display name" per slug across all reps' /committees-and-calendar
+# pages, so when one rep's page renders a stale or wrong committee
+# name, that name becomes canonical for the org. The Parks & City
+# Light committee (slug `parks-and-city-light`) was getting picked
+# up as "Parks & City Light, Arts & Culture" because at least one
+# rep's page surfaces that erroneous suffix; seattle.gov's actual
+# committee name on the canonical page is "Parks & City Light".
+# Add entries here when a slug's canonical display name needs to be
+# pinned regardless of what individual rep pages render.
+COMMITTEE_NAME_OVERRIDES = {
+    "parks-and-city-light": "Parks & City Light",
+}
+
+
 def profile_slug(name: str) -> str:
     """Slug for the per-member seattle.gov profile page."""
     if name in PROFILE_SLUG_OVERRIDES:
@@ -439,13 +454,17 @@ class SeattlePersonScraper(Scraper):
         # vary in punctuation across reps' pages, and at least one page
         # has a copy-paste href/text mismatch — the URL slug is the
         # stable identifier. Pick the first-seen display name as
-        # canonical (consistent across the scrape and reasonable for UI).
+        # canonical (consistent across the scrape and reasonable for
+        # UI), overridden by `COMMITTEE_NAME_OVERRIDES` for slugs
+        # whose canonical seattle.gov name needs to be pinned (e.g.
+        # `parks-and-city-light` — see the override comment).
         canonical_committees: dict[str, dict] = {}
         for m in members_data:
             for c in m["committees_raw"]:
                 slug = c["slug"]
                 if slug not in canonical_committees:
-                    canonical_committees[slug] = {"name": c["name"], "url": c["url"]}
+                    name = COMMITTEE_NAME_OVERRIDES.get(slug, c["name"])
+                    canonical_committees[slug] = {"name": name, "url": c["url"]}
 
         # Yield each committee Organization once.
         for slug, data in canonical_committees.items():
