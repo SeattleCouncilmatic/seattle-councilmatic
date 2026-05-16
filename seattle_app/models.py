@@ -362,6 +362,80 @@ class BillText(models.Model):
         return f"Text: {self.bill.identifier} ({len(self.text):,} chars)"
 
 
+class EventTranscript(models.Model):
+    """Captioned transcript of a council meeting, scraped from Seattle
+    Channel's video archive. One row per ``Event`` (typically Full
+    Council meetings; the extractor is filterable but defaults to that).
+
+    Seattle Channel publishes auto-captioned SRT files at a
+    deterministic URL once a meeting is archived. The SRT is the raw
+    source of truth and stays preserved in ``srt_raw`` for future
+    re-processing without re-scraping. ``transcript_text`` is the
+    flattened plain-text view (entities decoded, timestamps + sequence
+    numbers stripped) for cheap LLM consumption.
+
+    ``chapter_markers`` mirrors the agenda-item index on the Seattle
+    Channel video page: a list of ``{label, start_seconds}`` dicts
+    ordered by time. The summarizer (issue #149 phase 2) uses these
+    to chunk the transcript for per-agenda-item summaries.
+
+    Caption quality is auto-captioned (all-caps, proper-noun errors,
+    speaker turns marked only by ``>>`` not by name). Quality is
+    mitigated at LLM-summary time by passing the meeting's agenda +
+    councilmember roster as structured context. ``video_url`` is
+    captured so a future Whisper re-transcription step (issue #149
+    phase 3, deferred) wouldn't need to re-scrape Seattle Channel."""
+
+    event = models.OneToOneField(
+        Event,
+        on_delete=models.CASCADE,
+        related_name="transcript",
+        help_text="The council meeting this transcript belongs to.",
+    )
+    srt_raw = models.TextField(
+        help_text="Raw SRT as downloaded from Seattle Channel.",
+    )
+    transcript_text = models.TextField(
+        help_text=(
+            "Flattened plain text of the SRT (timestamps + sequence "
+            "numbers stripped, HTML entities decoded). Speaker-turn "
+            "markers '>>' preserved for chunkability."
+        ),
+    )
+    chapter_markers = models.JSONField(
+        default=list,
+        help_text=(
+            "Ordered list of {label, start_seconds} dicts from the "
+            "Seattle Channel agenda-index UI. Empty when a meeting "
+            "had no marked chapters."
+        ),
+    )
+    source_url = models.URLField(
+        max_length=500,
+        help_text="Seattle Channel URL the SRT was downloaded from.",
+    )
+    video_url = models.URLField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text=(
+            "video.seattle.gov MP4 URL for the meeting. Captured for "
+            "future Whisper re-transcription; not used by the v1 "
+            "SRT-based summarizer."
+        ),
+    )
+    scraped_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Event Transcript"
+        verbose_name_plural = "Event Transcripts"
+
+    def __str__(self):
+        n = len(self.transcript_text)
+        return f"Transcript for {self.event} ({n:,} chars)"
+
+
 class SeattleBill(Bill):
     """
     Extend the base Bill model for city-specific functionality.
