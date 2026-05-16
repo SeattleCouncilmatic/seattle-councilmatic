@@ -7,7 +7,15 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('councilmatic_core', '0054_remove_person_councilmatic_biography_and_more'),
+        # Pinned to 0053 (the latest councilmatic_core migration that
+        # exists in both prod's and dev's installed package versions).
+        # makemigrations originally emitted a 0054 dep because the dev
+        # container had pulled a newer 5.x-branch zip than prod did at
+        # build time. requirements.txt pins django-councilmatic to the
+        # 5.x branch URL rather than a specific commit, so each `docker
+        # compose ... build` can pull a different snapshot. See the
+        # follow-up issue on pinning to a commit instead of a branch.
+        ('councilmatic_core', '0053_add_councilmatic_bio'),
         ('seattle_app', '0022_delete_stale_midnight_event_duplicates'),
     ]
 
