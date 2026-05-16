@@ -52,27 +52,39 @@ _SC_HOST = "https://seattlechannel.org"
 _REQUEST_TIMEOUT = 15
 _REQUEST_DELAY_SECONDS = 1  # polite between Legistar/SC fetches per event
 
-# Legistar MeetingDetail page exposes the Seattle Channel link as
-# `seattlechannel.org/FullCouncil?videoid=x\d+&Mode2=Video` (or a near
-# variant). Capture only the videoid for re-composition with the
-# canonical page URL.
-_LEGISTAR_VIDEOID_RE = re.compile(
-    r"seattlechannel\.org/[^\"'\s<>]*?videoid=(x\d+)",
+# Legistar MeetingDetail page exposes the full Seattle Channel link
+# inline. The URL path encodes which committee/body the recording
+# belongs to — e.g.:
+#   - Full Council: `seattlechannel.org/FullCouncil?videoid=x...`
+#   - Committee:    `seattlechannel.org/mayor-and-council/city-council/
+#                    2026-2027-<committee-slug>?videoid=x...`
+# We capture the entire URL (with its `videoid` query string intact)
+# and use it directly — composing our own path doesn't work because
+# `/FullCouncil?videoid=<X>` silently ignores the videoid and serves
+# whatever the latest Full Council page is, regardless of <X>.
+_LEGISTAR_SC_URL_RE = re.compile(
+    r"(https?://(?:www\.)?seattlechannel\.org/[^\"'\s<>]*?videoid=x\d+[^\"'\s<>]*)",
     re.IGNORECASE,
 )
 
 # Seattle Channel video page exposes the SRT path as a substring like
-# `documents/SeattleChannel/closedcaption/<year>/council_<MMDDYY>_<id>.srt`.
-# The leading slash is sometimes present, sometimes not.
+# `documents/SeattleChannel/closedcaption/<year>/<prefix>_<MMDDYY>_<id>.srt`.
+# The filename prefix is `council_` for Full Council, and a per-committee
+# shortcode otherwise (e.g. `safe_` for Public Safety, `fin_` for
+# Finance, `land_` for Land Use, `hous_` for Housing). The leading
+# slash is sometimes present, sometimes not.
 _SC_SRT_RE = re.compile(
-    r"(documents/SeattleChannel/closedcaption/\d{4}/council_\d{6}_\d+\.srt)",
+    r"(documents/SeattleChannel/closedcaption/\d{4}/[a-z]+_\d{6}_\d+\.srt)",
     re.IGNORECASE,
 )
 
 # Seattle Channel video page exposes the MP4 URL as a protocol-relative
-# `//video.seattle.gov/media/council/council_<MMDDYY>_<id>.mp4`.
+# `//video.seattle.gov/media/council/<prefix>_<MMDDYY>_<id>.mp4`. The
+# path stays `/media/council/` across all council bodies (Full Council
+# and committees alike); only the filename prefix varies (see SRT
+# regex above).
 _SC_MP4_RE = re.compile(
-    r"//(video\.seattle\.gov/media/council/council_\d{6}_\d+\.mp4)",
+    r"//(video\.seattle\.gov/media/council/[a-z]+_\d{6}_\d+\.mp4)",
     re.IGNORECASE,
 )
 
@@ -132,10 +144,12 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--name",
-            default="City Council",
+            default=None,
             help=(
-                "Event.name filter (default: 'City Council' — Full Council "
-                "meetings). Pass empty string to include all event types."
+                "Event.name filter. Default is no filter — every past event "
+                "with a Legistar source is attempted, and events without a "
+                "Seattle Channel videoid skip gracefully. Pass a name (e.g. "
+                "'City Council', 'Public Safety Committee') to scope a run."
             ),
         )
 
@@ -228,8 +242,7 @@ class Command(BaseCommand):
 
     def _scrape_one(self, event) -> dict:
         legistar_url = self._legistar_url(event)
-        videoid = self._extract_videoid(legistar_url)
-        sc_page_url = f"{_SC_HOST}/FullCouncil?videoid={videoid}&Mode2=Video"
+        sc_page_url = self._extract_sc_url(legistar_url)
         sc_html = self._fetch_text(sc_page_url)
 
         srt_path = self._extract_first(_SC_SRT_RE, sc_html)
@@ -260,12 +273,16 @@ class Command(BaseCommand):
             raise _ExtractorSkip("no source URL on Event")
         return src.url
 
-    def _extract_videoid(self, legistar_url: str) -> str:
+    def _extract_sc_url(self, legistar_url: str) -> str:
+        """Pull the Seattle Channel page URL out of the Legistar
+        MeetingDetail HTML and return it ready-to-fetch (with HTML
+        entities like &amp; decoded). Raises ``_ExtractorSkip`` if
+        the page has no SC link — events that weren't televised."""
         legistar_html = self._fetch_text(legistar_url)
-        videoid = self._extract_first(_LEGISTAR_VIDEOID_RE, legistar_html)
-        if not videoid:
-            raise _ExtractorSkip("no Seattle Channel videoid on Legistar page")
-        return videoid
+        raw_url = self._extract_first(_LEGISTAR_SC_URL_RE, legistar_html)
+        if not raw_url:
+            raise _ExtractorSkip("no Seattle Channel link on Legistar page")
+        return html.unescape(raw_url)
 
     @staticmethod
     def _extract_first(pattern, text):

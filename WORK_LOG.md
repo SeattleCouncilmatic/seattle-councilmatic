@@ -45,6 +45,43 @@ Parser corpus state (post-fix re-parse 2026-04-26 after `93cb885`): 7,435 sectio
 
 ## Done
 
+### Events — extend transcripts + summaries to committee + briefing meetings — committed 2026-05-16
+
+Closes #191. Broadens the transcript extractor and summarizer (PRs #184, #189) from Full Council only to every televised council body — Full Council, Council Briefings, and the 9 standing committees + select committees. 76 new transcripts + 76 new summaries persisted alongside the existing 18 Full Council rows for 94 total covering Jan 2026 onward.
+
+**One non-obvious bug surfaced during smoke** that justified the bother of running this on dev first.
+
+The original extractor composed the Seattle Channel page URL as `f"{_SC_HOST}/FullCouncil?videoid={videoid}&Mode2=Video"` regardless of meeting type. For Full Council that path is correct; for committees, the real path is `/mayor-and-council/city-council/<year>-<committee-slug>`. When you hit `/FullCouncil?videoid=<X>` with a non-Full-Council videoid, **Seattle Channel returns 200 OK with the latest Full Council page**, silently ignoring the query string. First committee run wrote 76 transcripts that all pointed to the same `council_051226_2022637.srt` (5/12 Full Council). Caught because every persisted transcript came back with identical char count (79,301).
+
+Fix: stop composing the SC URL ourselves. Legistar already embeds the full Seattle Channel URL for each meeting, so we extract it whole and use it directly. Regex now captures the entire URL (with HTML-entity decoding for `&amp;`), and `_extract_videoid` was renamed to `_extract_sc_url`. Lesson worth recording: when a third-party site has a "default" route that doesn't 404 on bad params, "I'll just compose the URL myself" is a subtle footgun.
+
+**Two more small extractor changes for the broader scope:**
+
+- *SRT/MP4 regexes broadened* from `council_<MMDDYY>` to `[a-z]+_<MMDDYY>` since each council body uses its own filename prefix (`council_`, `safe_`, `fin_`, `land_`, `hous_`, etc.). The path stays `/media/council/` and `/closedcaption/<year>/` across all bodies — only the filename prefix varies.
+- *`--name` default dropped*. Previously defaulted to `City Council` (Full Council only). Now defaults to no filter; events without a Seattle Channel link skip gracefully via the existing `_ExtractorSkip` path. `--name "Public Safety Committee"` still works for targeted runs.
+
+**No code changes needed in `summarize_events`**. It filters `transcript__isnull=False`, so it naturally picks up whatever the extractor populated. Cardinality went from 18 (Full Council) to 94 (Full Council + Briefings + committees) without a config change.
+
+**Coverage shape after the run:**
+
+- Full Council: 18/19 past meetings transcribed (the missing one was the upcoming 5/12 at the time of original PR-184)
+- Council Briefings: 13/17 past meetings (4 weren't televised or hadn't published their SC link yet)
+- 9 standing committees: 60/72 past meetings (~83% capture rate)
+- Select committees: 8/11
+- Total: 94 transcripts + 94 summaries
+
+Some committees consistently aren't on Seattle Channel — Parks and City Light Committee is the worst offender at 3/8 captured. That's an upstream coverage issue, not a bug. The extractor's "no SC link → skip gracefully" handling is the right posture.
+
+**Quality verified** by spot-checking 3 summaries across topic areas. Examples of what landed well:
+
+- Public Safety Cttee 4/28 captured Central Staff's 47% arrest increase / 30% diversion drop data, Chief Barns' framing, LEAD/PDA representatives, Saka/Rivera/Lin question themes, and Chair Kettle's intent to update the ordinance.
+- Finance Cttee 3/17 (a single-chapter SPU tribal-engagement briefing with no chapter markers — chunker fell back to "Full meeting") correctly named presenters Andrew Lee, Kyle Iron Lightning, Francesca Murnan and tied them to specific projects (Bitter Lake, Cedar River, Tolt River, Muckleshoot Settlement Agreement).
+- Housing/Arts/Civil Rights Cttee 4/22 captured the Amy Nguyen confirmation, specific dollar figures ($14.2M, $58M, $300M, $865M), and Rivera's sponsorship of the legislative intent on operating stabilization investments.
+
+Auto-caption name disambiguation continues to work — names are spelled correctly in summaries despite the all-caps source captions. The roster-context mitigation from PR #189 generalizes cleanly across committees.
+
+**Cost.** ~$6 backfill for the 76 new summaries (Sonnet 4.6 + Batch + cached system prompt). Ongoing ~4 new meetings/week × $0.08-0.10/meeting = ~$0.40/week / ~$20/year.
+
 ### Events — LLM-generated meeting summary card on EventDetail — committed 2026-05-16
 
 Closes #149. New `EventSummary` model + `summarize_events` Batch command + `<EventSummaryCard>` React component render a two-tier synthesis on each Full Council `EventDetail`: a 2-4 paragraph meeting overview always visible, plus a collapsible per-agenda-item summary list with chapter-timestamp anchors. All 18 YTD Full Council meetings from Jan 2026 summarized in one Batch run after smoke-validating one meeting and fixing the chunker-LLM label round-trip.
