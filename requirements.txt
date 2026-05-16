@@ -6,8 +6,15 @@ Django>=4.2,<5
 psycopg2-binary>=2.9.9
 dj-database-url>=2.1.0
 
-# Councilmatic core
-django-councilmatic @ https://github.com/datamade/django-councilmatic/archive/refs/heads/5.x.zip
+# Councilmatic core. Pinned to a specific commit on the 5.x branch
+# rather than the branch HEAD zip: a branch URL re-downloads whatever
+# is currently at HEAD on every `docker compose ... --build`, which
+# means dev and prod images can end up with different versions of the
+# package without anything in our repo changing. That divergence hit
+# us on 2026-05-16 (issue #187) when a seattle_app migration declared
+# a dep on a councilmatic_core node that only existed in dev's image.
+# Bump this pin intentionally when adopting upstream changes.
+django-councilmatic @ git+https://github.com/datamade/django-councilmatic@7be6ad2604bd1d6fdbb1b83d9f1dafbf479c6ca8
 
 # Wagtail CMS (used by INSTALLED_APPS for the /cms/ admin). Pinned to
 # the 6.x line for Django 4.2 compatibility — Wagtail 7+ requires

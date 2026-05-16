@@ -39,6 +39,8 @@ Parser corpus state (post-fix re-parse 2026-04-26 after `93cb885`): 7,435 sectio
 
 **LLM-data PRs document their post-deploy populator commands in DEPLOY.md.** Any PR that introduces a management command which populates LLM-derived data (bios, tags, summaries, transcripts) must add a one-line entry to the "Post-deploy data population" table in `DEPLOY.md` in the same PR. We hit prod-vs-dev data divergence on the rep-summary launch (2026-05-11) because three sequential PRs each shipped a populator without telling deploy when to run it.
 
+**Pin git-URL dependencies to a commit SHA or tag, never to a branch.** Branch URLs (e.g. `.../archive/refs/heads/5.x.zip` or `git+https://.../<repo>@5.x`) re-resolve to whatever the branch's HEAD is at build time. That means dev and prod images can pick up different upstream snapshots without anything in our repo changing — caused a prod outage on 2026-05-16 (issue #187) when a seattle_app migration declared a dep on a councilmatic_core node that only existed in dev's image. Bump pins intentionally when adopting upstream changes.
+
 ---
 
 ## Done
