@@ -19,6 +19,17 @@ function formatDateTime(isoString) {
   })
 }
 
+// Compact time-only formatter for the end-of-range suffix in the
+// header meta line (e.g. "Tuesday, April 14, 2026 · 9:00 PM – 11:30 PM").
+function formatTime(isoString) {
+  if (!isoString) return ''
+  const d = new Date(isoString)
+  return d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 function StatusBadge({ status }) {
   const MAP = {
     confirmed: { label: 'Confirmed', cls: 'evt-badge--confirmed' },
@@ -184,70 +195,65 @@ export default function EventDetail() {
           <span className="evt-detail-breadcrumb-current">{event.name}</span>
         </nav>
 
-        {/* Header */}
+        {/* Header — consolidates title, status, date/time, location,
+            Legistar link, and PDF doc buttons into one card so the
+            metadata reads as a single block (#190). */}
         <header className="evt-detail-header">
-          <h1 className="evt-detail-title">{event.name}</h1>
-          <div className="evt-detail-meta-row">
+          <div className="evt-detail-title-row">
+            <h1 className="evt-detail-title">{event.name}</h1>
             <StatusBadge status={event.status} />
           </div>
+
+          <dl className="evt-detail-meta">
+            <dt className="evt-sr-only">Date and time</dt>
+            <dd className="evt-detail-meta-item">
+              {formatDateTime(event.start_date)}
+              {event.end_date && <> – {formatTime(event.end_date)}</>}
+            </dd>
+
+            {event.location && (
+              <>
+                <dt className="evt-sr-only">Location</dt>
+                <dd className="evt-detail-meta-item evt-detail-meta-location">
+                  {event.location}
+                </dd>
+              </>
+            )}
+
+            {legistarUrl && (
+              <>
+                <dt className="evt-sr-only">Legistar</dt>
+                <dd className="evt-detail-meta-item">
+                  <a
+                    href={legistarUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="evt-detail-external-link"
+                  >
+                    View on Legistar ↗
+                  </a>
+                </dd>
+              </>
+            )}
+          </dl>
+
+          <AgendaDocButtons
+            agendaUrl={event.agenda_file_url}
+            agendaStatus={event.agenda_status}
+            packetUrl={event.packet_url}
+            minutesUrl={event.minutes_file_url}
+            minutesStatus={event.minutes_status}
+          />
         </header>
 
-        {/* Agenda & Minutes PDF buttons */}
-        <AgendaDocButtons
-          agendaUrl={event.agenda_file_url}
-          agendaStatus={event.agenda_status}
-          packetUrl={event.packet_url}
-          minutesUrl={event.minutes_file_url}
-          minutesStatus={event.minutes_status}
-        />
-
-        {/* Body */}
+        {/* Body — single column now that metadata moved into the
+            header card (#190). Summary card sits as a top-level
+            sibling of the agenda-items section (not nested inside it)
+            to match the visual pattern of other LLM summary cards
+            elsewhere in the app. */}
         <div className="evt-detail-body">
-
-          {/* Sidebar: key facts */}
-          <aside className="evt-detail-sidebar">
-            <section className="evt-detail-section">
-              <h2 className="evt-detail-section-title">Details</h2>
-              <dl className="evt-detail-dl">
-                <dt>Date &amp; Time</dt>
-                <dd>{formatDateTime(event.start_date)}</dd>
-
-                {event.end_date && (
-                  <>
-                    <dt>Ends</dt>
-                    <dd>{formatDateTime(event.end_date)}</dd>
-                  </>
-                )}
-
-                {event.location && (
-                  <>
-                    <dt>Location</dt>
-                    <dd className="evt-detail-location">{event.location}</dd>
-                  </>
-                )}
-
-                {legistarUrl && (
-                  <>
-                    <dt>Legistar</dt>
-                    <dd>
-                      <a
-                        href={legistarUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="evt-detail-external-link"
-                      >
-                        View on Legistar ↗
-                      </a>
-                    </dd>
-                  </>
-                )}
-              </dl>
-            </section>
-          </aside>
-
-          {/* Main: LLM summary card + agenda items */}
+          <EventSummaryCard summary={event.llm_summary} />
           <section className="evt-detail-main">
-            <EventSummaryCard summary={event.llm_summary} />
             <h2 className="evt-detail-section-title">Agenda Items</h2>
             {substantiveItems.length === 0 ? (
               <p className="evt-detail-empty">
