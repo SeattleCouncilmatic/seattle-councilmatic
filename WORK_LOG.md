@@ -43,6 +43,27 @@ Parser corpus state (post-fix re-parse 2026-04-26 after `93cb885`): 7,435 sectio
 
 ## Done
 
+### Events — extract Seattle Channel SRT transcripts for council meetings — committed 2026-05-16
+
+Phase 1 of #149 (council meeting transcripts and summaries). New `EventTranscript` model + `extract_event_transcripts` mgmt command pull captioned SRT transcripts from Seattle Channel for Full Council meetings, walking the chain `Event → Legistar MeetingDetail → Seattle Channel video page → SRT download`. 18 past meetings from Jan 2026 onward extracted clean on first run (0 errors).
+
+**Source-discovery investigation.** Before committing to a transcript surface, probed three candidates: Seattle Channel SRT, YouTube auto-captions on the Seattle Channel YouTube, and Granicus iframe inside Legistar. Seattle Channel SRT won on every axis except quality: standard SRT format at a deterministic URL pattern (`seattlechannel.org/documents/SeattleChannel/closedcaption/<year>/council_<MMDDYY>_<id>.srt`), agenda-item chapter markers also on the same page, no rate limits observed across 4 sample fetches. YouTube probe failed ergonomically (heavy JS in the channel page). Granicus iframe didn't expose a separate caption URL via Legistar.
+
+**Caption quality is auto-captioned, not human-edited.** All-caps throughout (`>> GOOD AFTERNOON. THANK YOU FOR COMING TO THE MAY 5, 2026 MEETING...`), phonetic name errors ("CAROLINE" for "Carolyn" in one sample, though Juarez was spelled correctly in another), no speaker attribution beyond a `>>` turn marker. Quality risk is real but downstream-mitigated: the summarizer (PR-B) passes the meeting's agenda + councilmember roster as structured prompt context so the LLM can cross-reference garbled names. Trade-off accepted because Whisper-via-OpenAI was 5× the cost ($10 backfill vs $2), required FFmpeg + 25MB-chunk plumbing for OpenAI Whisper API's file-size limit, and introduced a new vendor. `video_url` is captured on every row so a Whisper re-transcription path (deferred phase 3) wouldn't need to re-scrape Seattle Channel.
+
+**Truncation worry investigated and disproved.** One sample SRT (4/21) ran 41 min when neighbors were 1:30-2:15 hr; initially looked like the captioner cut off mid-meeting. HEAD-requesting the corresponding MP4 (214 MB) vs neighbors (473-500 MB) showed the meeting *itself* was 40 min — the SRT and MP4 agree; the meeting just was short. So SRT length faithfully reflects meeting length.
+
+**Two Seattle Channel data-quality issues to handle in PR-B's summarizer.**
+
+- *Stale chapter markers.* 4/21's chapter markers list items at 1:29-1:33 but the meeting ran 0:41. Seattle Channel's CMS has copy-pasted chapter markers from a different (probably 4/28) meeting. Downstream summarizer must validate `start_seconds` against the SRT's last timestamp and drop markers that exceed it.
+- *Duplicate chapter timestamps.* 4/14's page lists two chapters at the same `data-seek="7103"` (CB 121185 + CB 121187). Both correctly preserved by the extractor; PR-B's per-agenda-item chunker will need to merge adjacent same-timestamp chapters into a single chunk.
+
+**Model shape.** Raw SRT preserved verbatim in `srt_raw` (176 KB for a 1.5-hr meeting); a flattened plain-text view in `transcript_text` with timestamps + sequence numbers stripped and `>>` markers promoted to `\n\n>> ` paragraph breaks so speaker turns are obvious. Decoding HTML entities at preprocess time (`&gt;&gt;&gt;` → `>>>`) — entity escaping was inconsistent in the source. Casing left untouched (auto-caption all-caps) — destructive normalization (e.g. titlecase) loses signal; the LLM handles it fine at summary time.
+
+**Found the MP4 URL too.** While probing for Whisper feasibility, traced the video player config to JW Player calls referencing `//video.seattle.gov/media/council/council_<MMDDYY>_<id>.mp4`. Same `<id>` as the SRT. Captured on `EventTranscript.video_url` for future use. HEAD-confirmed accessible without auth, 200-500 MB per meeting depending on length.
+
+**Migration bundling note.** `makemigrations` emitted bundled Meta-options + `summary_batch_id` `help_text` drift from `MunicipalCodeSection` and `LegislationSummary` alongside the new `EventTranscript` `CreateModel`. Drift was harmless (forward-compatible metadata-only changes); migration `0023_eventtranscript` includes both. Anyone running `makemigrations` next would have hit the same drift.
+
 ### Reps — LLM-generated rep summary card on RepDetail — committed 2026-05-11
 
 Closes #147. New `RepSummary` model + Batch command + frontend card render a 2-3 paragraph plain-prose synthesis above the lifetime-vote pill row on each councilmember's detail page. The prose blends structured stats (tenure, committees, sponsorship breakdown by issue area, voting record) with bio context. All 9 currently-serving members tagged in one Batch run after smoke-validating Hollingsworth and Juarez.

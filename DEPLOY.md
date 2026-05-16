@@ -198,6 +198,7 @@ Check the PR description for any "after merge:" steps. Currently:
 | `python manage.py backfill_council_terms` | When a member is sworn in, resigns, or is replaced | Yes — only writes when existing field is empty unless `--force` |
 | `python manage.py tag_bill_issue_areas` | New bills tag automatically when this command runs without `--force`; re-run with `--force` only when the prompt or vocabulary changes | Yes — UPSERTs by `bill_id`. Two-phase: submit, wait ~10-30 min, re-run to poll + persist |
 | `python manage.py summarize_reps` | After any of `scrape_rep_bios`, `backfill_council_terms`, or `tag_bill_issue_areas` runs against changed data; or when membership changes | Yes — UPSERTs by `person_id`. Two-phase: submit, wait ~5-10 min, re-run to poll + persist. Pass `--force` to regenerate existing rows |
+| `python manage.py extract_event_transcripts` | After a new Full Council meeting airs and Seattle Channel publishes the captioned SRT (typically a few days lag). Default scope is `name='City Council'` + `start_date >= 2026-01-01` | Yes — UPSERTs by `event_id`. Polite-paced HTTP only; no LLM cost |
 
 Forgetting these steps is the most common reason prod data quality
 diverges from dev — see WORK_LOG entry on the rep-summary launch
