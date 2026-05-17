@@ -4,11 +4,24 @@
 # obviously local-time without grepping the compose file.
 CRON_TZ=America/Los_Angeles
 
-# Run full update (scrape + sync) daily at 2 AM Pacific.
-# Source /etc/cron-env first — cron sanitizes the environment, so without
+# Run full update (scrape + sync + extract bill text + extract event
+# transcripts + submit LLM batches) daily at 2 AM Pacific. Source
+# /etc/cron-env first — cron sanitizes the environment, so without
 # this DATABASE_URL etc. from .env aren't visible and Django falls back
 # to localhost:5432. The file is written by scripts/scheduler-entrypoint.sh
 # at container start.
 0 2 * * * . /etc/cron-env && cd /app && /app/scripts/update_seattle.sh >> /var/log/cron/sync.log 2>&1
+
+# Poll Anthropic Batch jobs submitted at 2 AM and persist results.
+# Batches typically complete in 5-30 minutes for our daily volumes;
+# an hour's headroom is generous. Includes summarize_reps so the
+# Sunday weekly rep batch (submitted 2:30 AM) gets polled at 3 AM
+# without needing its own daily entry.
+0 3 * * * . /etc/cron-env && cd /app && /app/scripts/poll_llm_batches.sh >> /var/log/cron/sync.log 2>&1
+
+# Weekly rep refresh (Sunday 2:30 AM): scrape bios from seattle.gov
+# and submit the summarize_reps batch. The 3 AM daily poll covers
+# polling + persistence.
+30 2 * * 0 . /etc/cron-env && cd /app && /app/scripts/update_reps.sh >> /var/log/cron/sync.log 2>&1
 
 # Empty line required at end of crontab file

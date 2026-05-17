@@ -37,13 +37,37 @@ Parser corpus state (post-fix re-parse 2026-04-26 after `93cb885`): 7,435 sectio
 
 **Pre-flight at session start:** `git fetch && git log main..origin/main` to catch divergence between local and remote `main` before doing anything else. We lost time to a 16-commit divergence in 2026-04 that this would have caught in one command.
 
-**LLM-data PRs document their post-deploy populator commands in DEPLOY.md.** Any PR that introduces a management command which populates LLM-derived data (bios, tags, summaries, transcripts) must add a one-line entry to the "Post-deploy data population" table in `DEPLOY.md` in the same PR. We hit prod-vs-dev data divergence on the rep-summary launch (2026-05-11) because three sequential PRs each shipped a populator without telling deploy when to run it.
+**LLM-data PRs document their post-deploy populator commands in DEPLOY.md AND wire them into the scheduler.** Any PR that introduces a management command which populates LLM-derived data (bios, tags, summaries, transcripts) must (a) add a one-line entry to the "Post-deploy data population" table in `DEPLOY.md` and (b) add a corresponding step to the appropriate cron script — `scripts/update_seattle.sh` (synchronous + Batch-submit), `scripts/poll_llm_batches.sh` (Batch-poll), or `scripts/update_reps.sh` (weekly rep refresh) — so new pipelines run from day one without manual intervention. We hit prod-vs-dev data divergence on the rep-summary launch (2026-05-11) because three sequential PRs each shipped a populator without telling deploy when to run it. The nightly cron wiring (2026-05-16) means that gap can't repeat for routine new data.
 
 **Pin git-URL dependencies to a commit SHA or tag, never to a branch.** Branch URLs (e.g. `.../archive/refs/heads/5.x.zip` or `git+https://.../<repo>@5.x`) re-resolve to whatever the branch's HEAD is at build time. That means dev and prod images can pick up different upstream snapshots without anything in our repo changing — caused a prod outage on 2026-05-16 (issue #187) when a seattle_app migration declared a dep on a councilmatic_core node that only existed in dev's image. Bump pins intentionally when adopting upstream changes.
 
 ---
 
 ## Done
+
+### Ops — wire LLM pipelines into the nightly scheduler — committed 2026-05-16
+
+Closes the gap surfaced when reviewing new legislation on prod and noticing nothing had summaries. The scheduler container previously ran scrape + sync only; LLM-derived data (bill text extraction, issue-area tagging, bill summaries, event transcripts, event summaries, rep bios, rep summaries) only got generated when someone manually ran the commands. That's why three new bills showed up unsummarized — there was no automation for them.
+
+**Daily cron (2 AM Pacific):** `scripts/update_seattle.sh` now runs the full chain after sync:
+
+1. `pupa update seattle` (existing scrape)
+2. `python manage.py sync_councilmatic` (existing)
+3. `python manage.py extract_bill_text` — synchronous, idempotent; pulls attachment text for new bills
+4. `python manage.py extract_event_transcripts` — synchronous; pulls Seattle Channel SRTs for new past meetings (events without SC link skip gracefully)
+5. `python manage.py tag_bill_issue_areas` — Anthropic Batch SUBMIT (poll happens at 3 AM)
+6. `python manage.py summarize_legislation` — Batch SUBMIT
+7. `python manage.py summarize_events` — Batch SUBMIT
+
+**Daily cron (3 AM Pacific):** new `scripts/poll_llm_batches.sh` polls all in-flight Batch jobs. Re-invoking each Batch command at poll time either picks up the 2 AM batch or no-ops with "No rows need ...".
+
+**Weekly cron (Sunday 2:30 AM):** new `scripts/update_reps.sh` runs `scrape_rep_bios` and submits the `summarize_reps` Batch. Sunday 3 AM daily poll catches the rep batch. Rep memberships change rarely (every few years per seat), so daily would be wasteful.
+
+**Lesson from smoke-testing.** Running `poll_llm_batches.sh` on dev for verification submitted a real 315-bill `tag_bill_issue_areas` batch (~$1 of API credit) because the Batch commands' two-phase design means "no in-flight batch → try to submit." That's the right behavior for production (gives the 3 AM poll a second chance to submit if the 2 AM run failed transiently), but it means smoke-testing the poll script has cost side effects when there's accumulated work. Worth knowing.
+
+**Convention updated** (alongside the existing populator-table-in-DEPLOY.md rule from #180): new LLM-data PRs must also add a corresponding step to `scripts/update_seattle.sh` (synchronous + Batch-submit), `scripts/poll_llm_batches.sh` (Batch-poll), or `scripts/update_reps.sh` (weekly) so the new pipeline is automated from day one.
+
+**Cost.** ~$0.10-0.30/day in API spend depending on bill volume; ~$3-9/month at steady state. Trivial relative to the value of "every new piece of legislation has a summary within 25 hours of its scrape."
 
 ### Events — extend transcripts + summaries to committee + briefing meetings — committed 2026-05-16
 
