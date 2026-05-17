@@ -184,30 +184,36 @@ Zero-downtime is NOT a goal of this setup — gunicorn restarts mean
 
 ### Post-deploy data population
 
-Some PRs ship management commands that populate LLM-derived data
-(rep bios, bill issue-area tags, rep summaries). The container
-restart applies migrations automatically but does NOT run these
-populations — they're one-off, sometimes API-paying, and gated by
-deploy-time judgment.
+**Ongoing automation:** as of 2026-05-16, the scheduler container's
+crontab runs the full LLM pipeline nightly — every new bill / event
+gets text-extracted, tagged, and summarized within ~25 hours of its
+first scrape. Rep summaries refresh weekly (Sunday). See
+[scripts/update_seattle.sh](scripts/update_seattle.sh),
+[scripts/poll_llm_batches.sh](scripts/poll_llm_batches.sh),
+[scripts/update_reps.sh](scripts/update_reps.sh), and
+[scheduler-crontab](scheduler-crontab) for the wiring.
 
-Check the PR description for any "after merge:" steps. Currently:
+**Manual runs** are still needed for first-time backfill on a new
+environment, after a prompt or vocabulary change (run with `--force`
+to regenerate), or when debugging. The table below documents each
+command's intent for those cases:
 
-| Command | When to run | Idempotent? |
+| Command | When to run manually | Idempotent? |
 | --- | --- | --- |
-| `python manage.py scrape_rep_bios` | After membership changes; bios on seattle.gov change rarely | Yes — UPSERTs by `person_id` |
-| `python manage.py backfill_council_terms` | When a member is sworn in, resigns, or is replaced | Yes — only writes when existing field is empty unless `--force` |
-| `python manage.py tag_bill_issue_areas` | New bills tag automatically when this command runs without `--force`; re-run with `--force` only when the prompt or vocabulary changes | Yes — UPSERTs by `bill_id`. Two-phase: submit, wait ~10-30 min, re-run to poll + persist |
-| `python manage.py summarize_reps` | After any of `scrape_rep_bios`, `backfill_council_terms`, or `tag_bill_issue_areas` runs against changed data; or when membership changes | Yes — UPSERTs by `person_id`. Two-phase: submit, wait ~5-10 min, re-run to poll + persist. Pass `--force` to regenerate existing rows |
-| `python manage.py extract_event_transcripts` | After any new council meeting (Full Council, Council Briefing, or committee) airs and Seattle Channel publishes the captioned SRT (typically a few days lag). Default scope is every past event since 2026-01-01; events without a Seattle Channel link skip gracefully | Yes — UPSERTs by `event_id`. Polite-paced HTTP only; no LLM cost |
-| `python manage.py summarize_events` | After `extract_event_transcripts` runs against new transcripts; re-run with `--force` after a prompt change or chapter-marker re-extraction | Yes — UPSERTs by `event_id`. Two-phase: submit, wait ~5-10 min, re-run to poll + persist. ~$0.10/meeting (committee meetings same cost shape) |
+| `python manage.py scrape_rep_bios` | After membership changes (the weekly cron also runs this) | Yes — UPSERTs by `person_id` |
+| `python manage.py backfill_council_terms` | When a member is sworn in, resigns, or is replaced. Not in the cron — the hardcoded term-date list is reviewed by hand | Yes — only writes when existing field is empty unless `--force` |
+| `python manage.py extract_bill_text` | Initial backfill on a new env, or after a parser change | Yes — UPSERTs by `bill_id` |
+| `python manage.py tag_bill_issue_areas` | Initial backfill, or with `--force` after a prompt / vocabulary change | Yes — UPSERTs by `bill_id`. Two-phase: submit, wait ~10-30 min, re-run to poll + persist |
+| `python manage.py summarize_legislation` | Initial backfill, or with `--force` after a prompt change | Yes — UPSERTs by `bill_id`. Two-phase: submit, wait ~5-10 min, re-run to poll + persist |
+| `python manage.py summarize_reps` | After any of `scrape_rep_bios`, `backfill_council_terms`, or `tag_bill_issue_areas` runs against changed data; or with `--force` after a prompt change | Yes — UPSERTs by `person_id`. Two-phase: submit, wait ~5-10 min, re-run to poll + persist |
+| `python manage.py extract_event_transcripts` | Initial backfill, or to pick up SRTs Seattle Channel published since the last cron tick | Yes — UPSERTs by `event_id`. Polite-paced HTTP; no LLM cost |
+| `python manage.py summarize_events` | Initial backfill, or with `--force` after a prompt change | Yes — UPSERTs by `event_id`. Two-phase: submit, wait ~5-10 min, re-run to poll + persist. ~$0.10/meeting |
+| `python manage.py import_event_summaries` | One-off env-sync — import summaries from a JSON export produced on another env (saves the LLM cost of regenerating) | Yes — UPSERTs by `event_id`, matched via `legistar_event_id` |
 
-Forgetting these steps is the most common reason prod data quality
-diverges from dev — see WORK_LOG entry on the rep-summary launch
-postmortem (2026-05-11).
-
-**For new LLM-data PRs:** add a one-line entry to this table in the
-same PR. Don't ship a populator command without documenting when to
-run it on prod.
+**For new LLM-data PRs:** add a one-line entry to this table AND a
+corresponding step to [scripts/update_seattle.sh](scripts/update_seattle.sh)
+or [scripts/poll_llm_batches.sh](scripts/poll_llm_batches.sh) so the
+new pipeline is in the automation from day one.
 
 ### View logs
 
