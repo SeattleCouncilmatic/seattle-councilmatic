@@ -34,6 +34,10 @@ data/summarize_legislation_state.json
 data/tag_bill_issue_areas_state.json
 data/summarize_reps_state.json
 data/summarize_events_state.json
+# JSON exports produced by the dev-side EventSummary export snippet
+# and consumed by `import_event_summaries`. Per-environment, not source
+# of truth.
+data/eventsummaries-export.json
 # Intermediate decisions list from `seed_split_decisions --extract-only`.
 # Regenerated each run; not source of truth (verdicts in
 # seattle_app/data/split_decisions.json are).
