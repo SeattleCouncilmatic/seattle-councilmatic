@@ -46,20 +46,19 @@ from seattle_app.services.claude_service import (
     LEGISLATION_OUTPUT_SCHEMA,
     LEGISLATION_SYSTEM_PROMPT,
     _supports_adaptive_thinking,
+    format_batch_error,
 )
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_STATE_PATH = "data/summarize_legislation_state.json"
 
-# Per-request token + thinking ceilings. Mirrors the explicit-budget
-# pattern that worked for the SMC bulk summarizer (PR #70): max_tokens
-# accommodates THINKING_BUDGET tokens of thinking plus generous output
-# room. The structured JSON output for legislation is more verbose
-# than a section summary because it has summary + impact_analysis +
-# multi-item key_changes — give it more output room.
+# Per-request token ceiling. Thinking is bounded via
+# ``output_config.effort`` ("medium" gives ample synthesis room while
+# leaving headroom for the structured JSON output: summary +
+# impact_analysis + multi-item key_changes).
 MAX_TOKENS_PER_REQUEST = 16384
-THINKING_BUDGET_TOKENS = 8192
+THINKING_EFFORT = "medium"
 
 # Hard cap on input chars per bill. Opus 4.7 has a 200k-token context;
 # at ~4 chars/token that's ~800k chars, but we need room for the system
@@ -236,7 +235,7 @@ class Command(BaseCommand):
             identifier = _decode_custom_id(result.custom_id)
             kind = result.result.type
             if kind != "succeeded":
-                errors.append((identifier, kind))
+                errors.append((identifier, format_batch_error(result.result)))
                 continue
 
             message = result.result.message
@@ -380,14 +379,12 @@ class Command(BaseCommand):
                     "format": {
                         "type": "json_schema",
                         "schema": LEGISLATION_OUTPUT_SCHEMA,
-                    }
+                    },
                 },
             }
             if _supports_adaptive_thinking(model):
-                params["thinking"] = {
-                    "type": "enabled",
-                    "budget_tokens": THINKING_BUDGET_TOKENS,
-                }
+                params["thinking"] = {"type": "adaptive"}
+                params["output_config"]["effort"] = THINKING_EFFORT
             requests.append({
                 "custom_id": _encode_custom_id(bill.identifier),
                 "params": params,

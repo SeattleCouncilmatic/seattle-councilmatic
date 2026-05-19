@@ -47,17 +47,18 @@ from seattle_app.services.claude_service import (
     REP_SUMMARY_OUTPUT_SCHEMA,
     REP_SUMMARY_SYSTEM_PROMPT,
     _supports_adaptive_thinking,
+    format_batch_error,
 )
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_STATE_PATH = "data/summarize_reps_state.json"
 
-# Per-request budgets. Output is short (250-word cap, ~400 tokens)
-# but we want generous thinking room for the synthesis step where
-# the model balances structured stats against bio context.
+# Per-request token ceiling. Output is short (250-word cap, ~400
+# tokens) but the synthesis step balances structured stats against
+# bio context — thinking is bounded via ``output_config.effort``.
 MAX_TOKENS_PER_REQUEST = 4096
-THINKING_BUDGET_TOKENS = 2048
+THINKING_EFFORT = "medium"
 
 
 def _encode_custom_id(person_id: str) -> str:
@@ -218,7 +219,7 @@ class Command(BaseCommand):
             person_id = _decode_custom_id(result.custom_id)
             kind = result.result.type
             if kind != "succeeded":
-                errors.append((person_id, kind))
+                errors.append((person_id, format_batch_error(result.result)))
                 continue
 
             message = result.result.message
@@ -326,14 +327,12 @@ class Command(BaseCommand):
                     "format": {
                         "type": "json_schema",
                         "schema": REP_SUMMARY_OUTPUT_SCHEMA,
-                    }
+                    },
                 },
             }
             if _supports_adaptive_thinking(model):
-                params["thinking"] = {
-                    "type": "enabled",
-                    "budget_tokens": THINKING_BUDGET_TOKENS,
-                }
+                params["thinking"] = {"type": "adaptive"}
+                params["output_config"]["effort"] = THINKING_EFFORT
             requests.append({
                 "custom_id": _encode_custom_id(person.id),
                 "params": params,

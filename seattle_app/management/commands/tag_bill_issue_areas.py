@@ -41,18 +41,19 @@ from seattle_app.services.claude_service import (
     BILL_TAG_SYSTEM_PROMPT,
     BILL_TAG_VOCABULARY,
     _supports_adaptive_thinking,
+    format_batch_error,
 )
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_STATE_PATH = "data/tag_bill_issue_areas_state.json"
 
-# Per-request token budgets. Tagging is a tiny structured-JSON task —
-# the output is at most ~50 tokens (3 short tag strings). Adaptive
-# thinking handles the routing decisions; the explicit budget is only
-# for non-Haiku models (Haiku doesn't accept the parameter at all).
+# Per-request token ceiling. Tagging is a tiny structured-JSON task —
+# the output is at most ~50 tokens (3 short tag strings). ``low`` effort
+# is plenty for the routing decision; non-Haiku models bound thinking
+# via ``output_config.effort`` (Haiku doesn't accept the parameter at all).
 MAX_TOKENS_PER_REQUEST = 2048
-THINKING_BUDGET_TOKENS = 1024
+THINKING_EFFORT = "low"
 
 # Hard cap on how much of BillText.text we feed the tagger. The bill
 # title is the dominant signal in practice (`City Light Department`,
@@ -223,7 +224,7 @@ class Command(BaseCommand):
             identifier = _decode_custom_id(result.custom_id)
             kind = result.result.type
             if kind != "succeeded":
-                errors.append((identifier, kind))
+                errors.append((identifier, format_batch_error(result.result)))
                 continue
 
             message = result.result.message
@@ -328,14 +329,12 @@ class Command(BaseCommand):
                     "format": {
                         "type": "json_schema",
                         "schema": BILL_TAG_OUTPUT_SCHEMA,
-                    }
+                    },
                 },
             }
             if _supports_adaptive_thinking(model):
-                params["thinking"] = {
-                    "type": "enabled",
-                    "budget_tokens": THINKING_BUDGET_TOKENS,
-                }
+                params["thinking"] = {"type": "adaptive"}
+                params["output_config"]["effort"] = THINKING_EFFORT
             requests.append({
                 "custom_id": _encode_custom_id(bill.identifier),
                 "params": params,

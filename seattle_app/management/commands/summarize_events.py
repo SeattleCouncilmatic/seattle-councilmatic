@@ -46,6 +46,7 @@ from seattle_app.services.claude_service import (
     EVENT_SUMMARY_OUTPUT_SCHEMA,
     EVENT_SUMMARY_SYSTEM_PROMPT,
     _supports_adaptive_thinking,
+    format_batch_error,
 )
 from seattle_app.services.event_chunker import chunk_by_chapters
 
@@ -53,13 +54,13 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_STATE_PATH = "data/summarize_events_state.json"
 
-# Per-request token + thinking budgets. Input per meeting is ~25k
-# tokens (auto-captioned transcript ~100KB) plus roster/agenda context.
-# Output is bounded by the prompt (overview ≤350 words + N item
-# summaries ≤80 words each); 8k tokens gives generous room for a
-# 12-chapter meeting.
+# Per-request token ceiling. Input per meeting is ~25k tokens
+# (auto-captioned transcript ~100KB) plus roster/agenda context. Output
+# is bounded by the prompt (overview ≤350 words + N item summaries ≤80
+# words each); 8k tokens gives generous room for a 12-chapter meeting.
+# Thinking is bounded via ``output_config.effort``.
 MAX_TOKENS_PER_REQUEST = 8192
-THINKING_BUDGET_TOKENS = 4096
+THINKING_EFFORT = "medium"
 
 
 def _encode_custom_id(event_id: str) -> str:
@@ -226,7 +227,7 @@ class Command(BaseCommand):
             event_id = _decode_custom_id(result.custom_id)
             kind = result.result.type
             if kind != "succeeded":
-                errors.append((event_id, kind))
+                errors.append((event_id, format_batch_error(result.result)))
                 continue
 
             message = result.result.message
@@ -363,14 +364,12 @@ class Command(BaseCommand):
                     "format": {
                         "type": "json_schema",
                         "schema": EVENT_SUMMARY_OUTPUT_SCHEMA,
-                    }
+                    },
                 },
             }
             if _supports_adaptive_thinking(model):
-                params["thinking"] = {
-                    "type": "enabled",
-                    "budget_tokens": THINKING_BUDGET_TOKENS,
-                }
+                params["thinking"] = {"type": "adaptive"}
+                params["output_config"]["effort"] = THINKING_EFFORT
             requests.append({
                 "custom_id": _encode_custom_id(ev.id),
                 "params": params,
