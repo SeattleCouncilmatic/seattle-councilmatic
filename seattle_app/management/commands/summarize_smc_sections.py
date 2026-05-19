@@ -39,6 +39,7 @@ from seattle_app.models import MunicipalCodeSection
 from seattle_app.services.claude_service import (
     SECTION_SYSTEM_PROMPT,
     _supports_adaptive_thinking,
+    format_batch_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,16 +47,16 @@ logger = logging.getLogger(__name__)
 DEFAULT_FEW_SHOTS_PATH = "data/few_shot_section_summaries.json"
 DEFAULT_STATE_PATH = "data/summarize_smc_state.json"
 
-# Per-request token ceiling and explicit thinking budget. Together
-# these guarantee output room: the model gets at most THINKING_BUDGET
-# tokens of thinking, leaving (MAX_TOKENS - THINKING_BUDGET) for the
-# actual response. We previously used `thinking: adaptive`, but adaptive
-# mode is unbounded — it ate the entire budget on 14 of 88 retried
-# sections in the second run (stop_reason=max_tokens, blocks=['thinking']).
-# Explicit `enabled` mode with a fixed budget makes output starvation
-# impossible by math.
+# Per-request token ceiling. Thinking is bounded via
+# ``output_config.effort`` rather than the legacy
+# ``thinking.budget_tokens`` (which Opus 4.7 no longer accepts). We
+# previously used bare ``thinking: adaptive``, but adaptive without an
+# effort hint is unbounded — it ate the entire budget on 14 of 88
+# retried sections in an earlier run (stop_reason=max_tokens,
+# blocks=['thinking']). The ``low`` effort hint keeps thinking modest
+# enough that the 150-400-word section summary always has output room.
 MAX_TOKENS_PER_REQUEST = 8192
-THINKING_BUDGET_TOKENS = 4096
+THINKING_EFFORT = "low"
 
 
 def _encode_custom_id(section_number: str) -> str:
@@ -251,7 +252,7 @@ class Command(BaseCommand):
             section_number = _decode_custom_id(result.custom_id)
             kind = result.result.type
             if kind != "succeeded":
-                errors.append((section_number, kind))
+                errors.append((section_number, format_batch_error(result.result)))
                 continue
 
             message = result.result.message
@@ -347,10 +348,8 @@ class Command(BaseCommand):
                 "messages": [{"role": "user", "content": user_content}],
             }
             if _supports_adaptive_thinking(model):
-                params["thinking"] = {
-                    "type": "enabled",
-                    "budget_tokens": THINKING_BUDGET_TOKENS,
-                }
+                params["thinking"] = {"type": "adaptive"}
+                params["output_config"] = {"effort": THINKING_EFFORT}
             requests.append({
                 "custom_id": _encode_custom_id(section.section_number),
                 "params": params,

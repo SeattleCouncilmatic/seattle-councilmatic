@@ -384,6 +384,28 @@ def _supports_adaptive_thinking(model: str) -> bool:
     return "haiku" not in model.lower()
 
 
+def format_batch_error(result) -> str:
+    """Render a Batch API non-succeeded result into a short diagnosable string.
+
+    Anthropic's SDK wraps batch errors as nested ErrorResponse objects:
+
+        result.error  -> ErrorResponse(error=InvalidRequestError(type=..., message=...), ...)
+
+    Returns a string like ``"errored: invalid_request_error: <message>"`` so
+    the per-request error in the state file is meaningful without having to
+    re-fetch the batch from the API. Falls back to just the result type
+    when the SDK shape doesn't match (e.g. ``canceled``, ``expired``).
+    """
+    kind = getattr(result, "type", "unknown")
+    err_resp = getattr(result, "error", None)
+    err_inner = getattr(err_resp, "error", None) if err_resp else None
+    err_type = getattr(err_inner, "type", None)
+    err_msg = getattr(err_inner, "message", None) or ""
+    if err_type or err_msg:
+        return f"{kind}: {err_type}: {err_msg[:300]}"
+    return kind
+
+
 class ClaudeService:
     """Wrapper around the Anthropic SDK for Councilmatic summarization tasks."""
 
