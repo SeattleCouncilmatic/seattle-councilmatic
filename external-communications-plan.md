@@ -55,6 +55,19 @@ called out separately at the top of each.
   rotation. If granular per-admin subscriptions ever become necessary
   (e.g., one admin wants only digest alerts), a thin DB-backed wrapper
   can be added later without breaking the simple case.
+- **Logging handler scope** (Phase 3): explicit `mail_admins()` calls
+  only. Do *not* wire `django.utils.log.AdminEmailHandler` to the root
+  logger or to the default `django` logger. Rationale: Healthchecks
+  already covers the "something's broken" signal at the infrastructure
+  level; broad handler wiring risks inbox flooding during a flaky
+  deploy or when a third-party library spams at ERROR level. Narrow
+  wiring keeps email volume predictable — one email per intentional,
+  explicit failure point. Django's default `LOGGING` dict wires
+  `AdminEmailHandler` to the `django` logger at ERROR when
+  `DEBUG=False`; we replace it in Phase 3 with a project `LOGGING`
+  dict that excludes the handler. Revisit only if we find a failure
+  mode that isn't already covered by Healthchecks + per-command
+  `mail_admins()`.
 - **Notification channels** (Phase 1): email only via the Healthchecks
   dashboard.
 - **Notification channels** (later): Slack opt-in via the Healthchecks
@@ -563,8 +576,11 @@ Not applicable. Internal monitoring of our own infrastructure.
   `EMAIL_USE_TLS`, `SERVER_EMAIL`, `DEFAULT_FROM_EMAIL`,
   `CLAUDE_DIGEST_MODEL`, `POSTMARK_SERVER_TOKEN`,
   `POSTMARK_WEBHOOK_SECRET`, `SUBSCRIBER_TOKEN_SECRET`,
-  `DIGEST_POSTAL_ADDRESS`, `DIGEST_FROM_EMAIL`. Add email-redaction
-  logging filter.
+  `DIGEST_POSTAL_ADDRESS`, `DIGEST_FROM_EMAIL`. Override the default
+  `LOGGING` dict: add the email-redaction filter, and omit
+  `AdminEmailHandler` from the `django` logger (we use `mail_admins()`
+  only from explicit call sites — see "Logging handler scope" in
+  Decisions already made).
 - `seattle_app/urls.py` — include `digests.urls` at `/api/digests/`
   and `/digests/`.
 - `scheduler-crontab` — add weekly + daily entries.
@@ -662,6 +678,11 @@ Verification (Phase 1 only):
   (parallel to the `CommandError` raise Phase 1 added). Subject:
   `"<command>: N of M failed"`; body: per-request error strings from
   `format_batch_error()`.
+- Override Django's default `LOGGING` dict to exclude
+  `AdminEmailHandler` from the `django` logger so `mail_admins()`
+  fires from explicit call sites only — never automatically on a
+  random `logger.error(...)` from app or library code. Rationale in
+  "Decisions already made → Logging handler scope."
 - Launch a closed beta where the team subscribes and confirms the
   round-trip.
 
