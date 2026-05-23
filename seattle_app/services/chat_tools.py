@@ -84,7 +84,13 @@ def search_bills(
         bills = bills.filter(Q(identifier__icontains=query) | Q(title__icontains=query))
 
     if sponsor:
-        bills = bills.filter(sponsorships__name__iexact=sponsor).distinct()
+        # icontains rather than iexact so a last-name-only query
+        # ("Strauss") still matches the full name stored on the
+        # sponsorship row ("Dan Strauss"). The user-facing legislation
+        # index uses iexact because its sponsor filter is a dropdown of
+        # canonical names; the chat tool receives free-form names from
+        # the model and needs the flexibility.
+        bills = bills.filter(sponsorships__name__icontains=sponsor).distinct()
 
     if status:
         bills = bills.filter(extras__MatterStatusName__iexact=status)
@@ -390,28 +396,68 @@ def get_event_detail(slug: str) -> dict[str, Any]:
 
 
 def get_rep_detail(slug: str) -> dict[str, Any]:
-    """Full detail for a councilmember by their councilmatic slug.
+    """Full detail for a councilmember by slug or name fragment.
 
-    Wraps ``reps.services.get_rep_by_slug`` (the same function that
-    backs the /api/reps/<slug>/ endpoint) and trims the response for
+    Wraps ``reps.services.get_rep_by_slug`` and trims the response for
     the chat context budget — sponsored_bills is capped to the top 5,
-    bio prose is truncated. Returns None / raises NotFound for slugs
-    that don't resolve to a *current* council member; former members
-    aren't surfaced by this tool in the MVP.
+    bio prose is truncated.
+
+    Slug-resolution strategy:
+      1. Try ``get_rep_by_slug(slug)`` — exact councilmatic slug match.
+      2. If that returns None, fall back to a case-insensitive name
+         substring match against currently-serving members. A single
+         hit auto-resolves; multiple hits return a structured
+         ``error='ambiguous'`` payload listing candidates so the
+         model can ask the user which one they meant.
+      3. Zero hits raises ChatToolNotFound.
+
+    Only currently-serving members are surfaced; former members are
+    deferred to a future iteration (would require an
+    ``is_current=FALSE`` path through ``_query_current_council_members``
+    and a labeling change in the response).
     """
     if not slug:
         raise ChatToolNotFound("slug is required")
 
     # Local import — reps app imports from seattle_app at module init,
     # so importing reps from seattle_app at module load creates a cycle.
-    from reps.services import get_rep_by_slug
+    from reps.services import _query_current_council_members, get_rep_by_slug
 
     rep = get_rep_by_slug(slug)
     if rep is None:
-        raise ChatToolNotFound(
-            f"no current councilmember with slug={slug!r} (former members "
-            f"are not exposed by this tool)"
+        # Fallback: case-insensitive name fragment match. Wrapping the
+        # parameter with % wildcards is part of the LIKE syntax and
+        # the value still goes through psycopg2's %s binding, so the
+        # raw query stays parameterized.
+        matches = _query_current_council_members(
+            extra_filter=" AND p.name ILIKE %s",
+            params=[f"%{slug}%"],
         )
+        if not matches:
+            raise ChatToolNotFound(
+                f"no current councilmember matches {slug!r} (former "
+                f"members are not exposed by this tool)"
+            )
+        if len(matches) > 1:
+            return {
+                "error": "ambiguous",
+                "detail": (
+                    f"{len(matches)} current councilmembers matched "
+                    f"{slug!r}. Ask the user which one they meant, then "
+                    f"call get_rep_detail again with the chosen slug."
+                ),
+                "candidates": [
+                    {"name": name, "slug": resolved_slug, "label": label}
+                    for (name, resolved_slug, label, _person_id) in matches
+                ],
+            }
+        # Exactly one match — use its real slug.
+        _name, resolved_slug, _label, _person_id = matches[0]
+        rep = get_rep_by_slug(resolved_slug)
+        if rep is None:  # extremely unlikely race condition
+            raise ChatToolNotFound(
+                f"no current councilmember with slug={resolved_slug!r}"
+            )
 
     # legislation_involvement is a list of row dicts (see
     # reps.services._get_legislation_involvement). Each row has

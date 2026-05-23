@@ -264,13 +264,16 @@ CHAT_TOOL_DEFINITIONS = [
         "name": "get_rep_detail",
         "description": (
             "Profile for a current Seattle councilmember by their "
-            "councilmatic slug. Returns the LLM-generated rep summary, "
-            "lifetime voting breakdown (yes/no/abstain counts), seat "
-            "label (e.g. 'District 6' or 'Position 8'), and up to 5 of "
-            "their most-recently-actioned sponsored bills. Use this for "
-            "questions like 'what does Strauss work on?' or 'what bills "
-            "has Foster sponsored?'. Only currently-serving members are "
-            "exposed."
+            "councilmatic slug OR name fragment. Returns the "
+            "LLM-generated rep summary, lifetime voting breakdown "
+            "(yes/no/abstain counts), seat label (e.g. 'District 6' "
+            "or 'Position 8'), and up to 5 of their most-recently-"
+            "actioned sponsored bills. Use this for questions like "
+            "'what does Strauss work on?' or 'what bills has Foster "
+            "sponsored?'. Only currently-serving members are exposed. "
+            "If multiple members match a fragment, returns "
+            "error='ambiguous' with a candidates list — ask the user "
+            "which one they meant and call again."
         ),
         "input_schema": {
             "type": "object",
@@ -278,9 +281,11 @@ CHAT_TOOL_DEFINITIONS = [
                 "slug": {
                     "type": "string",
                     "description": (
-                        "Councilmatic slug for the person (typically "
-                        "the last name lowercased, e.g. 'strauss', "
-                        "'foster')."
+                        "Councilmatic slug OR a case-insensitive name "
+                        "fragment. Try the most natural form the user "
+                        "gave you ('Strauss', 'Foster', 'dan-strauss'). "
+                        "The tool will exact-match the slug first, then "
+                        "fall back to a name search."
                     ),
                 },
             },
@@ -457,7 +462,7 @@ def run_chat_turn(
     user_message: str,
     model: Optional[str] = None,
     max_tool_calls: Optional[int] = None,
-    max_output_tokens: int = 1024,
+    max_output_tokens: Optional[int] = None,
     client: Optional[anthropic.Anthropic] = None,
 ) -> ChatTurnResult:
     """Run one user turn through the tool-use loop.
@@ -479,6 +484,12 @@ def run_chat_turn(
         model, model_reason = pick_model_for_message(user_message)
     else:
         model_reason = "override"
+    if max_output_tokens is None:
+        # Synthesis answers (comparisons, pros/cons, multi-bill
+        # explanations) need more headroom — empirical observation
+        # is that they bump against the cap at ~1024. Default the
+        # synthesis turns to 2048 and default everything else to 1024.
+        max_output_tokens = 2048 if model_reason == "synthesis" else 1024
     if client is None:
         client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
