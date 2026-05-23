@@ -28,6 +28,7 @@ import re
 from typing import Any, Optional
 
 from django.contrib.postgres.search import SearchQuery, SearchRank
+from django.db import connection
 from django.db.models import Max, Min, Q
 from django.utils import timezone
 
@@ -79,6 +80,36 @@ def _smc_section_url(section_number: Optional[str]) -> Optional[str]:
     if len(parts) != 3:
         return None
     return f"/municode/{parts[0]}/{parts[1]}/{parts[2]}"
+
+
+def _resolve_person_slugs(names: list[str]) -> dict[str, str]:
+    """Map a list of person names to councilmatic_core_person slugs.
+
+    Same pattern as api_views.legislation_detail's sponsor-name resolution
+    — one parameterized SQL JOIN across opencivicdata_person ↔
+    councilmatic_core_person. Returns {name: slug} only for names that
+    matched; names without a councilmatic person row drop out (typical
+    for historical sponsors who pre-date Councilmatic's scrape window).
+    Includes BOTH current and former members so bills sponsored by
+    former councilmembers still get a linkable detail page when one
+    exists. The /reps/<slug> route currently 404s on members where
+    is_current=FALSE; that's a separate frontend issue, not something
+    this helper should second-guess.
+    """
+    clean = [n.strip() for n in names if n and n.strip()]
+    if not clean:
+        return {}
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT p.name, cp.slug
+            FROM opencivicdata_person p
+            INNER JOIN councilmatic_core_person cp ON cp.person_id = p.id
+            WHERE p.name = ANY(%s)
+            """,
+            [clean],
+        )
+        return dict(cursor.fetchall())
 
 
 class ChatToolError(Exception):
@@ -197,11 +228,25 @@ def get_bill_detail(slug: str) -> dict[str, Any]:
     except Bill.DoesNotExist as exc:
         raise ChatToolNotFound(f"no bill with slug={slug!r}") from exc
 
-    sponsors = [
-        {"name": s.entity_name, "primary": s.primary}
-        for s in bill.sponsorships.order_by("-primary", "name")
+    raw_sponsorships = [
+        s for s in bill.sponsorships.order_by("-primary", "name")
         if s.entity_name
     ]
+    # Resolve sponsor names to councilmatic slugs so the bot can link
+    # to /reps/<slug>/ in its answer (rep pages carry the canonical
+    # contact info — far better than improvising email addresses).
+    sponsor_slugs = _resolve_person_slugs(
+        [s.entity_name for s in raw_sponsorships]
+    )
+    sponsors = []
+    for s in raw_sponsorships:
+        rep_slug = sponsor_slugs.get((s.entity_name or "").strip())
+        sponsors.append({
+            "name": s.entity_name,
+            "primary": s.primary,
+            "slug": rep_slug,
+            "councilmatic_url": _rep_url(rep_slug),
+        })
 
     actions = []
     seen_actions: set[tuple[str, str]] = set()

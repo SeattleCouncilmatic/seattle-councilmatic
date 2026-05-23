@@ -258,7 +258,10 @@ CHAT_TOOL_DEFINITIONS = [
         "description": (
             "Full detail for one bill by its councilmatic slug. Returns "
             "the LLM-generated summary, impact analysis, and structured "
-            "key_changes when available, plus sponsors, action history, "
+            "key_changes when available, plus sponsors (each with a "
+            "councilmatic_url linking to their /reps/<slug> profile "
+            "page where one exists — link both the bill and each "
+            "sponsor in your answer), the Legistar URL, action history, "
             "and affected SMC sections. Use this when the user asks "
             "about a specific bill in depth or wants pros/cons / impact."
         ),
