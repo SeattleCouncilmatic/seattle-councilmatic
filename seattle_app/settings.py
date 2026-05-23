@@ -237,19 +237,18 @@ CLAUDE_LEGISLATION_MODEL = os.getenv("CLAUDE_LEGISLATION_MODEL", "claude-sonnet-
 # Opus: gold-standard summaries of a curated section set; the outputs become
 # few-shot examples for the bulk Sonnet run. Calibration only — not bulk.
 CLAUDE_BOOTSTRAP_MODEL = os.getenv("CLAUDE_BOOTSTRAP_MODEL", "claude-opus-4-7")
-# Haiku 4.5: interactive Q&A chatbot — default model. The bot runs a
-# tool-use loop (chat_service.run_chat_turn) over ORM-backed search/detail
-# tools, so quality depends more on tool design than on raw model
-# capability. Haiku is fast and cheap (~$0.007/question warm cache).
-#
-# A/B testing (2026-05-22) on "list recent housing bills" showed Haiku and
-# Sonnet basically equivalent; on "compare CB X and CB Y" Sonnet extracted
-# noticeably more facts (sponsors, dates, sunset clauses). Hence the
-# synthesis-model split below: cheap Haiku for fact lookup and listing,
-# escalate to Sonnet when the user wants synthesis / comparison / impact
-# analysis. See chat_service._is_synthesis_query for the trigger patterns.
+# Haiku 4.5: interactive Q&A chatbot. The bot runs a tool-use loop
+# (chat_service.run_chat_turn) over ORM-backed search/detail tools,
+# so quality depends more on tool design + prompt engineering than on
+# raw model capability. A/B testing (2026-05-22) on listing,
+# comparison, and pros/cons questions briefly suggested Sonnet was
+# meaningfully better — until prompt tuning (the structural-inference
+# guidance in CHAT_SYSTEM_PROMPT) closed the gap. Post-tuning Haiku
+# is Sonnet-equivalent on every tested question type at ~half the
+# cost, so the chatbot is Haiku-only. Override to claude-sonnet-4-6
+# or claude-opus-4-7 via env var if a future use case ever needs more
+# headroom — pricing for both is in chat_service._PRICING_USD_PER_MTOK.
 CLAUDE_CHAT_MODEL = os.getenv("CLAUDE_CHAT_MODEL", "claude-haiku-4-5-20251001")
-CLAUDE_CHAT_SYNTHESIS_MODEL = os.getenv("CLAUDE_CHAT_SYNTHESIS_MODEL", "claude-sonnet-4-6")
 # Sonnet: short structured-JSON tagging task (1-3 enum tags per bill).
 # Inputs are tiny (title + first 2k chars of bill text); cached system
 # prompt makes per-bill cost cents. Haiku 4.5 likely sufficient too —

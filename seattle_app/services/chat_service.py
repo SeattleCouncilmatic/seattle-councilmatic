@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import re
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Optional
@@ -330,6 +329,16 @@ CHAT_TOOL_DEFINITIONS = [
 # numbers come from Anthropic's published price page; bump these
 # alongside model upgrades. Keys are the model names exactly as they
 # arrive in ``response.model`` from the API.
+#
+# Sonnet/Opus stay in the table because operators can override
+# CLAUDE_CHAT_MODEL to either of them via env var (or pass --model to
+# the smoke test), and the cost estimator needs accurate per-model
+# pricing in either case. The chatbot defaults to Haiku because A/B
+# testing (2026-05-22, post-prompt-tuning) showed Haiku produces
+# Sonnet-equivalent output on listing, comparison, and pros/cons
+# questions at ~half the cost — the synthesis escalation we briefly
+# carried was a workaround for an under-engaged-Haiku prompt, not a
+# capability gap.
 _PRICING_USD_PER_MTOK: dict[str, dict[str, float]] = {
     # Haiku 4.5 — interactive default.
     "claude-haiku-4-5-20251001": {
@@ -342,13 +351,11 @@ _PRICING_USD_PER_MTOK: dict[str, dict[str, float]] = {
         "cached_input": 0.10,
         "output": 5.00,
     },
-    # Sonnet 4.6 — escalation target.
     "claude-sonnet-4-6": {
         "input": 3.00,
         "cached_input": 0.30,
         "output": 15.00,
     },
-    # Opus 4.7 — escalation target for highest-quality runs.
     "claude-opus-4-7": {
         "input": 15.00,
         "cached_input": 1.50,
@@ -361,66 +368,12 @@ _PRICING_USD_PER_MTOK: dict[str, dict[str, float]] = {
 _PRICING_FALLBACK = {"input": 3.00, "cached_input": 0.30, "output": 15.00}
 
 
-# Trigger words that escalate the turn to the synthesis model. Anchored
-# on word boundaries so "different" matches but "differential" doesn't.
-# A/B testing (2026-05-22) showed Haiku produces tight, accurate
-# listings but drops factual depth (sponsors, dates, sunset clauses,
-# tenant protections) on multi-bill comparison questions. The
-# escalation pays the ~4× Sonnet premium only on those.
-_SYNTHESIS_PATTERN = re.compile(
-    r"\b("
-    r"compare|comparison|comparing|"
-    r"versus|\bvs\b|"
-    r"differ|difference|differences|different|"
-    r"tradeoff|tradeoffs|trade-off|trade-offs|"
-    r"contrast|contrasts|contrasting|"
-    r"pros\s+and\s+cons|pros\s*/\s*cons|"
-    r"weigh"
-    r")\b",
-    re.IGNORECASE,
-)
-
-
-def _is_synthesis_query(message: str) -> bool:
-    """Whether ``message`` looks like a multi-source synthesis question.
-
-    Hit rate is intentionally biased toward false positives — paying
-    the ~4× Sonnet premium on a borderline-misclassified query is
-    cheap relative to the daily cap, while under-escalating means
-    users see thinner answers on the questions where depth matters
-    most.
-    """
-    if not message:
-        return False
-    return _SYNTHESIS_PATTERN.search(message) is not None
-
-
-def pick_model_for_message(
-    message: str,
-    *,
-    default_model: Optional[str] = None,
-    synthesis_model: Optional[str] = None,
-) -> tuple[str, str]:
-    """Choose which Claude model to use for one chatbot turn.
-
-    Returns ``(model_name, reason)``. ``reason`` is 'synthesis' when
-    escalation fired, 'default' otherwise. Caller can show this in a
-    smoke-test log or persist it on ChatUsageLog if useful later.
-    """
-    default_model = default_model or settings.CLAUDE_CHAT_MODEL
-    synthesis_model = synthesis_model or settings.CLAUDE_CHAT_SYNTHESIS_MODEL
-    if synthesis_model and synthesis_model != default_model and _is_synthesis_query(message):
-        return synthesis_model, "synthesis"
-    return default_model, "default"
-
-
 @dataclass
 class ChatTurnResult:
     """What ``run_chat_turn`` returns to its caller."""
 
     answer_text: str
     model_used: str
-    model_reason: str = "default"  # "default" or "synthesis"
     input_tokens: int = 0
     cached_input_tokens: int = 0
     output_tokens: int = 0
@@ -492,7 +445,7 @@ def run_chat_turn(
     user_message: str,
     model: Optional[str] = None,
     max_tool_calls: Optional[int] = None,
-    max_output_tokens: Optional[int] = None,
+    max_output_tokens: int = 2048,
     client: Optional[anthropic.Anthropic] = None,
 ) -> ChatTurnResult:
     """Run one user turn through the tool-use loop.
@@ -511,15 +464,7 @@ def run_chat_turn(
     if max_tool_calls is None:
         max_tool_calls = settings.CHAT_MAX_TOOL_CALLS_PER_TURN
     if model is None:
-        model, model_reason = pick_model_for_message(user_message)
-    else:
-        model_reason = "override"
-    if max_output_tokens is None:
-        # Synthesis answers (comparisons, pros/cons, multi-bill
-        # explanations) need more headroom — empirical observation
-        # is that they bump against the cap at ~1024. Default the
-        # synthesis turns to 2048 and default everything else to 1024.
-        max_output_tokens = 2048 if model_reason == "synthesis" else 1024
+        model = settings.CLAUDE_CHAT_MODEL
     if client is None:
         client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
@@ -639,7 +584,6 @@ def run_chat_turn(
     return ChatTurnResult(
         answer_text=final_text,
         model_used=model,
-        model_reason=model_reason,
         input_tokens=input_tokens_total,
         cached_input_tokens=cached_input_total,
         output_tokens=output_tokens_total,

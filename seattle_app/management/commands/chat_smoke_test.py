@@ -68,14 +68,11 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE(f"Question: {question}"))
         self.stdout.write(
             self.style.NOTICE(
-                f"Default model: {settings.CLAUDE_CHAT_MODEL}  "
-                f"Synthesis model: {settings.CLAUDE_CHAT_SYNTHESIS_MODEL}  "
+                f"Model: {opts['model'] or settings.CLAUDE_CHAT_MODEL}  "
                 f"Max tool calls: "
                 f"{opts['max_tool_calls'] or settings.CHAT_MAX_TOOL_CALLS_PER_TURN}"
             )
         )
-        if opts["model"]:
-            self.stdout.write(self.style.NOTICE(f"Override: {opts['model']}"))
         self.stdout.write("")
 
         result = run_chat_turn(
@@ -102,7 +99,7 @@ class Command(BaseCommand):
         self.stdout.write("")
 
         self.stdout.write(self.style.NOTICE("--- Usage ---"))
-        self.stdout.write(f"  model:           {result.model_used}  ({result.model_reason})")
+        self.stdout.write(f"  model:           {result.model_used}")
         self.stdout.write(f"  stop_reason:     {result.stop_reason}")
         self.stdout.write(f"  tool_calls:      {len(result.tool_calls)}")
         self.stdout.write(f"  input_tokens:    {result.input_tokens:,}")
