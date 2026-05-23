@@ -237,8 +237,13 @@ CLAUDE_LEGISLATION_MODEL = os.getenv("CLAUDE_LEGISLATION_MODEL", "claude-sonnet-
 # Opus: gold-standard summaries of a curated section set; the outputs become
 # few-shot examples for the bulk Sonnet run. Calibration only — not bulk.
 CLAUDE_BOOTSTRAP_MODEL = os.getenv("CLAUDE_BOOTSTRAP_MODEL", "claude-opus-4-7")
-# Sonnet: balanced cost/quality for interactive chat.
-CLAUDE_CHAT_MODEL = os.getenv("CLAUDE_CHAT_MODEL", "claude-sonnet-4-6")
+# Haiku 4.5: interactive Q&A chatbot. The bot runs a tool-use loop
+# (chat_service.run_chat_turn) over a handful of ORM-backed search/detail
+# tools, so quality depends more on tool design than on raw model
+# capability. Haiku is fast and cheap (~$0.01/question with prompt cache);
+# bump to claude-sonnet-4-6 via env var if pros/cons reasoning needs more
+# headroom.
+CLAUDE_CHAT_MODEL = os.getenv("CLAUDE_CHAT_MODEL", "claude-haiku-4-5-20251001")
 # Sonnet: short structured-JSON tagging task (1-3 enum tags per bill).
 # Inputs are tiny (title + first 2k chars of bill text); cached system
 # prompt makes per-bill cost cents. Haiku 4.5 likely sufficient too —
@@ -254,6 +259,21 @@ CLAUDE_REP_SUMMARY_MODEL = os.getenv("CLAUDE_REP_SUMMARY_MODEL", "claude-sonnet-
 # (overview + array of item summaries) in a single call so prompt
 # caching applies once per meeting.
 CLAUDE_EVENT_SUMMARY_MODEL = os.getenv("CLAUDE_EVENT_SUMMARY_MODEL", "claude-sonnet-4-6")
+
+# Civic Q&A chatbot — tool-use loop budget + abuse / spend controls.
+# CHAT_MAX_TOOL_CALLS_PER_TURN: hard cap on tool invocations per user
+#   message. Prevents the model from looping on a poorly-chosen query.
+# CHAT_DAILY_DOLLAR_CAP: aggregate ChatUsageLog.estimated_cost_usd for
+#   today; endpoint returns 503 once exceeded.
+# CHAT_MAX_MESSAGES_PER_IP_PER_DAY: per-IP message ceiling, enforced via
+#   django-ratelimit (added in Week 2).
+# TURNSTILE_*: Cloudflare Turnstile credentials, validated on first
+#   message of a session (added in Week 2).
+CHAT_MAX_TOOL_CALLS_PER_TURN = int(os.getenv("CHAT_MAX_TOOL_CALLS_PER_TURN", "5"))
+CHAT_DAILY_DOLLAR_CAP = float(os.getenv("CHAT_DAILY_DOLLAR_CAP", "5.00"))
+CHAT_MAX_MESSAGES_PER_IP_PER_DAY = int(os.getenv("CHAT_MAX_MESSAGES_PER_IP_PER_DAY", "30"))
+TURNSTILE_SITE_KEY = os.getenv("TURNSTILE_SITE_KEY", "")
+TURNSTILE_SECRET_KEY = os.getenv("TURNSTILE_SECRET_KEY", "")
 
 # Content Security Policy settings
 # In development, allow localhost resources

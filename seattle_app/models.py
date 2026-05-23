@@ -1008,3 +1008,80 @@ class ParseValidationIssue(models.Model):
 
     def __str__(self):
         return f"[{self.category}] {self.subchapter} — {self.section_number}"
+
+
+class ChatUsageLog(models.Model):
+    """One row per assistant turn in the civic Q&A chatbot.
+
+    Used for two things:
+      1. **Daily $ cap**: the endpoint aggregates ``estimated_cost_usd``
+         across rows created today and 503s once it crosses
+         ``settings.CHAT_DAILY_DOLLAR_CAP``.
+      2. **Post-launch tuning**: read this table to see which tools
+         get called most, how deep tool-use loops actually go, and
+         what real per-question cost looks like once the bot is in
+         users' hands. Cost estimates use list prices for
+         ``model_used`` and are advisory, not billable.
+
+    ``ip_hash`` is SHA-256 of (IP + a server-side salt) to give us a
+    per-IP fingerprint for abuse triage without storing raw IPs (PII
+    minimization). Conversation history itself is never persisted —
+    only the cost/usage metadata.
+    """
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    conversation_id = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text=(
+            "Client-generated UUID for the conversation this turn "
+            "belongs to. Used to apply the per-conversation turn cap. "
+            "Not linked to any user identity."
+        ),
+    )
+    ip_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="SHA-256 of (client IP + server salt). Empty if request had no resolvable IP.",
+    )
+    model_used = models.CharField(
+        max_length=64,
+        help_text="The Claude model that produced this turn (e.g., 'claude-haiku-4-5-20251001').",
+    )
+    input_tokens = models.IntegerField(
+        default=0,
+        help_text="Uncached input tokens charged for this turn (excludes cache reads).",
+    )
+    cached_input_tokens = models.IntegerField(
+        default=0,
+        help_text="Tokens read from prompt cache (charged at ~10% of input rate).",
+    )
+    output_tokens = models.IntegerField(
+        default=0,
+        help_text="Tokens produced by the model for this turn.",
+    )
+    tool_call_count = models.IntegerField(
+        default=0,
+        help_text="How many tool invocations the model made before producing the final answer.",
+    )
+    estimated_cost_usd = models.DecimalField(
+        max_digits=8,
+        decimal_places=6,
+        default=0,
+        help_text=(
+            "Estimated USD cost for this turn using list prices for "
+            "model_used. Advisory — Anthropic's actual invoice is "
+            "authoritative."
+        ),
+    )
+
+    class Meta:
+        verbose_name = "Chat Usage Log"
+        verbose_name_plural = "Chat Usage Logs"
+        indexes = [
+            models.Index(fields=["created_at"], name="chatusage_created_idx"),
+            models.Index(fields=["conversation_id"], name="chatusage_conv_idx"),
+        ]
+
+    def __str__(self):
+        return f"chat {self.created_at:%Y-%m-%d %H:%M} {self.model_used} ${self.estimated_cost_usd}"
