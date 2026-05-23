@@ -116,10 +116,34 @@ CHAT_SYSTEM_PROMPT = (
     "after careful structural review you genuinely cannot identify "
     "any meaningful tensions, say so explicitly rather than padding "
     "with weak boilerplate.\n\n"
+    "Civic engagement / procedural questions ('how do I provide "
+    "public comment?', 'when does the committee meet?', 'who do I "
+    "contact about this bill?'):\n"
+    "  - These are HIGH-RISK for hallucination because there's no "
+    "tool that returns canonical contact info. Do NOT invent email "
+    "addresses, phone numbers, web form URLs, or office addresses. "
+    "If you don't have a real URL from a tool result, say 'check "
+    "[the canonical source]' without inventing the URL.\n"
+    "  - Always call get_bill_detail (or get_event_detail) first — "
+    "the response includes a `legistar_url` field with the canonical "
+    "Legistar page for that bill / meeting. THAT page has the "
+    "committee's contact info, the public-comment process, and the "
+    "meeting calendar. Linking to it is honest; inventing alternative "
+    "addresses is not.\n"
+    "  - General civic-engagement advice you may safely give without "
+    "a tool: the bill's sponsoring committee (from "
+    "get_bill_detail.committee), the bill's primary sponsor's office "
+    "(from get_bill_detail.sponsors), the option of in-person or "
+    "written testimony at committee meetings, and the Legistar URL "
+    "when you have one. Anything more specific (email addresses, "
+    "phone numbers, public-comment forms) needs to come from a tool "
+    "result.\n\n"
     "Workflow:\n"
     "  - For a question about a specific bill (\"what does CB 121153 "
-    "do?\"), call get_bill_detail with the slug if you have it, or "
-    "search_bills first to find it.\n"
+    "do?\"), call get_bill_detail directly. The slug is mechanically "
+    "derivable from the identifier: 'CB 121153' → 'cb-121153' "
+    "(lowercase, space replaced with hyphen). Skip search_bills "
+    "unless you genuinely don't know the identifier.\n"
     "  - For a topic question (\"recent housing bills\"), call "
     "search_bills with the topic as the query. If the user wants depth "
     "on any one of them, follow up with get_bill_detail.\n"
@@ -127,16 +151,40 @@ CHAT_SYSTEM_PROMPT = (
     "call get_bill_detail on each of the bills, then synthesize. "
     "Structure the answer as parallel sections so the comparison is "
     "easy to scan.\n"
+    "  - For a vote-breakdown question (\"who voted yes/no on CB X?\", "
+    "\"was the vote unanimous?\"), call get_bill_roll_call.\n"
+    "  - For 'what is the council currently considering / debating / "
+    "working on' questions, check BOTH search_bills(status='In "
+    "Committee') AND search_events(time='upcoming') — these are "
+    "complementary views (pending legislation + upcoming meeting "
+    "agendas). Report both.\n"
     "  - For a council-meeting question (\"what happened at last "
     "week's Land Use meeting?\"), call search_events to find the "
-    "meeting, then get_event_detail for the agenda + summary.\n"
+    "meeting, then get_event_detail for the agenda + summary. If the "
+    "user asks about meetings that *discussed* a topic (not just "
+    "meetings whose NAME contains it), use search_event_summaries "
+    "instead — it searches meeting CONTENT.\n"
+    "  - For a 'who's on the council' / committee-roster question, "
+    "call list_councilmembers first. Drill into any member with "
+    "get_rep_detail.\n"
     "  - For a councilmember question (\"what does Strauss work on?\"), "
     "call get_rep_detail.\n"
     "  - For a legal/code question (\"what does the noise ordinance "
     "say?\"), call search_smc.\n"
     "  - Don't loop on the same tool with similar arguments. If a "
     "search returns nothing useful, tell the user and ask for "
-    "clarification rather than fishing.\n"
+    "clarification rather than fishing.\n\n"
+    "Scope and refusal:\n"
+    "  - You only know about Seattle municipal data through these "
+    "tools. For questions about other cities, state/federal "
+    "legislation, predictions about future votes or political "
+    "outcomes, or interpretation of legal documents not in the "
+    "SMC, say so clearly and don't guess.\n"
+    "  - 'When will X be voted on?' / 'will this pass?' / 'how will "
+    "councilmember Y vote?' — refuse cleanly. You don't have vote "
+    "calendars and you don't predict political outcomes. State the "
+    "bill's current status (from get_bill_detail) and direct the "
+    "user to the Legistar page for upcoming activity.\n"
 )
 
 
@@ -321,6 +369,80 @@ CHAT_TOOL_DEFINITIONS = [
             "required": ["slug"],
         },
     },
+    {
+        "name": "list_councilmembers",
+        "description": (
+            "Enumerate all 9 currently-serving Seattle City "
+            "Councilmembers. Returns name, slug, and seat label "
+            "(District 1-7 or Position 8-9 at-large) for each. Use "
+            "this for questions like 'who's on the council?', 'who "
+            "are the at-large members?', 'who represents District 6?'. "
+            "Combine with get_rep_detail to dig into any specific "
+            "member's portfolio."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "get_bill_roll_call",
+        "description": (
+            "Full vote breakdown for one bill across all its vote "
+            "events (committee votes + final council vote when "
+            "present). Returns each event's date, body name, motion "
+            "text, result, yes/no/abstain/etc. counts, and per-"
+            "councilmember votes grouped by option. Use this for "
+            "questions like 'how did each councilmember vote on CB "
+            "121153?', 'who voted no on the MFTE renewal?', 'was the "
+            "vote unanimous?'. Empty when the bill has no recorded "
+            "votes (typical for bills introduced before Councilmatic's "
+            "scrape window or still in committee)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "slug": {
+                    "type": "string",
+                    "description": (
+                        "Councilmatic slug for the bill (e.g. "
+                        "'cb-121153'). For a 'CB <number>' identifier, "
+                        "the slug is 'cb-<number>' lowercased."
+                    ),
+                },
+            },
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "search_event_summaries",
+        "description": (
+            "Find council meetings whose LLM-generated overview "
+            "mentions a topic. Different from search_events — that "
+            "searches meeting NAMES (e.g. 'Land Use'); this searches "
+            "the CONTENT of what was discussed at meetings (e.g. "
+            "'surveillance', 'data centers', 'tree canopy'). Use this "
+            "when the user asks about meetings that discussed a topic "
+            "even when the topic isn't in the committee name. Returns "
+            "matching meetings with a snippet around the keyword "
+            "match; call get_event_detail next to read the full "
+            "summary."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Topic / keyword to find in meeting overviews.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max meetings to return. Default 5, max 15.",
+                },
+            },
+            "required": ["query"],
+        },
+    },
 ]
 
 
@@ -422,6 +544,9 @@ def _dispatch_tool(name: str, args: dict[str, Any]) -> Any:
         "search_events": chat_tools.search_events,
         "get_event_detail": chat_tools.get_event_detail,
         "get_rep_detail": chat_tools.get_rep_detail,
+        "list_councilmembers": chat_tools.list_councilmembers,
+        "get_bill_roll_call": chat_tools.get_bill_roll_call,
+        "search_event_summaries": chat_tools.search_event_summaries,
     }.get(name)
     if impl is None:
         return {"error": f"unknown tool: {name!r}"}

@@ -197,6 +197,17 @@ def get_bill_detail(slug: str) -> dict[str, Any]:
             ],
         }
 
+    # Public-facing Legistar URL — constructed from MatterId. Same
+    # pattern as api_views.legislation_detail. We surface it so the
+    # bot can point users at the canonical record (with committee
+    # contact info + public-comment workflow) instead of inventing
+    # email addresses or URLs for civic-engagement questions.
+    matter_id = bill.extras.get("MatterId")
+    legistar_url = (
+        f"https://seattle.legistar.com/Gateway.aspx?M=L&ID={matter_id}"
+        if matter_id else None
+    )
+
     return {
         "identifier": bill.identifier,
         "slug": bill.slug,
@@ -204,6 +215,7 @@ def get_bill_detail(slug: str) -> dict[str, Any]:
         "status": bill.extras.get("MatterStatusName", ""),
         "classification": bill.extras.get("MatterTypeName", ""),
         "committee": bill.extras.get("MatterBodyName", ""),
+        "legistar_url": legistar_url,
         "sponsors": sponsors,
         "actions": actions,
         "llm_summary": llm_block,
@@ -353,7 +365,7 @@ def get_event_detail(slug: str) -> dict[str, Any]:
     if not slug:
         raise ChatToolNotFound("slug is required")
     try:
-        event = Event.objects.get(slug=slug)
+        event = Event.objects.prefetch_related("sources").get(slug=slug)
     except Event.DoesNotExist as exc:
         raise ChatToolNotFound(f"no event with slug={slug!r}") from exc
 
@@ -380,6 +392,10 @@ def get_event_detail(slug: str) -> dict[str, Any]:
             "item_summaries": items,
         }
 
+    # Public-facing Legistar URL — same pattern as api_views.event_detail.
+    source = event.sources.first()
+    legistar_url = source.url if source else None
+
     return {
         "name": event.name,
         "slug": event.slug,
@@ -390,6 +406,7 @@ def get_event_detail(slug: str) -> dict[str, Any]:
         ),
         "status": event.status,
         "description": (event.description or "").strip(),
+        "legistar_url": legistar_url,
         "llm_summary": summary_block,
         "truncated": truncated,
     }
@@ -493,3 +510,132 @@ def get_rep_detail(slug: str) -> dict[str, Any]:
         "llm_summary": summary_text,
         "truncated": summary_truncated,
     }
+
+
+def list_councilmembers() -> dict[str, Any]:
+    """Enumerate currently-serving Seattle City Councilmembers.
+
+    Returns a compact list of all 9 current members with their name,
+    slug, and seat label (e.g. 'District 6', 'Position 8'). Use this
+    when the user asks about the council roster, who chairs a
+    committee, or wants to identify a member by district. The model
+    can pass the resulting slug to get_rep_detail for full detail.
+
+    Committee chair info is in each member's rep_summary text, not in
+    this compact listing — call get_rep_detail to see committee
+    assignments.
+    """
+    # Local import to avoid the seattle_app ↔ reps init-time cycle.
+    from reps.services import _query_current_council_members
+
+    rows = _query_current_council_members()
+    members = [
+        {"name": name, "slug": slug, "label": label}
+        for (name, slug, label, _person_id) in rows
+    ]
+    return {"count": len(members), "members": members}
+
+
+def get_bill_roll_call(slug: str) -> dict[str, Any]:
+    """Vote breakdown for one bill across all its VoteEvents.
+
+    For each vote event (committee votes + the final council vote
+    when present), returns the date, body name, result, vote counts
+    (yes/no/abstain/etc.), and per-member votes grouped by option.
+    Empty list when the bill has no vote events — most bills
+    introduced before Councilmatic's 548-day vote scrape window have
+    no roll-call data.
+    """
+    if not slug:
+        raise ChatToolNotFound("slug is required")
+    try:
+        bill = Bill.objects.prefetch_related(
+            "votes__votes",
+            "votes__counts",
+        ).get(slug=slug)
+    except Bill.DoesNotExist as exc:
+        raise ChatToolNotFound(f"no bill with slug={slug!r}") from exc
+
+    events = list(bill.votes.order_by("start_date"))
+    out = []
+    for ve in events:
+        body = ((ve.extras or {}).get("event_body_name") or "").strip()
+        votes_by_option: dict[str, list[str]] = {}
+        for pv in ve.votes.all():
+            votes_by_option.setdefault(pv.option, []).append(pv.voter_name or "")
+        # Alphabetize within each option group for stable ordering.
+        for opt in votes_by_option:
+            votes_by_option[opt].sort(key=str.lower)
+        counts = {opt: val for opt, val in ve.counts.values_list("option", "value")}
+        out.append({
+            "date": (ve.start_date or "")[:10],
+            "body_name": body,
+            "is_council_vote": body == "City Council",
+            "motion": ve.motion_text or "",
+            "result": ve.result,
+            "counts": counts,
+            "votes_by_option": votes_by_option,
+        })
+
+    return {
+        "identifier": bill.identifier,
+        "slug": bill.slug,
+        "vote_event_count": len(out),
+        "vote_events": out,
+    }
+
+
+def search_event_summaries(query: str, limit: int = 5) -> dict[str, Any]:
+    """Full-text-ish search across the LLM-generated meeting overviews.
+
+    Useful for finding meetings whose **content** mentioned a topic,
+    even when the topic isn't in the meeting name. EventSummary
+    doesn't have a tsvector column the way MunicipalCodeSection does,
+    so this falls back to case-insensitive substring match on
+    ``overview``. Adequate for civic-Q&A keyword discovery; if this
+    becomes a hotspot we can add a search_vector via migration later.
+
+    Returns a compact list (event name, slug, start_date, snippet
+    around the match) ordered by most-recent-meeting-first. Call
+    get_event_detail next to read the full overview + per-item
+    summaries.
+    """
+    query = (query or "").strip()
+    if not query:
+        return {"count": 0, "results": [], "query": query}
+    limit = max(1, min(int(limit or 5), 15))
+
+    rows = (
+        EventSummary.objects
+        .filter(overview__icontains=query)
+        .select_related("event")
+        .order_by("-event__start_date")[:limit]
+    )
+
+    results = []
+    for s in rows:
+        # Build a small snippet around the first hit so the model can
+        # judge relevance without reading the whole overview.
+        text = s.overview or ""
+        idx = text.lower().find(query.lower())
+        if idx >= 0:
+            start = max(0, idx - 80)
+            end = min(len(text), idx + len(query) + 200)
+            snippet_raw = text[start:end].strip()
+            snippet = ("…" if start > 0 else "") + snippet_raw + ("…" if end < len(text) else "")
+        else:
+            snippet, _ = _truncate(text, 280)
+
+        event = s.event
+        results.append({
+            "name": event.name,
+            "slug": event.slug,
+            "type": _classify_event_name(event.name),
+            "start_date": (
+                event.start_date if isinstance(event.start_date, str)
+                else event.start_date.isoformat() if event.start_date else None
+            ),
+            "snippet": snippet,
+        })
+
+    return {"count": len(results), "results": results, "query": query}
