@@ -47,6 +47,40 @@ _TEXT_BUDGET = 1500
 _CITATION_RE = re.compile(r"^\d+(\.\d+[A-Z]?)*$")
 
 
+# ---- Internal Councilmatic URL helpers ------------------------------------
+#
+# The chatbot answer-rendering markdown supports relative links, so
+# `[CB 121153](/legislation/cb-121153)` resolves to the SPA's existing
+# routes in both dev (localhost:5173) and prod (www.seattlecouncilmatic.org).
+# Tools embed these URLs in their return payload so the model doesn't have to
+# infer URL paths — every entity carries its own ``councilmatic_url`` field.
+# Route shapes mirror frontend/src/App.jsx route definitions.
+
+def _bill_url(slug: Optional[str]) -> Optional[str]:
+    return f"/legislation/{slug}" if slug else None
+
+
+def _event_url(slug: Optional[str]) -> Optional[str]:
+    return f"/events/{slug}" if slug else None
+
+
+def _rep_url(slug: Optional[str]) -> Optional[str]:
+    return f"/reps/{slug}" if slug else None
+
+
+def _smc_section_url(section_number: Optional[str]) -> Optional[str]:
+    """SMC routes nest as /municode/<title>/<chapter>/<section> where each
+    segment is one dot-separated piece of section_number (e.g. '23.42.040'
+    → '/municode/23/42/040'). Section numbers that don't split into
+    exactly 3 parts (titles or chapters, not sections) return None."""
+    if not section_number:
+        return None
+    parts = section_number.split(".")
+    if len(parts) != 3:
+        return None
+    return f"/municode/{parts[0]}/{parts[1]}/{parts[2]}"
+
+
 class ChatToolError(Exception):
     """Base class for tool failures the agent loop should report
     back to the model as a structured error rather than aborting."""
@@ -128,6 +162,7 @@ def search_bills(
         results.append({
             "identifier": bill.identifier,
             "slug": bill.slug,
+            "councilmatic_url": _bill_url(bill.slug),
             "title": bill.title,
             "sponsor": sponsor_name,
             "status": bill.extras.get("MatterStatusName", ""),
@@ -211,6 +246,7 @@ def get_bill_detail(slug: str) -> dict[str, Any]:
     return {
         "identifier": bill.identifier,
         "slug": bill.slug,
+        "councilmatic_url": _bill_url(bill.slug),
         "title": bill.title,
         "status": bill.extras.get("MatterStatusName", ""),
         "classification": bill.extras.get("MatterTypeName", ""),
@@ -258,6 +294,7 @@ def search_smc(query: str, limit: int = 5) -> dict[str, Any]:
         results.append({
             "section_number": s.section_number,
             "title": s.title,
+            "councilmatic_url": _smc_section_url(s.section_number),
             "snippet": snippet,
         })
 
@@ -344,6 +381,7 @@ def search_events(
         results.append({
             "name": ev.name,
             "slug": ev.slug,
+            "councilmatic_url": _event_url(ev.slug),
             "type": _classify_event_name(ev.name),
             "start_date": (
                 ev.start_date if isinstance(ev.start_date, str)
@@ -399,6 +437,7 @@ def get_event_detail(slug: str) -> dict[str, Any]:
     return {
         "name": event.name,
         "slug": event.slug,
+        "councilmatic_url": _event_url(event.slug),
         "type": _classify_event_name(event.name),
         "start_date": (
             event.start_date if isinstance(event.start_date, str)
@@ -485,24 +524,28 @@ def get_rep_detail(slug: str) -> dict[str, Any]:
     # to the top 5 most-recent.
     involvement = rep.get("legislation_involvement") or []
     sponsored_rows = [r for r in involvement if r.get("sponsorship")]
-    bills_short = [
-        {
-            "identifier": (r.get("bill") or {}).get("identifier"),
-            "title": (r.get("bill") or {}).get("title"),
-            "slug": (r.get("bill") or {}).get("slug"),
+    bills_short = []
+    for r in sponsored_rows[:5]:
+        bill_dict = r.get("bill") or {}
+        bill_slug = bill_dict.get("slug")
+        bills_short.append({
+            "identifier": bill_dict.get("identifier"),
+            "title": bill_dict.get("title"),
+            "slug": bill_slug,
+            "councilmatic_url": _bill_url(bill_slug),
             "status": (r.get("status") or {}).get("label"),
             "sponsorship": r.get("sponsorship"),  # 'primary' | 'cosponsor'
             "latest_action_date": r.get("latest_action_date"),
-        }
-        for r in sponsored_rows[:5]
-    ]
+        })
 
     summary = rep.get("summary") or {}
     summary_text, summary_truncated = _truncate(summary.get("text", ""))
 
+    rep_slug = rep.get("slug")
     return {
         "name": rep.get("name"),
-        "slug": rep.get("slug"),
+        "slug": rep_slug,
+        "councilmatic_url": _rep_url(rep_slug),
         "label": rep.get("label"),  # district / seat label, e.g. "District 6"
         "voting_history": rep.get("voting_history"),
         "sponsored_bills": bills_short,
@@ -530,7 +573,12 @@ def list_councilmembers() -> dict[str, Any]:
 
     rows = _query_current_council_members()
     members = [
-        {"name": name, "slug": slug, "label": label}
+        {
+            "name": name,
+            "slug": slug,
+            "councilmatic_url": _rep_url(slug),
+            "label": label,
+        }
         for (name, slug, label, _person_id) in rows
     ]
     return {"count": len(members), "members": members}
@@ -580,6 +628,7 @@ def get_bill_roll_call(slug: str) -> dict[str, Any]:
     return {
         "identifier": bill.identifier,
         "slug": bill.slug,
+        "councilmatic_url": _bill_url(bill.slug),
         "vote_event_count": len(out),
         "vote_events": out,
     }
@@ -630,6 +679,7 @@ def search_event_summaries(query: str, limit: int = 5) -> dict[str, Any]:
         results.append({
             "name": event.name,
             "slug": event.slug,
+            "councilmatic_url": _event_url(event.slug),
             "type": _classify_event_name(event.name),
             "start_date": (
                 event.start_date if isinstance(event.start_date, str)
