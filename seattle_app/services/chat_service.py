@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Optional
@@ -37,41 +38,73 @@ CHAT_SYSTEM_PROMPT = (
     "You are the Seattle Councilmatic civic assistant. You help "
     "residents of Seattle understand their City Council: pending and "
     "passed legislation, meeting activity, the Seattle Municipal Code "
-    "(SMC), and councilmember portfolios.\n\n"
+    "(SMC), council meetings, and councilmember portfolios.\n\n"
     "Tone:\n"
     "  - Neutral, factual, plain-English. You are a civic-data "
-    "communicator, not an advocate. Do not editorialize about whether "
-    "legislation is good or bad, popular or unpopular, or whether a "
-    "councilmember is effective. Describe what bills do and what "
-    "councilmembers work on; do not speculate on motivations or "
-    "ideology.\n"
-    "  - Concise. Default to short paragraphs and bullet points. A "
-    "user asking 'what does CB 120000 do' deserves 3-5 sentences, not "
-    "a wall of text.\n"
-    "  - Cite specifically. Refer to bills by their identifier "
-    "(e.g. 'CB 120123') and SMC sections by their number "
-    "(e.g. 'SMC 23.42.040'). When you've looked up a bill or section, "
-    "mention its identifier so the user can find it.\n\n"
+    "communicator, not an advocate. Describe what bills do and what "
+    "councilmembers work on; do not speculate on motivations, "
+    "ideology, party, or coalition.\n"
+    "  - Concise. Default to short paragraphs and tight bullet points. "
+    "A 'what does this bill do' question deserves 3-5 sentences, not "
+    "a wall of text. A list of recent bills should be scannable, not "
+    "exhaustive prose.\n"
+    "  - Plain prose only. NO emoji icons in headers or bullets, no "
+    "decorative dividers (---), no purely cosmetic markdown. Use plain "
+    "section headings (##) and bullet lists where they help structure. "
+    "The output renders in a chat panel that's adjacent to the rest of "
+    "the site's plain-prose visual style.\n\n"
+    "Citation rules — these are not optional:\n"
+    "  - **Always cite bills by their identifier** in the form 'CB "
+    "121153' (with the space, no dash, no slug). If you've looked up "
+    "a bill, name it.\n"
+    "  - **Always name the sponsor** when discussing a specific bill, "
+    "drawn from the sponsors[].name field of get_bill_detail or the "
+    "sponsor field of search_bills. Use the primary sponsor; if "
+    "multiple primary sponsors, list them all. If the sponsor field is "
+    "empty in the tool result, write 'sponsor unlisted' rather than "
+    "guessing.\n"
+    "  - **Always include the relevant date** when discussing a "
+    "specific bill: passage date for bills that have passed (last "
+    "action with description containing 'Passed' or 'Adopted' or "
+    "'Signed'), introduction date otherwise. Date format: 'Mar 2026' "
+    "or 'March 2026' (month + year is enough granularity).\n"
+    "  - **Cite SMC sections by section number** (e.g. 'SMC 23.42.040') "
+    "rather than topic descriptions alone.\n"
+    "  - **Preserve concrete numbers** from impact_analysis and "
+    "key_changes verbatim — dollar amounts, percentages, AMI bands, "
+    "statute citations like 'HB 1337' or 'RCW 59.18.700', sunset "
+    "dates. These are the load-bearing facts; do not abstract them "
+    "away.\n\n"
     "Grounding:\n"
     "  - Always prefer tool calls over your own knowledge. The Seattle "
     "Councilmatic database is the authoritative source for what bills "
     "have been introduced and what the SMC currently says. If you "
     "haven't called a tool to confirm a fact, you don't know it.\n"
-    "  - If a tool returns no results, say so directly. Don't invent "
-    "bill numbers, sponsor names, or SMC sections.\n"
-    "  - 'Pros and cons' questions: stick to what's in the LLM-generated "
-    "summary's impact_analysis and key_changes fields plus public "
-    "comment themes captured in event summaries. Do not invent "
-    "stakeholder opinions.\n\n"
+    "  - If a tool returns no results, say so directly. Do not invent "
+    "bill numbers, sponsor names, SMC sections, dates, or dollar "
+    "amounts.\n"
+    "  - 'Pros and cons' or 'impact' questions: stick to what's in the "
+    "LLM-generated summary.impact_analysis and key_changes fields plus "
+    "public-comment themes captured in event summaries. Do not invent "
+    "stakeholder opinions or political framings.\n\n"
     "Workflow:\n"
-    "  - For a question about a specific bill (\"what does CB 120123 do?\"), "
-    "call get_bill_detail with the slug if you have it, or search_bills "
-    "first to find it.\n"
+    "  - For a question about a specific bill (\"what does CB 121153 "
+    "do?\"), call get_bill_detail with the slug if you have it, or "
+    "search_bills first to find it.\n"
     "  - For a topic question (\"recent housing bills\"), call "
-    "search_bills with the topic as the query, then optionally "
-    "get_bill_detail on the most relevant 1-2 results.\n"
-    "  - For a legal/code question (\"what does the noise ordinance say\"), "
-    "call search_smc.\n"
+    "search_bills with the topic as the query. If the user wants depth "
+    "on any one of them, follow up with get_bill_detail.\n"
+    "  - For a comparison question (\"how do bills X and Y differ?\"), "
+    "call get_bill_detail on each of the bills, then synthesize. "
+    "Structure the answer as parallel sections so the comparison is "
+    "easy to scan.\n"
+    "  - For a council-meeting question (\"what happened at last "
+    "week's Land Use meeting?\"), call search_events to find the "
+    "meeting, then get_event_detail for the agenda + summary.\n"
+    "  - For a councilmember question (\"what does Strauss work on?\"), "
+    "call get_rep_detail.\n"
+    "  - For a legal/code question (\"what does the noise ordinance "
+    "say?\"), call search_smc.\n"
     "  - Don't loop on the same tool with similar arguments. If a "
     "search returns nothing useful, tell the user and ask for "
     "clarification rather than fishing.\n"
@@ -164,6 +197,96 @@ CHAT_TOOL_DEFINITIONS = [
             "required": ["query"],
         },
     },
+    {
+        "name": "search_events",
+        "description": (
+            "Find Seattle City Council meetings (Full Council, "
+            "committee meetings, public hearings, briefings) by name "
+            "substring + time window + type. Defaults to past meetings; "
+            "pass time='upcoming' for future meetings. Returns a "
+            "compact list (name, slug, type, start_date, status). Call "
+            "get_event_detail next to read the agenda + LLM-generated "
+            "meeting summary for any specific meeting."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Substring match against the meeting name (e.g. 'Land Use', 'Transportation'). Empty string skips name filtering.",
+                },
+                "time": {
+                    "type": "string",
+                    "enum": ["upcoming", "past", "all"],
+                    "description": "Window: past (default), upcoming, or all.",
+                },
+                "event_type": {
+                    "type": "string",
+                    "enum": ["Hearing", "Briefing", "Council", "Committee", "Other"],
+                    "description": "Restrict to one event type. Omit to include all.",
+                },
+                "date_from": {
+                    "type": "string",
+                    "description": "ISO date 'YYYY-MM-DD' lower bound on start_date. Omit to skip.",
+                },
+                "date_to": {
+                    "type": "string",
+                    "description": "ISO date 'YYYY-MM-DD' upper bound on start_date (inclusive). Omit to skip.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max meetings to return. Default 10, max 20.",
+                },
+            },
+        },
+    },
+    {
+        "name": "get_event_detail",
+        "description": (
+            "Full detail for one council meeting by slug. Returns the "
+            "LLM-generated meeting overview + per-agenda-item summaries "
+            "when available — primary grounding source for 'what "
+            "happened at this meeting' questions. Use this after "
+            "search_events to dig into a specific meeting."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "slug": {
+                    "type": "string",
+                    "description": "Councilmatic slug for the event. Obtain from search_events results.",
+                },
+            },
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "get_rep_detail",
+        "description": (
+            "Profile for a current Seattle councilmember by their "
+            "councilmatic slug. Returns the LLM-generated rep summary, "
+            "lifetime voting breakdown (yes/no/abstain counts), seat "
+            "label (e.g. 'District 6' or 'Position 8'), and up to 5 of "
+            "their most-recently-actioned sponsored bills. Use this for "
+            "questions like 'what does Strauss work on?' or 'what bills "
+            "has Foster sponsored?'. Only currently-serving members are "
+            "exposed."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "slug": {
+                    "type": "string",
+                    "description": (
+                        "Councilmatic slug for the person (typically "
+                        "the last name lowercased, e.g. 'strauss', "
+                        "'foster')."
+                    ),
+                },
+            },
+            "required": ["slug"],
+        },
+    },
 ]
 
 
@@ -203,15 +326,69 @@ _PRICING_USD_PER_MTOK: dict[str, dict[str, float]] = {
 _PRICING_FALLBACK = {"input": 3.00, "cached_input": 0.30, "output": 15.00}
 
 
+# Trigger words that escalate the turn to the synthesis model. Anchored
+# on word boundaries so "different" matches but "differential" doesn't.
+# A/B testing (2026-05-22) showed Haiku produces tight, accurate
+# listings but drops factual depth (sponsors, dates, sunset clauses,
+# tenant protections) on multi-bill comparison questions. The
+# escalation pays the ~4× Sonnet premium only on those.
+_SYNTHESIS_PATTERN = re.compile(
+    r"\b("
+    r"compare|comparison|comparing|"
+    r"versus|\bvs\b|"
+    r"differ|difference|differences|different|"
+    r"tradeoff|tradeoffs|trade-off|trade-offs|"
+    r"contrast|contrasts|contrasting|"
+    r"pros\s+and\s+cons|pros\s*/\s*cons|"
+    r"weigh"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _is_synthesis_query(message: str) -> bool:
+    """Whether ``message`` looks like a multi-source synthesis question.
+
+    Hit rate is intentionally biased toward false positives — paying
+    the ~4× Sonnet premium on a borderline-misclassified query is
+    cheap relative to the daily cap, while under-escalating means
+    users see thinner answers on the questions where depth matters
+    most.
+    """
+    if not message:
+        return False
+    return _SYNTHESIS_PATTERN.search(message) is not None
+
+
+def pick_model_for_message(
+    message: str,
+    *,
+    default_model: Optional[str] = None,
+    synthesis_model: Optional[str] = None,
+) -> tuple[str, str]:
+    """Choose which Claude model to use for one chatbot turn.
+
+    Returns ``(model_name, reason)``. ``reason`` is 'synthesis' when
+    escalation fired, 'default' otherwise. Caller can show this in a
+    smoke-test log or persist it on ChatUsageLog if useful later.
+    """
+    default_model = default_model or settings.CLAUDE_CHAT_MODEL
+    synthesis_model = synthesis_model or settings.CLAUDE_CHAT_SYNTHESIS_MODEL
+    if synthesis_model and synthesis_model != default_model and _is_synthesis_query(message):
+        return synthesis_model, "synthesis"
+    return default_model, "default"
+
+
 @dataclass
 class ChatTurnResult:
     """What ``run_chat_turn`` returns to its caller."""
 
     answer_text: str
     model_used: str
-    input_tokens: int
-    cached_input_tokens: int
-    output_tokens: int
+    model_reason: str = "default"  # "default" or "synthesis"
+    input_tokens: int = 0
+    cached_input_tokens: int = 0
+    output_tokens: int = 0
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     stop_reason: str = ""
     estimated_cost_usd: Decimal = Decimal("0")
@@ -254,6 +431,9 @@ def _dispatch_tool(name: str, args: dict[str, Any]) -> Any:
         "search_bills": chat_tools.search_bills,
         "get_bill_detail": chat_tools.get_bill_detail,
         "search_smc": chat_tools.search_smc,
+        "search_events": chat_tools.search_events,
+        "get_event_detail": chat_tools.get_event_detail,
+        "get_rep_detail": chat_tools.get_rep_detail,
     }.get(name)
     if impl is None:
         return {"error": f"unknown tool: {name!r}"}
@@ -296,7 +476,9 @@ def run_chat_turn(
     if max_tool_calls is None:
         max_tool_calls = settings.CHAT_MAX_TOOL_CALLS_PER_TURN
     if model is None:
-        model = settings.CLAUDE_CHAT_MODEL
+        model, model_reason = pick_model_for_message(user_message)
+    else:
+        model_reason = "override"
     if client is None:
         client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
@@ -416,6 +598,7 @@ def run_chat_turn(
     return ChatTurnResult(
         answer_text=final_text,
         model_used=model,
+        model_reason=model_reason,
         input_tokens=input_tokens_total,
         cached_input_tokens=cached_input_total,
         output_tokens=output_tokens_total,

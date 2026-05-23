@@ -29,10 +29,11 @@ from typing import Any, Optional
 
 from django.contrib.postgres.search import SearchQuery, SearchRank
 from django.db.models import Max, Min, Q
+from django.utils import timezone
 
-from councilmatic_core.models import Bill
+from councilmatic_core.models import Bill, Event
 
-from ..models import MunicipalCodeSection
+from ..models import EventSummary, MunicipalCodeSection
 
 
 # Max characters of free text we hand back per tool result. Roughly
@@ -243,3 +244,206 @@ def search_smc(query: str, limit: int = 5) -> dict[str, Any]:
         })
 
     return {"count": len(results), "results": results, "mode": mode}
+
+
+# Time-filter values for search_events. Mirror api_views._TIME_FILTER_VALUES.
+_EVENT_TIME_VALUES = ("upcoming", "past", "all")
+
+# Event-type labels we expose to the model. Match the buckets in
+# api_views._classify_event (Hearing / Briefing / Council / Committee /
+# Other). The model should pass one of these verbatim.
+_EVENT_TYPE_VALUES = ("Hearing", "Briefing", "Council", "Committee", "Other")
+
+# Matches "2026-05-22" — same shape as api_views._is_iso_date.
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _classify_event_name(name: str) -> str:
+    """Replicates api_views._classify_event (kept local so the chat tools
+    module doesn't depend on a private helper across files)."""
+    n = (name or "").lower().strip()
+    if not n:
+        return "Other"
+    if "public hearing" in n:
+        return "Hearing"
+    if "briefing" in n:
+        return "Briefing"
+    if n.startswith("city council"):
+        return "Council"
+    if n.startswith("notice"):
+        return "Other"
+    return "Committee"
+
+
+def search_events(
+    query: str = "",
+    time: str = "past",
+    event_type: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    limit: int = 10,
+) -> dict[str, Any]:
+    """Find council meetings (events) by name + time window + type.
+
+    Default ``time='past'`` reflects the chat use case: most user
+    questions are about meetings that have happened ("what did the
+    Land Use committee discuss last week"), not future ones. Caller
+    can pass ``time='upcoming'`` or ``'all'`` to broaden.
+    """
+    limit = max(1, min(int(limit or 10), 20))
+    if time not in _EVENT_TIME_VALUES:
+        time = "past"
+    if event_type and event_type not in _EVENT_TYPE_VALUES:
+        event_type = ""
+
+    events = Event.objects.all()
+    if query:
+        events = events.filter(name__icontains=query)
+
+    now = timezone.now()
+    if time == "upcoming":
+        events = events.filter(start_date__gte=now).order_by("start_date")
+    elif time == "past":
+        events = events.filter(start_date__lt=now).order_by("-start_date")
+    else:
+        events = events.order_by("-start_date")
+
+    if date_from and _ISO_DATE_RE.match(date_from):
+        events = events.filter(start_date__gte=date_from)
+    if date_to and _ISO_DATE_RE.match(date_to):
+        # See api_views.events_index — start_date is an ISO timestamp string,
+        # so the upper bound needs padding to include same-day rows.
+        events = events.filter(start_date__lte=date_to + "T99:99:99")
+
+    # Type filter happens post-query because type is derived from name.
+    candidates = list(events[:limit * 4])  # over-fetch then trim
+    if event_type:
+        candidates = [e for e in candidates if _classify_event_name(e.name) == event_type]
+    candidates = candidates[:limit]
+
+    results = []
+    for ev in candidates:
+        results.append({
+            "name": ev.name,
+            "slug": ev.slug,
+            "type": _classify_event_name(ev.name),
+            "start_date": (
+                ev.start_date if isinstance(ev.start_date, str)
+                else ev.start_date.isoformat() if ev.start_date else None
+            ),
+            "status": ev.status,
+        })
+
+    return {"count": len(results), "results": results, "time": time, "event_type": event_type}
+
+
+def get_event_detail(slug: str) -> dict[str, Any]:
+    """Full detail for one council meeting by slug.
+
+    Returns the LLM-generated meeting overview + per-agenda-item
+    summaries when present. This is the primary grounding source for
+    "what happened at this meeting" questions.
+    """
+    if not slug:
+        raise ChatToolNotFound("slug is required")
+    try:
+        event = Event.objects.get(slug=slug)
+    except Event.DoesNotExist as exc:
+        raise ChatToolNotFound(f"no event with slug={slug!r}") from exc
+
+    # Optional EventSummary one-to-one.
+    summary = EventSummary.objects.filter(event_id=event.id).first()
+    summary_block: Optional[dict[str, Any]] = None
+    truncated = False
+    if summary is not None:
+        overview, t1 = _truncate(summary.overview)
+        # item_summaries is a JSONField list of {label, summary, start_seconds}.
+        items = []
+        for item in (summary.item_summaries or []):
+            label = item.get("label", "")
+            text, t2 = _truncate(item.get("summary", ""), 500)
+            truncated = truncated or t2
+            items.append({
+                "label": label,
+                "summary": text,
+                "start_seconds": item.get("start_seconds"),
+            })
+        truncated = truncated or t1
+        summary_block = {
+            "overview": overview,
+            "item_summaries": items,
+        }
+
+    return {
+        "name": event.name,
+        "slug": event.slug,
+        "type": _classify_event_name(event.name),
+        "start_date": (
+            event.start_date if isinstance(event.start_date, str)
+            else event.start_date.isoformat() if event.start_date else None
+        ),
+        "status": event.status,
+        "description": (event.description or "").strip(),
+        "llm_summary": summary_block,
+        "truncated": truncated,
+    }
+
+
+def get_rep_detail(slug: str) -> dict[str, Any]:
+    """Full detail for a councilmember by their councilmatic slug.
+
+    Wraps ``reps.services.get_rep_by_slug`` (the same function that
+    backs the /api/reps/<slug>/ endpoint) and trims the response for
+    the chat context budget — sponsored_bills is capped to the top 5,
+    bio prose is truncated. Returns None / raises NotFound for slugs
+    that don't resolve to a *current* council member; former members
+    aren't surfaced by this tool in the MVP.
+    """
+    if not slug:
+        raise ChatToolNotFound("slug is required")
+
+    # Local import — reps app imports from seattle_app at module init,
+    # so importing reps from seattle_app at module load creates a cycle.
+    from reps.services import get_rep_by_slug
+
+    rep = get_rep_by_slug(slug)
+    if rep is None:
+        raise ChatToolNotFound(
+            f"no current councilmember with slug={slug!r} (former members "
+            f"are not exposed by this tool)"
+        )
+
+    # legislation_involvement is a list of row dicts (see
+    # reps.services._get_legislation_involvement). Each row has
+    # {'bill': {identifier, title, slug}, 'status': {label, variant},
+    #  'sponsorship': 'primary'|'cosponsor'|None, ...}, sorted by
+    # latest_action_date desc. For the chat use case ("what does this
+    # rep work on"), filter to bills they actually sponsored and cap
+    # to the top 5 most-recent.
+    involvement = rep.get("legislation_involvement") or []
+    sponsored_rows = [r for r in involvement if r.get("sponsorship")]
+    bills_short = [
+        {
+            "identifier": (r.get("bill") or {}).get("identifier"),
+            "title": (r.get("bill") or {}).get("title"),
+            "slug": (r.get("bill") or {}).get("slug"),
+            "status": (r.get("status") or {}).get("label"),
+            "sponsorship": r.get("sponsorship"),  # 'primary' | 'cosponsor'
+            "latest_action_date": r.get("latest_action_date"),
+        }
+        for r in sponsored_rows[:5]
+    ]
+
+    summary = rep.get("summary") or {}
+    summary_text, summary_truncated = _truncate(summary.get("text", ""))
+
+    return {
+        "name": rep.get("name"),
+        "slug": rep.get("slug"),
+        "label": rep.get("label"),  # district / seat label, e.g. "District 6"
+        "voting_history": rep.get("voting_history"),
+        "sponsored_bills": bills_short,
+        "sponsored_bills_total": len(sponsored_rows),
+        "llm_summary": summary_text,
+        "truncated": summary_truncated,
+    }
