@@ -231,12 +231,12 @@ CLAUDE_CODE_SECTION_MODEL = os.getenv("CLAUDE_CODE_SECTION_MODEL", "claude-sonne
 # Sonnet: balanced cost/quality for legislation summarization. The
 # task is mostly reformatting the staff Summary and Fiscal Note into
 # the structured JSON schema (output_config enforces format), so
-# Sonnet is sufficient. Set CLAUDE_LEGISLATION_MODEL=claude-opus-4-7
+# Sonnet is sufficient. Set CLAUDE_LEGISLATION_MODEL=claude-opus-4-8
 # in the environment for higher-quality runs (~5x cost).
 CLAUDE_LEGISLATION_MODEL = os.getenv("CLAUDE_LEGISLATION_MODEL", "claude-sonnet-4-6")
 # Opus: gold-standard summaries of a curated section set; the outputs become
 # few-shot examples for the bulk Sonnet run. Calibration only — not bulk.
-CLAUDE_BOOTSTRAP_MODEL = os.getenv("CLAUDE_BOOTSTRAP_MODEL", "claude-opus-4-7")
+CLAUDE_BOOTSTRAP_MODEL = os.getenv("CLAUDE_BOOTSTRAP_MODEL", "claude-opus-4-8")
 # Sonnet: balanced cost/quality for interactive chat.
 CLAUDE_CHAT_MODEL = os.getenv("CLAUDE_CHAT_MODEL", "claude-sonnet-4-6")
 # Sonnet: short structured-JSON tagging task (1-3 enum tags per bill).
