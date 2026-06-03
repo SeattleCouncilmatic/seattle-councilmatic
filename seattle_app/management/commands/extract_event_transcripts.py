@@ -255,7 +255,24 @@ class Command(BaseCommand):
 
         chapter_markers = self._extract_chapter_markers(sc_html)
 
-        srt_raw = self._fetch_text(srt_url)
+        try:
+            srt_raw = self._fetch_text(srt_url)
+        except requests.exceptions.HTTPError as e:
+            # Seattle Channel's meeting page sometimes advertises a
+            # closed-caption file that was never published: the templated
+            # .srt path is in the page HTML (so the regex above matches),
+            # but the file 404s on their server — confirmed under both the
+            # `seattlechannel` and `SeattleChannel` path casings. That's the
+            # same outcome as "no captions", so skip it benignly instead of
+            # counting a hard error. Otherwise the event stays
+            # transcript__isnull=True and re-errors every nightly run,
+            # masking genuinely new failures behind a permanent "Errors: 1".
+            if getattr(e.response, "status_code", None) == 404:
+                raise _ExtractorSkip(
+                    f"SC page lists an SRT that 404s ({srt_url}) — "
+                    "no captions published for this meeting"
+                ) from e
+            raise
         transcript_text = self._srt_to_plain_text(srt_raw)
 
         return {
