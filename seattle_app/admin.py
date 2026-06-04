@@ -15,7 +15,10 @@ writable from admin.
 
 from django.contrib import admin
 from django.contrib.admin.sites import NotRegistered
+from django.utils.html import format_html
 from opencivicdata.core.models import Person, Membership, Organization
+
+from seattle_app.models import BatchRun, PipelineRun
 
 
 # Pre-existing admin registrations on these OCD models (something
@@ -108,3 +111,114 @@ class OrganizationAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# --------------------------------------------------------------------------- #
+#  Pipeline observability (issue #209) — staff-only health view of the LLM     #
+#  Batch pipeline's PipelineRun / BatchRun rows. Machine-written, so these are #
+#  view-only (no add/change); delete stays enabled for pruning old rows.       #
+# --------------------------------------------------------------------------- #
+
+_BATCH_STATUS_COLORS = {
+    BatchRun.STATUS_SUBMITTED: "#6c757d",   # grey
+    BatchRun.STATUS_IN_PROGRESS: "#0d6efd",  # blue
+    BatchRun.STATUS_ENDED: "#fd7e14",        # orange
+    BatchRun.STATUS_PROCESSED: "#198754",    # green
+    BatchRun.STATUS_FAILED: "#dc3545",       # red
+}
+_RUN_STATUS_COLORS = {
+    PipelineRun.STATUS_RUNNING: "#6c757d",   # grey
+    PipelineRun.STATUS_SUCCESS: "#198754",   # green
+    PipelineRun.STATUS_FAILED: "#dc3545",    # red
+}
+
+
+def _badge(label, color):
+    return format_html('<b style="color:{}">{}</b>', color, label)
+
+
+class BatchRunInline(admin.TabularInline):
+    """The batches a PipelineRun submitted (fk_name pins which of the two run
+    FKs — submitted vs processed — this inline follows)."""
+    model = BatchRun
+    fk_name = "submitted_in_run"
+    extra = 0
+    can_delete = False
+    show_change_link = True
+    fields = ("batch_id", "command", "status", "item_count",
+              "success_count", "error_count", "processed_in_run")
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PipelineRun)
+class PipelineRunAdmin(admin.ModelAdmin):
+    """One row per scheduled cron cycle. The inline lists the Anthropic batches
+    it submitted; ``drained`` counts batches it polled + persisted (often from
+    an earlier cycle). A row stuck on ``running`` with an old ``started_at`` is
+    the signal the scheduler died."""
+    list_display = ("run_key", "kind", "status_badge", "started_at",
+                    "finished_at", "duration", "n_submitted", "n_drained")
+    list_filter = ("kind", "status")
+    search_fields = ("run_key",)
+    date_hierarchy = "started_at"
+    readonly_fields = ("run_key", "kind", "status", "started_at", "finished_at")
+    inlines = [BatchRunInline]
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.display(description="status", ordering="status")
+    def status_badge(self, obj):
+        return _badge(obj.get_status_display(), _RUN_STATUS_COLORS.get(obj.status, "#000"))
+
+    @admin.display(description="duration")
+    def duration(self, obj):
+        if obj.finished_at and obj.started_at:
+            return f"{int((obj.finished_at - obj.started_at).total_seconds())}s"
+        return "—"
+
+    @admin.display(description="submitted")
+    def n_submitted(self, obj):
+        return obj.submitted_batches.count()
+
+    @admin.display(description="drained")
+    def n_drained(self, obj):
+        return obj.drained_batches.count()
+
+
+@admin.register(BatchRun)
+class BatchRunAdmin(admin.ModelAdmin):
+    """Every Anthropic batch the pipeline submitted — find by id, filter by
+    command/status/model, spot failures by the red error badge. ``submitted_in``
+    vs ``processed_in`` show the drain-then-submit split (a batch is usually
+    drained by a later cycle than the one that submitted it)."""
+    list_display = ("batch_id", "command", "status_badge", "item_count",
+                    "success_count", "error_badge", "model",
+                    "submitted_at", "processed_at",
+                    "submitted_in_run", "processed_in_run")
+    list_filter = ("command", "status", "model")
+    search_fields = ("batch_id", "submitted_in_run__run_key",
+                     "processed_in_run__run_key")
+    date_hierarchy = "submitted_at"
+    readonly_fields = ("command", "batch_id", "model", "status", "item_count",
+                       "success_count", "error_count", "errors",
+                       "submitted_at", "processed_at",
+                       "submitted_in_run", "processed_in_run", "updated_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.display(description="status", ordering="status")
+    def status_badge(self, obj):
+        return _badge(obj.get_status_display(), _BATCH_STATUS_COLORS.get(obj.status, "#000"))
+
+    @admin.display(description="errors", ordering="error_count")
+    def error_badge(self, obj):
+        if obj.error_count is None:
+            return "—"
+        if obj.error_count:
+            return _badge(obj.error_count, "#dc3545")
+        return obj.error_count
