@@ -1008,3 +1008,178 @@ class ParseValidationIssue(models.Model):
 
     def __str__(self):
         return f"[{self.category}] {self.subchapter} — {self.section_number}"
+
+
+class PipelineRun(models.Model):
+    """One row per scheduled pipeline invocation (a cron cycle) — the parent
+    that groups the several Anthropic batches a single run submits.
+
+    The scheduler fires ``update_seattle.sh`` (a full cycle) and
+    ``poll_llm_batches.sh`` (an offset drain) on a 6h cadence; each calls
+    multiple Batch management commands, every one of which submits its own
+    Anthropic batch. ``PipelineRun`` is the internal handle that ties those
+    together: the dashboard groups a cycle's work under one ``run_key``, and
+    the heartbeat alert ("no successful run in > N hours") queries this table.
+
+    ``run_key`` is a readable, sortable id minted by the orchestration
+    (``run_<UTC-ISO>``, e.g. ``run_20260604T0000Z``) and propagated to each
+    command via the ``PIPELINE_RUN_KEY`` env var, so all commands in a cycle
+    attach to the same row. A one-off ``manage.py`` invocation with no env key
+    mints its own ``kind="manual"`` run, so ad-hoc work is still tracked.
+
+    Correlation: ``run_key`` is also stamped on every flat-log line (#205), so
+    a row here joins to the deep-debug log both ways."""
+
+    KIND_FULL_CYCLE = "full-cycle"
+    KIND_OFFSET_DRAIN = "offset-drain"
+    KIND_WEEKLY_REP = "weekly-rep"
+    KIND_MANUAL = "manual"
+    KIND_CHOICES = [
+        (KIND_FULL_CYCLE, "Full cycle (scrape + extract + drain + submit)"),
+        (KIND_OFFSET_DRAIN, "Offset drain pass"),
+        (KIND_WEEKLY_REP, "Weekly rep refresh"),
+        (KIND_MANUAL, "Manual / ad-hoc invocation"),
+    ]
+
+    STATUS_RUNNING = "running"
+    STATUS_SUCCESS = "success"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_RUNNING, "Running"),
+        (STATUS_SUCCESS, "Success"),
+        (STATUS_FAILED, "Failed"),
+    ]
+
+    run_key = models.CharField(
+        max_length=64,
+        unique=True,
+        help_text="Readable, sortable internal run id, e.g. 'run_20260604T0000Z'.",
+    )
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES, db_index=True)
+    status = models.CharField(
+        max_length=12,
+        choices=STATUS_CHOICES,
+        default=STATUS_RUNNING,
+        db_index=True,
+        help_text=(
+            "Set to success/failed when the run finishes; a row stuck on "
+            "'running' flags a crashed cycle (the heartbeat alert keys off this)."
+        ),
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the run completed; null while still running.",
+    )
+
+    class Meta:
+        ordering = ["-started_at"]
+        verbose_name = "Pipeline Run"
+        verbose_name_plural = "Pipeline Runs"
+
+    def __str__(self):
+        return f"{self.run_key} ({self.kind}, {self.status})"
+
+
+class BatchRun(models.Model):
+    """One row per Anthropic Message Batch submitted by a Batch command — the
+    durable, queryable replacement for the old ``data/*_state.json`` state
+    files, and the store the drain-then-submit state machine reads.
+
+    Each of the four Batch commands (``tag_bill_issue_areas``,
+    ``summarize_legislation``, ``summarize_events``, ``summarize_reps``) submits
+    one batch per run. "Is there an in-flight batch for this command?" — the
+    question the state machine asks every run — becomes a query here
+    (``status in (submitted, in_progress)``) instead of reading a JSON file, so
+    state survives container recreates / deploys.
+
+    Drain-then-submit means a batch is *submitted* in one ``PipelineRun`` and
+    usually *drained* in a later one, hence the two run FKs: ``submitted_in_run``
+    and ``processed_in_run`` (null until drained). Both are ``SET_NULL`` so
+    pruning old runs never destroys batch history.
+
+    ``batch_id`` (the Anthropic ``msgbatch_…``) is also printed on the flat
+    log's submit/drain lines (#205), so a row joins to the deep-debug log."""
+
+    COMMAND_CHOICES = [
+        ("tag_bill_issue_areas", "tag_bill_issue_areas"),
+        ("summarize_legislation", "summarize_legislation"),
+        ("summarize_events", "summarize_events"),
+        ("summarize_reps", "summarize_reps"),
+    ]
+
+    STATUS_SUBMITTED = "submitted"
+    STATUS_IN_PROGRESS = "in_progress"
+    STATUS_ENDED = "ended"
+    STATUS_PROCESSED = "processed"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_SUBMITTED, "Submitted"),
+        (STATUS_IN_PROGRESS, "In progress"),
+        (STATUS_ENDED, "Ended (awaiting processing)"),
+        (STATUS_PROCESSED, "Processed (results persisted)"),
+        (STATUS_FAILED, "Failed / expired"),
+    ]
+
+    command = models.CharField(
+        max_length=64,
+        choices=COMMAND_CHOICES,
+        db_index=True,
+        help_text="The management command that submitted this batch.",
+    )
+    batch_id = models.CharField(
+        max_length=64,
+        db_index=True,
+        help_text="Anthropic Message Batches id (msgbatch_…).",
+    )
+    model = models.CharField(
+        max_length=100,
+        help_text="Claude model the batch was submitted with.",
+    )
+    status = models.CharField(
+        max_length=12,
+        choices=STATUS_CHOICES,
+        default=STATUS_SUBMITTED,
+        db_index=True,
+    )
+    item_count = models.PositiveIntegerField(
+        help_text="Number of requests in the batch (bills / events / reps).",
+    )
+    success_count = models.PositiveIntegerField(null=True, blank=True)
+    error_count = models.PositiveIntegerField(null=True, blank=True)
+    errors = models.JSONField(
+        default=list,
+        help_text="First N (item_id, message) failures from processing.",
+    )
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When results were polled + persisted; null until drained.",
+    )
+    submitted_in_run = models.ForeignKey(
+        PipelineRun,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="submitted_batches",
+        help_text="The run that submitted this batch.",
+    )
+    processed_in_run = models.ForeignKey(
+        PipelineRun,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="drained_batches",
+        help_text="The run that drained + persisted this batch (often a later cycle).",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-submitted_at"]
+        verbose_name = "Batch Run"
+        verbose_name_plural = "Batch Runs"
+
+    def __str__(self):
+        return f"{self.command} {self.batch_id} ({self.status})"
