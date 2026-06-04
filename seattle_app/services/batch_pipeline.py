@@ -55,14 +55,16 @@ class PipelineRunKeyFilter(logging.Filter):
         return True
 
 
-def get_or_create_pipeline_run() -> PipelineRun:
-    """Return the :class:`PipelineRun` for this invocation. All commands in one
-    cron cycle share a run via the ``PIPELINE_RUN_KEY`` env var the scheduler
-    sets; a bare ``manage.py`` call (no env var) mints its own manual run."""
+def get_or_create_pipeline_run() -> tuple[PipelineRun, bool]:
+    """Return ``(run, created)`` for this invocation. All commands in one cron
+    cycle share a run via the ``PIPELINE_RUN_KEY`` env var the scheduler (or the
+    ``run_pipeline`` orchestrator) sets; a bare ``manage.py`` call (no env var)
+    mints its own manual run. ``created`` is False when the run already existed —
+    i.e. an orchestrator owns its lifecycle and the command must not finish it."""
     run_key = os.environ.get("PIPELINE_RUN_KEY", "").strip()
     kind = os.environ.get("PIPELINE_RUN_KIND", "").strip()
     if run_key:
-        run, _ = PipelineRun.objects.get_or_create(
+        run, created = PipelineRun.objects.get_or_create(
             run_key=run_key,
             defaults={"kind": kind or PipelineRun.KIND_FULL_CYCLE},
         )
@@ -72,8 +74,9 @@ def get_or_create_pipeline_run() -> PipelineRun:
             run_key=f"run_{stamp}_manual",
             kind=PipelineRun.KIND_MANUAL,
         )
+        created = True
     run_key_var.set(run.run_key)
-    return run
+    return run, created
 
 
 class BatchPipelineCommand(BaseCommand):
@@ -145,7 +148,7 @@ class BatchPipelineCommand(BaseCommand):
         if not getattr(settings, "ANTHROPIC_API_KEY", ""):
             raise CommandError("ANTHROPIC_API_KEY not configured.")
         client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-        run = get_or_create_pipeline_run()
+        run, created = get_or_create_pipeline_run()
         try:
             inflight = (
                 BatchRun.objects.filter(
@@ -162,10 +165,14 @@ class BatchPipelineCommand(BaseCommand):
                 # ended + persisted → fall through and submit fresh work
             self._submit(client, opts, run)
         except Exception:
-            self._finish_run(run, PipelineRun.STATUS_FAILED)
+            # Only finish a run we created; if run_pipeline (the orchestrator)
+            # created it, it owns the lifecycle across all the cycle's commands.
+            if created:
+                self._finish_run(run, PipelineRun.STATUS_FAILED)
             raise
         else:
-            self._finish_run(run, PipelineRun.STATUS_SUCCESS)
+            if created:
+                self._finish_run(run, PipelineRun.STATUS_SUCCESS)
 
     # ------------------------------------------------------------------ #
     #  Drain                                                              #

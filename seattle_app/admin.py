@@ -18,7 +18,7 @@ from django.contrib.admin.sites import NotRegistered
 from django.utils.html import format_html
 from opencivicdata.core.models import Person, Membership, Organization
 
-from seattle_app.models import BatchRun, PipelineRun
+from seattle_app.models import BatchRun, PipelineRun, PipelineStep
 
 
 # Pre-existing admin registrations on these OCD models (something
@@ -131,6 +131,12 @@ _RUN_STATUS_COLORS = {
     PipelineRun.STATUS_SUCCESS: "#198754",   # green
     PipelineRun.STATUS_FAILED: "#dc3545",    # red
 }
+_STEP_STATUS_COLORS = {
+    PipelineStep.STATUS_RUNNING: "#6c757d",  # grey
+    PipelineStep.STATUS_SUCCESS: "#198754",  # green
+    PipelineStep.STATUS_FAILED: "#dc3545",   # red
+    PipelineStep.STATUS_SKIPPED: "#adb5bd",  # light grey
+}
 
 
 def _badge(label, color):
@@ -153,6 +159,27 @@ class BatchRunInline(admin.TabularInline):
         return False
 
 
+class PipelineStepInline(admin.TabularInline):
+    """The steps a cycle ran, in order — scrape / sync / extract / batch. Click a
+    row to see its captured output tail."""
+    model = PipelineStep
+    extra = 0
+    can_delete = False
+    show_change_link = True
+    fields = ("ordinal", "name", "status", "started_at", "finished_at", "duration")
+    readonly_fields = fields
+    ordering = ("ordinal",)
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description="duration")
+    def duration(self, obj):
+        if obj.finished_at and obj.started_at:
+            return f"{int((obj.finished_at - obj.started_at).total_seconds())}s"
+        return "—"
+
+
 @admin.register(PipelineRun)
 class PipelineRunAdmin(admin.ModelAdmin):
     """One row per scheduled cron cycle. The inline lists the Anthropic batches
@@ -165,7 +192,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
     search_fields = ("run_key",)
     date_hierarchy = "started_at"
     readonly_fields = ("run_key", "kind", "status", "started_at", "finished_at")
-    inlines = [BatchRunInline]
+    inlines = [PipelineStepInline, BatchRunInline]
 
     def has_add_permission(self, request):
         return False
@@ -222,3 +249,30 @@ class BatchRunAdmin(admin.ModelAdmin):
         if obj.error_count:
             return _badge(obj.error_count, "#dc3545")
         return obj.error_count
+
+
+@admin.register(PipelineStep)
+class PipelineStepAdmin(admin.ModelAdmin):
+    """Every step of every cycle — filter to all ``failed`` steps across runs, or
+    search a run_key to replay one cycle's timeline. The detail page shows the
+    step's captured output tail."""
+    list_display = ("pipeline_run", "ordinal", "name", "status_badge",
+                    "started_at", "finished_at", "duration")
+    list_filter = ("name", "status")
+    search_fields = ("pipeline_run__run_key", "name")
+    date_hierarchy = "started_at"
+    readonly_fields = ("pipeline_run", "ordinal", "name", "status",
+                       "started_at", "finished_at", "metrics", "output")
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.display(description="status", ordering="status")
+    def status_badge(self, obj):
+        return _badge(obj.get_status_display(), _STEP_STATUS_COLORS.get(obj.status, "#000"))
+
+    @admin.display(description="duration")
+    def duration(self, obj):
+        if obj.finished_at and obj.started_at:
+            return f"{int((obj.finished_at - obj.started_at).total_seconds())}s"
+        return "—"
