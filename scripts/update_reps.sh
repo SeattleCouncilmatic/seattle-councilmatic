@@ -1,32 +1,8 @@
 #!/bin/bash
 set -e  # Exit on error
 
-# One PipelineRun for the weekly rep refresh (issue #208).
-export PIPELINE_RUN_KEY="run_$(date -u +%Y%m%dT%H%M%SZ)"
-export PIPELINE_RUN_KIND="weekly-rep"
-
-# Weekly rep refresh — bios from seattle.gov and the LLM rep-summary
-# card. Memberships change rarely (every few years per seat) so daily
-# isn't worth it; this fires once a week.
-#
-# The summary submit lives here; polling + persistence happens in
-# `poll_llm_batches.sh` (which runs daily and no-ops on days when
-# no rep batch is in flight). Cycle is: Sun 2:30 AM submit → Sun
-# 3 AM poll picks it up (covered by the daily poll cron).
-
-echo "================================"
-echo "Seattle Councilmatic Rep Refresh"
-echo "================================"
-
-echo ""
-echo "1. Scraping rep bios from seattle.gov..."
-python manage.py scrape_rep_bios
-
-echo ""
-echo "2. Submitting rep-summary batch (will be polled at 3 AM)..."
-python manage.py summarize_reps
-
-echo ""
-echo "================================"
-echo "✓ Rep refresh complete!"
-echo "================================"
+# Weekly rep refresh — scrape bios from seattle.gov + submit the rep-summary
+# batch. Its own PipelineRun (kind=weekly-rep); the offset drain passes poll +
+# persist the batch on the next tick. Orchestrated + per-step-tracked by
+# run_pipeline (issue #214).
+python manage.py run_pipeline --kind weekly-rep

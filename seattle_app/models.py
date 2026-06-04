@@ -1183,3 +1183,74 @@ class BatchRun(models.Model):
 
     def __str__(self):
         return f"{self.command} {self.batch_id} ({self.status})"
+
+
+class PipelineStep(models.Model):
+    """One row per step within a ``PipelineRun`` — the scrape, sync, extraction,
+    and LLM-batch stages a cycle runs in sequence (issue #214). Gives the
+    dashboard a per-step timeline (status + duration + output) so a hung scrape
+    or a failed extraction is visible, not just the LLM phase. Created by the
+    ``run_pipeline`` orchestrator at the top of each step.
+
+    ``output`` is a truncated tail of the step's stdout/stderr — the orchestrator
+    tees it, so the full text still reaches the flat log (joined by ``run_key``).
+    ``metrics`` holds whatever structured bits a step reports (a subprocess
+    returncode today; scrape / extract counts as they're enriched)."""
+
+    STATUS_RUNNING = "running"
+    STATUS_SUCCESS = "success"
+    STATUS_FAILED = "failed"
+    STATUS_SKIPPED = "skipped"
+    STATUS_CHOICES = [
+        (STATUS_RUNNING, "Running"),
+        (STATUS_SUCCESS, "Success"),
+        (STATUS_FAILED, "Failed"),
+        (STATUS_SKIPPED, "Skipped"),
+    ]
+
+    pipeline_run = models.ForeignKey(
+        PipelineRun,
+        on_delete=models.CASCADE,
+        related_name="steps",
+        help_text="The cycle this step ran in.",
+    )
+    name = models.CharField(
+        max_length=64,
+        db_index=True,
+        help_text="Step key, e.g. 'pupa_scrape' / 'extract_transcripts' / 'summarize_events'.",
+    )
+    ordinal = models.PositiveSmallIntegerField(
+        help_text="1-based position of the step within the cycle.",
+    )
+    status = models.CharField(
+        max_length=12,
+        choices=STATUS_CHOICES,
+        default=STATUS_RUNNING,
+        db_index=True,
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the step finished; null while still running.",
+    )
+    output = models.TextField(
+        blank=True,
+        default="",
+        help_text=(
+            "Truncated tail of the step's stdout/stderr; the full text is in the "
+            "flat log, joined by run_key."
+        ),
+    )
+    metrics = models.JSONField(
+        default=dict,
+        help_text="Structured per-step bits (subprocess returncode, counts).",
+    )
+
+    class Meta:
+        ordering = ["pipeline_run", "ordinal"]
+        verbose_name = "Pipeline Step"
+        verbose_name_plural = "Pipeline Steps"
+
+    def __str__(self):
+        return f"{self.pipeline_run.run_key} · {self.ordinal}. {self.name} ({self.status})"
