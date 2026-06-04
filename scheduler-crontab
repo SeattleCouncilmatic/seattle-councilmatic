@@ -4,24 +4,29 @@
 # obviously local-time without grepping the compose file.
 CRON_TZ=America/Los_Angeles
 
-# Run full update (scrape + sync + extract bill text + extract event
-# transcripts + submit LLM batches) daily at 2 AM Pacific. Source
-# /etc/cron-env first — cron sanitizes the environment, so without
-# this DATABASE_URL etc. from .env aren't visible and Django falls back
-# to localhost:5432. The file is written by scripts/scheduler-entrypoint.sh
-# at container start.
-0 2 * * * . /etc/cron-env && cd /app && /app/scripts/update_seattle.sh >> /var/log/cron/sync.log 2>&1
+# Run the full pipeline (scrape + sync + extract bill text + extract
+# event transcripts + drain prior LLM batches + submit new ones) every
+# 6 hours. New meetings/bills surface within ~6h of posting instead of
+# waiting for a single 2 AM run (#206). `flock -n` skips an overlapping
+# run rather than doubling the scrape; every pipeline job below shares
+# the one lock so update/poll/rep runs never touch a batch state file
+# concurrently. Source /etc/cron-env first — cron sanitizes the
+# environment, so without this DATABASE_URL etc. from .env aren't
+# visible and Django falls back to localhost:5432. The file is written
+# by scripts/scheduler-entrypoint.sh at container start.
+0 0,6,12,18 * * * . /etc/cron-env && cd /app && flock -n /tmp/seattle_pipeline.lock /app/scripts/update_seattle.sh >> /var/log/cron/sync.log 2>&1
 
-# Poll Anthropic Batch jobs submitted at 2 AM and persist results.
-# Batches typically complete in 5-30 minutes for our daily volumes;
-# an hour's headroom is generous. Includes summarize_reps so the
-# Sunday weekly rep batch (submitted 2:30 AM) gets polled at 3 AM
-# without needing its own daily entry.
-0 3 * * * . /etc/cron-env && cd /app && /app/scripts/poll_llm_batches.sh >> /var/log/cron/sync.log 2>&1
+# Offset drain pass ~1h after each 6h cycle: polls + persists the batch
+# that cycle submitted (batches finish in ~5-30 min) so summaries land
+# within ~1h of submission rather than at the next cycle (#204). No
+# scrape runs here, so the commands' submit phase finds nothing new and
+# it's effectively a pure drain. Shares the pipeline lock.
+0 1,7,13,19 * * * . /etc/cron-env && cd /app && flock -n /tmp/seattle_pipeline.lock /app/scripts/poll_llm_batches.sh >> /var/log/cron/sync.log 2>&1
 
 # Weekly rep refresh (Sunday 2:30 AM): scrape bios from seattle.gov
-# and submit the summarize_reps batch. The 3 AM daily poll covers
-# polling + persistence.
-30 2 * * 0 . /etc/cron-env && cd /app && /app/scripts/update_reps.sh >> /var/log/cron/sync.log 2>&1
+# and submit the summarize_reps batch. The offset drain passes above
+# poll + persist it on the next tick. Shares the pipeline lock so it
+# can't collide with a 6h cycle.
+30 2 * * 0 . /etc/cron-env && cd /app && flock -n /tmp/seattle_pipeline.lock /app/scripts/update_reps.sh >> /var/log/cron/sync.log 2>&1
 
 # Empty line required at end of crontab file

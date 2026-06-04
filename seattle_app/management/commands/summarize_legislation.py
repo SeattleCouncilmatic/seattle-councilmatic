@@ -143,7 +143,10 @@ class Command(BaseCommand):
         # Phase 1: poll any in-flight batch.
         if state.get("batch_id") and not state.get("processed"):
             self._poll_and_maybe_process(client, state, state_path)
-            return
+            if not state.get("processed"):
+                return  # batch still in flight; drained on the next run
+            # Ended + persisted: fall through to submit a fresh batch for
+            # new work, so one run drains then submits (#204/#206).
 
         # Phase 2: gather candidates and submit.
         bills = self._target_bills(

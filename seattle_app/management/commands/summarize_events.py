@@ -135,7 +135,10 @@ class Command(BaseCommand):
 
         if state.get("batch_id") and not state.get("processed"):
             self._poll_and_maybe_process(client, state, state_path)
-            return
+            if not state.get("processed"):
+                return  # batch still in flight; drained on the next run
+            # Ended + persisted: fall through to submit a fresh batch for
+            # new work, so one run drains then submits (#204/#206).
 
         events = self._target_events(
             force=opts["force"], event_id=opts["event_id"]

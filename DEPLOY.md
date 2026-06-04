@@ -184,10 +184,14 @@ Zero-downtime is NOT a goal of this setup — gunicorn restarts mean
 
 ### Post-deploy data population
 
-**Ongoing automation:** as of 2026-05-16, the scheduler container's
-crontab runs the full LLM pipeline nightly — every new bill / event
-gets text-extracted, tagged, and summarized within ~25 hours of its
-first scrape. Rep summaries refresh weekly (Sunday). See
+**Ongoing automation:** the scheduler container runs the full pipeline
+**every 6 hours** (00/06/12/18 Pacific), with an offset drain pass ~1h
+after each cycle (01/07/13/19). New bills/events surface within ~6h of
+posting and get tagged + summarized within ~1h of the batch completing;
+the Batch commands are drain-then-submit, so each cycle polls + persists
+the previous batch and submits a fresh one. Rep summaries refresh weekly
+(Sunday 2:30 AM). All pipeline jobs share a `flock -n /tmp/seattle_pipeline.lock`
+so runs can't overlap or race a batch state file. See
 [scripts/update_seattle.sh](scripts/update_seattle.sh),
 [scripts/poll_llm_batches.sh](scripts/poll_llm_batches.sh),
 [scripts/update_reps.sh](scripts/update_reps.sh), and
