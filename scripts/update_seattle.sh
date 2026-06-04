@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e  # Exit on error
 
+# One PipelineRun per cycle (issue #208): export a shared run key so every batch
+# command below records its BatchRun under the same run, letting the dashboard
+# group the cycle's batches. A bare manual invocation with no PIPELINE_RUN_KEY
+# mints its own kind="manual" run instead.
+export PIPELINE_RUN_KEY="run_$(date -u +%Y%m%dT%H%M%SZ)"
+export PIPELINE_RUN_KIND="full-cycle"
+
 echo "================================"
 echo "Seattle Councilmatic Update"
 echo "================================"

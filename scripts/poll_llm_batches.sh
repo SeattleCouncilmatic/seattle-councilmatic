@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e  # Exit on error
 
+# This drain pass is its own PipelineRun (issue #208): it processes the batches
+# the preceding cycle submitted, so they end up with processed_in_run = this run
+# while their submitted_in_run stays the earlier cycle.
+export PIPELINE_RUN_KEY="run_$(date -u +%Y%m%dT%H%M%SZ)"
+export PIPELINE_RUN_KIND="offset-drain"
+
 # Offset drain pass, run ~1h after each 6h `update_seattle.sh` cycle:
 # polls + persists any batch that cycle submitted so results land
 # without waiting for the next cycle.

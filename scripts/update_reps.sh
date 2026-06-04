@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e  # Exit on error
 
+# One PipelineRun for the weekly rep refresh (issue #208).
+export PIPELINE_RUN_KEY="run_$(date -u +%Y%m%dT%H%M%SZ)"
+export PIPELINE_RUN_KIND="weekly-rep"
+
 # Weekly rep refresh — bios from seattle.gov and the LLM rep-summary
 # card. Memberships change rarely (every few years per seat) so daily
 # isn't worth it; this fires once a week.
