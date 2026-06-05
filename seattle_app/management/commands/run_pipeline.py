@@ -126,9 +126,17 @@ class Command(BaseCommand):
             metrics: dict = {}
             try:
                 if step_type == "pupa":
+                    # pupa reads django.conf.settings.LOGGING and only defaults
+                    # DJANGO_SETTINGS_MODULE to pupa.settings when it's unset.
+                    # Under manage.py it's seattle_app.settings, which defines no
+                    # LOGGING (so it's Django's default {}), and pupa then does
+                    # settings.LOGGING["handlers"]… -> KeyError. Drop it so pupa
+                    # uses its own settings, exactly as the bash cron call did.
+                    pupa_env = os.environ.copy()
+                    pupa_env.pop("DJANGO_SETTINGS_MODULE", None)
                     proc = subprocess.run(
                         ["pupa", "update", "seattle"],
-                        capture_output=True, text=True,
+                        capture_output=True, text=True, env=pupa_env,
                     )
                     buf.write((proc.stdout or "") + (proc.stderr or ""))
                     metrics["returncode"] = proc.returncode
