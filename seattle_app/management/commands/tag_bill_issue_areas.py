@@ -2,8 +2,8 @@
 
 Submits each bill's title (plus the first 2k chars of ``BillText.text`` when
 available) to Claude with a constrained-vocabulary JSON schema, then writes the
-returned 1-3 tags into ``Bill.subject`` (the OCD ``ArrayField`` already on the
-model — no new schema).
+returned 1-3 tags to a dedicated ``BillTags`` row — not the OCD ``Bill.subject``
+field, which the scrape importer resets to ``[]`` on every re-import (#217).
 
 The tag vocabulary is fixed in ``claude_service.BILL_TAG_VOCABULARY``; output is
 enum-constrained so the model can't invent new tags. Bills without a title are
@@ -11,8 +11,8 @@ skipped (the OCD scraper occasionally emits placeholder rows).
 
 The drain-then-submit state machine lives in ``BatchPipelineCommand``: one run
 polls + persists any in-flight batch, then submits a fresh one. State is the
-``BatchRun`` row, not a JSON file (issue #208). Idempotent: bills with a
-non-empty ``subject`` are excluded unless ``--force``.
+``BatchRun`` row, not a JSON file (issue #208). Idempotent: bills that already
+have a ``BillTags`` row are excluded unless ``--force``.
 
 Usage:
     python manage.py tag_bill_issue_areas
@@ -28,6 +28,7 @@ from typing import Optional
 
 from councilmatic_core.models import Bill
 
+from seattle_app.models import BillTags
 from seattle_app.services.batch_pipeline import BatchPipelineCommand
 from seattle_app.services.claude_service import (
     BILL_TAG_OUTPUT_SCHEMA,
@@ -120,9 +121,9 @@ class Command(BatchPipelineCommand):
         elif bill_identifiers:
             qs = qs.filter(identifier__in=bill_identifiers)
         elif not force:
-            # `subject=[]` is the default for unset OCD ArrayField; the __exact
-            # lookup against an empty list is the idiom for "no tags yet".
-            qs = qs.filter(subject=[])
+            # Bills with no BillTags row yet. (Tags moved off OCD Bill.subject,
+            # which the scrape importer resets to [] on every re-import — #217.)
+            qs = qs.filter(issue_tags__isnull=True)
         if limit is not None:
             qs = qs[:limit]
         return list(qs)
@@ -203,7 +204,7 @@ class Command(BatchPipelineCommand):
 
         success = 0
         errors: list[tuple[str, str]] = []
-        for cid, data, _model_version, err in parsed:
+        for cid, data, model_version, err in parsed:
             identifier = _decode_custom_id(cid)
             if err:
                 errors.append((identifier, err))
@@ -225,7 +226,13 @@ class Command(BatchPipelineCommand):
             if bill is None:
                 errors.append((identifier, "bill not in DB"))
                 continue
-            bill.subject = tags
-            bill.save(update_fields=["subject"])
+            BillTags.objects.update_or_create(
+                bill=bill,
+                defaults={
+                    "tags": tags,
+                    "model_version": model_version or "",
+                    "tagged_batch_id": batch_id,
+                },
+            )
             success += 1
         return success, errors

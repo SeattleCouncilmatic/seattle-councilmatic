@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib.gis.db import models as gis_models
+from django.contrib.postgres.fields import ArrayField
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.db import models
@@ -1254,3 +1255,53 @@ class PipelineStep(models.Model):
 
     def __str__(self):
         return f"{self.pipeline_run.run_key} · {self.ordinal}. {self.name} ({self.status})"
+
+
+class BillTags(models.Model):
+    """LLM-assigned issue-area tags for a bill — one row per ``Bill``.
+
+    Tags were originally written to the OCD ``Bill.subject`` ArrayField, but the
+    nightly scrape's importer resets ``subject`` to ``[]`` on every re-import
+    (the Seattle scraper adds no subjects), wiping them — so the tagger re-tagged
+    the same scrape-window bills every cycle (issue #217). Storing them here,
+    like the LLM summary models, keeps them scrape-safe. The vocabulary is fixed
+    in ``claude_service.BILL_TAG_VOCABULARY``."""
+
+    bill = models.OneToOneField(
+        Bill,
+        on_delete=models.CASCADE,
+        related_name="issue_tags",
+        help_text="The bill these issue-area tags describe.",
+    )
+    tags = ArrayField(
+        models.CharField(max_length=64),
+        default=list,
+        help_text=(
+            "1-3 issue-area tags from the controlled vocabulary, ordered by "
+            "relevance."
+        ),
+    )
+    model_version = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="Claude model that produced the tags.",
+    )
+    tagged_batch_id = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text=(
+            "Anthropic Message Batches ID these tags came from. Empty for "
+            "synchronous one-off runs."
+        ),
+    )
+    generated_at = models.DateTimeField(auto_now_add=True)
+    last_regenerated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Bill Issue Tags"
+        verbose_name_plural = "Bill Issue Tags"
+
+    def __str__(self):
+        return f"Tags: {self.bill.identifier} {self.tags}"
