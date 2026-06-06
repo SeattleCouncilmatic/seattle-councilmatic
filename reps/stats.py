@@ -30,6 +30,8 @@ from councilmatic_core.models import Bill
 from opencivicdata.core.models import Membership, Person
 from opencivicdata.legislative.models import BillSponsorship, PersonVote
 
+from seattle_app.models import BillTags
+
 
 _COUNCIL_ORG_NAME = "Seattle City Council"
 # Notable-sponsorships cap. Top-of-list bills the LLM should consider
@@ -121,8 +123,8 @@ def _sponsorship_context(person: Person) -> dict[str, Any]:
     """Aggregate sponsorship breakdown. Distinguishes primary from
     cosponsor (the OCD ``primary`` boolean) so the prompt knows which
     bills the rep actually drove vs. signed on to. Issue-area counts
-    come from ``Bill.subject`` (populated by the bill-tagger; see
-    WORK_LOG 2026-05-11) — top 5 tags by primary-sponsorship count."""
+    come from the ``BillTags`` model (populated by the bill-tagger) —
+    top 5 tags by primary-sponsorship count."""
     # Dedupe by bill_id — OCD's BillSponsorship can have multiple rows
     # per (person, bill) combo (different sponsorship classifications,
     # scrape-re-run residue). For "how many bills did this rep
@@ -134,15 +136,10 @@ def _sponsorship_context(person: Person) -> dict[str, Any]:
     )
     primary_bill_ids: set[str] = set()
     cosponsor_bill_ids: set[str] = set()
-    primary_subjects_by_bill: dict[str, list[str]] = {}
     for s in sponsorships:
         bid = s.bill_id
         if s.primary:
             primary_bill_ids.add(bid)
-            # Capture each primary-sponsored bill's tags once. Using
-            # bill_id as the key dedupes across duplicate sponsorship
-            # rows for the same bill.
-            primary_subjects_by_bill.setdefault(bid, list(s.bill.subject or []))
         else:
             cosponsor_bill_ids.add(bid)
     primary_count = len(primary_bill_ids)
@@ -150,12 +147,20 @@ def _sponsorship_context(person: Person) -> dict[str, Any]:
     # sponsored so we don't double-count a bill the rep led on.
     cosponsor_count = len(cosponsor_bill_ids - primary_bill_ids)
 
-    # Tag breakdown is from primary sponsorships only. Cosponsoring
-    # signals support but not portfolio focus — a rep who cosponsors
-    # a bill on someone else's issue isn't claiming that issue area.
+    # Issue-area tags live in the BillTags model (moved off OCD Bill.subject,
+    # which the scrape importer clobbers to [] on every re-import — #217).
+    # Fetch once for all primary bills; bills with no BillTags row contribute
+    # nothing.
+    tags_by_bill: dict[str, list[str]] = dict(
+        BillTags.objects.filter(bill_id__in=primary_bill_ids)
+        .values_list("bill_id", "tags")
+    )
+    # Tag breakdown is from primary sponsorships only. Cosponsoring signals
+    # support but not portfolio focus — a rep who cosponsors a bill on someone
+    # else's issue isn't claiming that issue area.
     tag_counter: Counter[str] = Counter()
-    for tags in primary_subjects_by_bill.values():
-        for tag in tags:
+    for bid in primary_bill_ids:
+        for tag in tags_by_bill.get(bid, []):
             tag_counter[tag] += 1
     top_tags = [
         {"tag": tag, "count": n}
@@ -178,13 +183,13 @@ def _sponsorship_context(person: Person) -> dict[str, Any]:
         .filter(sponsorships__person=person, sponsorships__primary=True)
         .distinct()
         .order_by("-created_at")
-        .values("identifier", "title", "subject")[:_NOTABLE_SPONSORSHIP_LIMIT]
+        .values("id", "identifier", "title")[:_NOTABLE_SPONSORSHIP_LIMIT]
     )
     notable = [
         {
             "identifier": row["identifier"],
             "title": (row["title"] or "")[:200],
-            "tags": row["subject"] or [],
+            "tags": tags_by_bill.get(row["id"], []),
         }
         for row in notable_qs
     ]

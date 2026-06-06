@@ -18,7 +18,7 @@ from django.contrib.admin.sites import NotRegistered
 from django.utils.html import format_html
 from opencivicdata.core.models import Person, Membership, Organization
 
-from seattle_app.models import BatchRun, PipelineRun, PipelineStep
+from seattle_app.models import BatchRun, BillTags, PipelineRun, PipelineStep
 
 
 # Pre-existing admin registrations on these OCD models (something
@@ -276,3 +276,18 @@ class PipelineStepAdmin(admin.ModelAdmin):
         if obj.finished_at and obj.started_at:
             return f"{int((obj.finished_at - obj.started_at).total_seconds())}s"
         return "—"
+
+
+@admin.register(BillTags)
+class BillTagsAdmin(admin.ModelAdmin):
+    """LLM issue-area tags per bill (issue #217) — scrape-safe, unlike the OCD
+    ``Bill.subject`` field these moved off of. View-only; the tagger owns them."""
+    list_display = ("bill", "tags", "model_version", "generated_at", "last_regenerated")
+    list_filter = ("model_version",)
+    search_fields = ("bill__identifier",)
+    date_hierarchy = "generated_at"
+    readonly_fields = ("bill", "tags", "model_version", "tagged_batch_id",
+                       "generated_at", "last_regenerated")
+
+    def has_add_permission(self, request):
+        return False
