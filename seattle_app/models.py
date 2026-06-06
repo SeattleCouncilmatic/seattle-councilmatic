@@ -1305,3 +1305,37 @@ class BillTags(models.Model):
 
     def __str__(self):
         return f"Tags: {self.bill.identifier} {self.tags}"
+
+
+class PipelineAlertState(models.Model):
+    """Singleton that lets ``check_pipeline_health`` email on health transitions
+    and periodic re-nags rather than on every tick (#210). One row (pk=1)."""
+
+    healthy = models.BooleanField(
+        default=True,
+        help_text="Last assessed health (a successful full-cycle within the heartbeat window).",
+    )
+    last_alerted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the last alert (or recovery) email was sent.",
+    )
+    last_checked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the health check last ran.",
+    )
+    detail = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Summary of the last assessment.",
+    )
+
+    class Meta:
+        verbose_name = "Pipeline Alert State"
+        verbose_name_plural = "Pipeline Alert State"
+
+    def __str__(self):
+        status = "healthy" if self.healthy else "UNHEALTHY"
+        return f"{status} (checked {self.last_checked_at})"

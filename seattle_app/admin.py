@@ -18,7 +18,9 @@ from django.contrib.admin.sites import NotRegistered
 from django.utils.html import format_html
 from opencivicdata.core.models import Person, Membership, Organization
 
-from seattle_app.models import BatchRun, BillTags, PipelineRun, PipelineStep
+from seattle_app.models import (
+    BatchRun, BillTags, PipelineAlertState, PipelineRun, PipelineStep,
+)
 
 
 # Pre-existing admin registrations on these OCD models (something
@@ -290,4 +292,18 @@ class BillTagsAdmin(admin.ModelAdmin):
                        "generated_at", "last_regenerated")
 
     def has_add_permission(self, request):
+        return False
+
+
+@admin.register(PipelineAlertState)
+class PipelineAlertStateAdmin(admin.ModelAdmin):
+    """The health alerter's dedup state (#210) — read-only visibility into the
+    current verdict and when it last checked / alerted."""
+    list_display = ("healthy", "last_checked_at", "last_alerted_at", "detail")
+    readonly_fields = ("healthy", "last_checked_at", "last_alerted_at", "detail")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
         return False
