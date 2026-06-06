@@ -41,9 +41,16 @@ services:
     ports:
       - "5173:5173"
 
+  # Opt-in in dev: this runs the real LLM pipeline on cron and burns tokens, so
+  # it does NOT start with a plain `docker compose up`. Enable on demand with
+  # `docker compose --profile scheduler up scheduler`. For routine testing, run
+  # the pipeline manually instead, e.g.
+  #   docker compose run --rm app python manage.py run_pipeline --kind full-cycle --dry-run
+  # (Prod's docker-compose.prod.yml has no profile gate — it always runs.)
   scheduler:
     build: .
     container_name: seattle_scheduler
+    profiles: ["scheduler"]
     depends_on:
       postgres:
         condition: service_healthy
