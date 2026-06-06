@@ -14,25 +14,31 @@ CRON_TZ=America/Los_Angeles
 # environment, so without this DATABASE_URL etc. from .env aren't
 # visible and Django falls back to localhost:5432. The file is written
 # by scripts/scheduler-entrypoint.sh at container start.
-0 0,6,12,18 * * * . /etc/cron-env && cd /app && flock -n /tmp/seattle_pipeline.lock /app/scripts/update_seattle.sh >> /var/log/cron/sync.log 2>&1
+0 0,6,12,18 * * * . /etc/cron-env && cd /app && flock -n /tmp/seattle_pipeline.lock /app/scripts/update_seattle.sh 2>&1 | ts >> /var/log/cron/sync.log
 
 # Offset drain pass ~1h after each 6h cycle: polls + persists the batch
 # that cycle submitted (batches finish in ~5-30 min) so summaries land
 # within ~1h of submission rather than at the next cycle (#204). No
 # scrape runs here, so the commands' submit phase finds nothing new and
 # it's effectively a pure drain. Shares the pipeline lock.
-0 1,7,13,19 * * * . /etc/cron-env && cd /app && flock -n /tmp/seattle_pipeline.lock /app/scripts/poll_llm_batches.sh >> /var/log/cron/sync.log 2>&1
+0 1,7,13,19 * * * . /etc/cron-env && cd /app && flock -n /tmp/seattle_pipeline.lock /app/scripts/poll_llm_batches.sh 2>&1 | ts >> /var/log/cron/sync.log
 
 # Weekly rep refresh (Sunday 2:30 AM): scrape bios from seattle.gov
 # and submit the summarize_reps batch. The offset drain passes above
 # poll + persist it on the next tick. Shares the pipeline lock so it
 # can't collide with a 6h cycle.
-30 2 * * 0 . /etc/cron-env && cd /app && flock -n /tmp/seattle_pipeline.lock /app/scripts/update_reps.sh >> /var/log/cron/sync.log 2>&1
+30 2 * * 0 . /etc/cron-env && cd /app && flock -n /tmp/seattle_pipeline.lock /app/scripts/update_reps.sh 2>&1 | ts >> /var/log/cron/sync.log
 
 # Pipeline health alert (#210) — independent hourly tick at :30, deliberately
 # NOT under the pipeline flock, so it still fires if a run is wedged holding the
 # lock. Emails PIPELINE_ALERT_EMAILS when no successful full-cycle has finished
 # within PIPELINE_HEARTBEAT_HOURS.
-30 * * * * . /etc/cron-env && cd /app && python manage.py check_pipeline_health >> /var/log/cron/sync.log 2>&1
+30 * * * * . /etc/cron-env && cd /app && python manage.py check_pipeline_health 2>&1 | ts >> /var/log/cron/sync.log
+
+# Rotate the cron log daily — 30-day retention via /etc/logrotate.d/sync-log
+# (#205). Independent of the pipeline; state lives on the cron-logs volume so the
+# daily detection survives container recreates. `ts` (moreutils) prefixes a
+# timestamp to every line written to sync.log above — the flat log had none.
+0 4 * * * logrotate -s /var/log/cron/logrotate.status /etc/logrotate.d/sync-log 2>&1 | ts >> /var/log/cron/sync.log
 
 # Empty line required at end of crontab file

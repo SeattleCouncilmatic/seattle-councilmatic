@@ -1,0 +1,19 @@
+# logrotate config for the scheduler's cron log (issue #205). Installed to
+# /etc/logrotate.d/sync-log by the Dockerfile; run daily by a scheduler-crontab
+# line (the container's `cron` user-crontab doesn't run /etc/cron.daily, so the
+# trigger is explicit). State is kept on the cron-logs volume so the "daily"
+# detection survives container recreates.
+#
+# copytruncate is load-bearing: the scheduler entrypoint runs
+# `tail -f /var/log/cron/sync.log` as PID 1 to feed `docker logs`. A rename-style
+# rotate would leave that tail on the dead inode and the stream would go silent;
+# copytruncate truncates in place so the inode (and the tail) survive.
+/var/log/cron/sync.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

@@ -21,7 +21,6 @@ state survives container recreates / deploys (unlike the old JSON files).
 """
 from __future__ import annotations
 
-import contextvars
 import json
 import logging
 import os
@@ -32,27 +31,16 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
+from seattle_app.logging_filters import run_key_var
 from seattle_app.models import BatchRun, PipelineRun
 from seattle_app.services.claude_service import format_batch_error
 
 logger = logging.getLogger(__name__)
 
-# Correlation id for the current pipeline run. Stamped onto every flat-log line
-# by the logging filter below once it's wired into LOGGING (#205); also inlined
-# into the operator-facing stdout lines here so a row in the DB always joins to
-# the deep-debug log by run_key / batch_id.
-run_key_var: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "pipeline_run_key", default="-"
-)
-
-
-class PipelineRunKeyFilter(logging.Filter):
-    """Injects the current ``run_key`` into every log record so a formatter can
-    prefix ``[%(run_key)s]``. Wired into ``LOGGING`` in #205."""
-
-    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
-        record.run_key = run_key_var.get()
-        return True
+# ``run_key_var`` (the contextvar the logging filter reads) lives in
+# ``seattle_app.logging_filters`` so LOGGING's dictConfig can import the filter
+# without importing models. We set it per run below; it's also inlined into the
+# operator-facing stdout lines so a DB row joins to the flat log by run_key.
 
 
 def get_or_create_pipeline_run() -> tuple[PipelineRun, bool]:
