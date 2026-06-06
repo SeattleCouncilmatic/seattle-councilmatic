@@ -255,6 +255,36 @@ CLAUDE_REP_SUMMARY_MODEL = os.getenv("CLAUDE_REP_SUMMARY_MODEL", "claude-sonnet-
 # caching applies once per meeting.
 CLAUDE_EVENT_SUMMARY_MODEL = os.getenv("CLAUDE_EVENT_SUMMARY_MODEL", "claude-sonnet-4-6")
 
+# Outbound email (pipeline health alerts — #210; and any future notifications).
+# Set the SMTP vars in the environment to enable real sending. Without
+# EMAIL_HOST, Django's default backend would try localhost:25 and fail, so fall
+# back to the console backend (logs the message) — alerts still surface in the
+# cron log, just not as email, until SMTP is configured.
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+if EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+    EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+    EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() == "true"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = os.getenv(
+    "DEFAULT_FROM_EMAIL", "Seattle Councilmatic <noreply@seattlecouncilmatic.org>"
+)
+
+# Pipeline health alerting (#210). `check_pipeline_health` runs on its own cron
+# tick and emails when no successful full-cycle has finished within
+# PIPELINE_HEARTBEAT_HOURS, with a digest of recent failures. Keep the window
+# above the 6h cadence so one slow cycle doesn't false-alarm. Recipients:
+# PIPELINE_ALERT_EMAILS (comma-separated); re-nags at most every
+# PIPELINE_ALERT_RENOTIFY_HOURS while unhealthy, plus one note on recovery.
+PIPELINE_HEARTBEAT_HOURS = int(os.getenv("PIPELINE_HEARTBEAT_HOURS", "8"))
+PIPELINE_ALERT_RENOTIFY_HOURS = int(os.getenv("PIPELINE_ALERT_RENOTIFY_HOURS", "12"))
+PIPELINE_ALERT_EMAILS = [
+    e.strip() for e in os.getenv("PIPELINE_ALERT_EMAILS", "").split(",") if e.strip()
+]
+
 # Content Security Policy settings
 # In development, allow localhost resources
 if DEBUG:

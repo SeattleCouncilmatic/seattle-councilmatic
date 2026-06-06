@@ -29,4 +29,10 @@ CRON_TZ=America/Los_Angeles
 # can't collide with a 6h cycle.
 30 2 * * 0 . /etc/cron-env && cd /app && flock -n /tmp/seattle_pipeline.lock /app/scripts/update_reps.sh >> /var/log/cron/sync.log 2>&1
 
+# Pipeline health alert (#210) — independent hourly tick at :30, deliberately
+# NOT under the pipeline flock, so it still fires if a run is wedged holding the
+# lock. Emails PIPELINE_ALERT_EMAILS when no successful full-cycle has finished
+# within PIPELINE_HEARTBEAT_HOURS.
+30 * * * * . /etc/cron-env && cd /app && python manage.py check_pipeline_health >> /var/log/cron/sync.log 2>&1
+
 # Empty line required at end of crontab file
