@@ -17,6 +17,7 @@ Recipients come from ``settings.PIPELINE_ALERT_EMAILS``; without SMTP configured
 Usage:
     python manage.py check_pipeline_health
     python manage.py check_pipeline_health --dry-run   # assess only; no email/save
+    python manage.py check_pipeline_health --test      # send a sample email now
 """
 from datetime import timedelta
 
@@ -36,8 +37,22 @@ class Command(BaseCommand):
             "--dry-run", action="store_true",
             help="Print the assessment; don't email or update state.",
         )
+        parser.add_argument(
+            "--test", action="store_true",
+            help="Send a sample alert email now to verify SMTP + recipients; "
+                 "ignores health and doesn't touch state.",
+        )
 
     def handle(self, *args, **opts):
+        if opts["test"]:
+            self._send(
+                "🧪 Councilmatic pipeline: test alert",
+                "Test of the pipeline health alert email. If you received this, "
+                "SMTP and PIPELINE_ALERT_EMAILS are configured correctly.",
+                opts["dry_run"],
+            )
+            return
+
         now = timezone.now()
         heartbeat = timedelta(hours=settings.PIPELINE_HEARTBEAT_HOURS)
         renotify = timedelta(hours=settings.PIPELINE_ALERT_RENOTIFY_HOURS)
