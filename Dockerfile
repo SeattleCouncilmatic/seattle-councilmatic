@@ -15,7 +15,7 @@ FROM python:3.12 AS app
 LABEL maintainer "DataMade <info@datamade.us>"
 
 RUN apt-get update && \
-	apt-get install -y --no-install-recommends --purge postgresql-client gdal-bin cron && \
+	apt-get install -y --no-install-recommends --purge postgresql-client gdal-bin cron logrotate moreutils && \
 	apt-get autoclean && \
 	rm -rf /var/lib/apt/lists/* && \
 	rm -rf /tmp/*
@@ -51,5 +51,10 @@ RUN chmod 0644 /etc/cron.d/scheduler-crontab && \
     crontab /etc/cron.d/scheduler-crontab && \
     mkdir -p /var/log/cron && \
     touch /var/log/cron/sync.log
+
+# logrotate config for the cron log (#205) — 30-day retention. Triggered by a
+# daily crontab line; copytruncate keeps the entrypoint's `tail -f` working.
+COPY scheduler-logrotate /etc/logrotate.d/sync-log
+RUN chmod 0644 /etc/logrotate.d/sync-log
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

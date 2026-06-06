@@ -285,6 +285,44 @@ PIPELINE_ALERT_EMAILS = [
     e.strip() for e in os.getenv("PIPELINE_ALERT_EMAILS", "").split(",") if e.strip()
 ]
 
+# Logging (#205). The project previously defined no LOGGING, so settings.LOGGING
+# was Django's default {} — which is what made pupa's CLI KeyError (#216). A real
+# config quiets chatty scrape/HTTP libraries and stamps the pipeline run_key onto
+# logger output via the contextvars filter. The filter lives in a models-free
+# module (seattle_app.logging_filters) because dictConfig runs before the app
+# registry loads. Per-line timestamps on the flat cron log come from `ts`
+# (moreutils) in scheduler-crontab, so the formatter omits asctime to avoid
+# double-stamping.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "pipeline_run_key": {
+            "()": "seattle_app.logging_filters.PipelineRunKeyFilter",
+        },
+    },
+    "formatters": {
+        "tagged": {"format": "[%(run_key)s] %(levelname)s %(name)s: %(message)s"},
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "filters": ["pipeline_run_key"],
+            "formatter": "tagged",
+        },
+    },
+    "root": {"handlers": ["console"], "level": "INFO"},
+    "loggers": {
+        # Noisy scrape / HTTP libraries — keep them at WARNING.
+        "scrapelib": {"level": "WARNING"},
+        "urllib3": {"level": "WARNING"},
+        "requests": {"level": "WARNING"},
+        "boto": {"level": "WARNING"},
+        "botocore": {"level": "WARNING"},
+        "s3transfer": {"level": "WARNING"},
+    },
+}
+
 # Content Security Policy settings
 # In development, allow localhost resources
 if DEBUG:
