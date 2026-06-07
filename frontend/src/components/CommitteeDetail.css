@@ -172,6 +172,18 @@ a.cmte-roster-link:focus-visible {
   gap: 0.75rem;
 }
 
+/* Empty state for the always-shown "Upcoming meetings" section — a
+   dashed box reads as "nothing scheduled yet" rather than an error. */
+.cmte-detail-meetings-empty {
+  margin: 0;
+  padding: 0.875rem 1rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+  background: #ffffff;
+  border: 1px dashed #e5e7eb;
+  border-radius: 0.5rem;
+}
+
 .cmte-detail-more-link {
   display: inline-block;
   margin-top: 1rem;

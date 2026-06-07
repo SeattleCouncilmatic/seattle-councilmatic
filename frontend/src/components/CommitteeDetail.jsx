@@ -143,16 +143,21 @@ export default function CommitteeDetail() {
 
             {hasMeetings && (
               <div className="cmte-detail-col">
-                {hasUpcoming && (
-                  <section className="cmte-detail-section" aria-labelledby="cmte-upcoming-h2">
-                    <h2 id="cmte-upcoming-h2" className="cmte-detail-section-h2">Upcoming meetings</h2>
+                {/* Always shown — committees meet on staggered schedules and
+                    often have no future meeting posted yet, so an empty state
+                    is more reassuring than a missing section. */}
+                <section className="cmte-detail-section" aria-labelledby="cmte-upcoming-h2">
+                  <h2 id="cmte-upcoming-h2" className="cmte-detail-section-h2">Upcoming meetings</h2>
+                  {hasUpcoming ? (
                     <div className="cmte-meeting-list">
                       {data.upcoming_meetings.map(ev => (
                         <EventCard key={ev.slug} event={ev} />
                       ))}
                     </div>
-                  </section>
-                )}
+                  ) : (
+                    <p className="cmte-detail-meetings-empty">No upcoming meetings scheduled.</p>
+                  )}
+                </section>
 
                 {hasRecent && (
                   <section className="cmte-detail-section" aria-labelledby="cmte-recent-h2">
