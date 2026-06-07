@@ -785,6 +785,7 @@ def legislation_detail(request, slug):
         bill_refs = {k: v for k, v in bill_refs.items() if v != bill.slug}
 
     roll_call = _build_roll_call(bill)
+    _bill_committee = _bill_committee_link(bill)
 
     return JsonResponse({
         'identifier':      bill.identifier,
@@ -792,8 +793,8 @@ def legislation_detail(request, slug):
         'classification':  bill.classification,
         'status':          status_label,
         'status_variant':  status_variant,
-        'committee':       bill.extras.get('MatterBodyName', ''),
-        'committee_slug':  _committee_slug_for_body(bill.extras.get('MatterBodyName', '')),
+        'committee':       (_bill_committee or {}).get('name', ''),
+        'committee_slug':  (_bill_committee or {}).get('slug'),
         'bill_type':       bill.extras.get('MatterTypeName', ''),
         'last_modified':   bill.extras.get('MatterLastModifiedUtc', ''),
         'date_introduced': date_introduced,
@@ -936,6 +937,15 @@ def _committee_norm_to_slug() -> dict:
             for o in _committee_orgs()}
 
 
+def _committee_norm_to_info() -> dict:
+    """``{normalized_name: {'name': canonical, 'slug': slug}}`` — like
+    ``_committee_norm_to_slug`` but also carries the committee's canonical
+    ``Organization.name`` so a bill/event can display the official committee
+    name (with '&', no "Committee" suffix) rather than its own variant."""
+    return {_normalize_committee_name(o.name): {'name': o.name, 'slug': slugify(o.name)}
+            for o in _committee_orgs()}
+
+
 def _committee_slug_for_body(name: str):
     """Committee-page slug for a bill body / event name, or None when it
     doesn't map to a current committee (historical or select committees)."""
@@ -943,6 +953,43 @@ def _committee_slug_for_body(name: str):
     if not norm:
         return None
     return _committee_norm_to_slug().get(norm)
+
+
+def _bill_committee_link(bill):
+    """``{'name', 'slug'}`` for the committee associated with a bill, or None.
+
+    Precedence: the body currently holding the matter when it's a committee
+    (``MatterBodyName``), else the committee that *considered* the bill —
+    recovered from its most-recent committee vote event's ``event_body_name``.
+    The scraper attributes every bill action to the legislature and parks
+    advanced matters with "City Clerk" / "City Council", so the vote event
+    is the only committee signal once a bill leaves committee. Bills older
+    than the vote-scrape window have neither and return None (no link).
+
+    Reads ``bill.votes`` — the caller must prefetch it (``legislation_detail``
+    already does, for the roll call)."""
+    info = _committee_norm_to_info()
+    current = info.get(_normalize_committee_name(bill.extras.get('MatterBodyName', '')))
+    if current:
+        return current
+    best = None  # (vote_event_date, info) — keep the most recent committee vote
+    for ve in bill.votes.all():
+        hit = info.get(_normalize_committee_name((ve.extras or {}).get('event_body_name', '')))
+        if hit:
+            d = ve.start_date or ''
+            if best is None or d > best[0]:
+                best = (d, hit)
+    return best[1] if best else None
+
+
+def _committee_vote_body_names(norm: str) -> list:
+    """Distinct committee-vote ``event_body_name`` values that map to this
+    committee — the signal that recovers the committee for bills that have
+    advanced past it (``MatterBodyName`` only names a committee while a bill
+    is actively before it)."""
+    from opencivicdata.legislative.models import VoteEvent
+    all_bodies = VoteEvent.objects.values_list('extras__event_body_name', flat=True).distinct()
+    return [b for b in all_bodies if b and _normalize_committee_name(b) == norm]
 
 
 def _committee_roster(org) -> list:
@@ -1076,14 +1123,25 @@ def committee_detail(request, slug):
         upcoming_meetings = [_serialize_event(e) for e in upcoming_qs]
         recent_meetings = [_serialize_event(e) for e in recent_qs]
 
-    # Bills currently before the committee (by MatterBodyName), most recent
-    # activity first, capped — `bills_total` lets the page surface a
-    # "view all" link to the filtered legislation index.
+    # Bills the committee has handled — currently before it (MatterBodyName)
+    # OR considered in the past (a committee vote event names it). The vote
+    # event is what recovers the association after a bill advances; without
+    # it the list would be near-empty since MatterBodyName parks advanced
+    # matters with "City Clerk". Most recent activity first, capped.
     body_names = _committee_body_names(norm)
+    vote_body_names = _committee_vote_body_names(norm)
     bills, bills_total = [], 0
-    if body_names:
+    if body_names or vote_body_names:
+        bill_filter = Q()
+        if body_names:
+            bill_filter |= Q(extras__MatterBodyName__in=body_names)
+        if vote_body_names:
+            bill_filter |= Q(votes__extras__event_body_name__in=vote_body_names)
+        # annotate(Max(...)) groups by Bill pk, collapsing the row
+        # multiplication the votes/actions joins would otherwise cause, so
+        # each bill appears once and count() is the distinct bill count.
         bills_qs = (Bill.objects
-                    .filter(extras__MatterBodyName__in=body_names)
+                    .filter(bill_filter)
                     .prefetch_related('sponsorships')
                     .annotate(latest_action_date=Max('actions__date'))
                     .order_by('-latest_action_date'))

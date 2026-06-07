@@ -53,8 +53,12 @@ export default function CommitteeDetail() {
 
   const hasUpcoming = data.upcoming_meetings.length > 0
   const hasRecent = data.recent_meetings.length > 0
+  const hasMeetings = hasUpcoming || hasRecent
   const hasBills = data.bills.length > 0
   const moreBills = data.bills_total > data.bills.length
+  // Two columns (bills | meetings, mirroring the home screen) only when
+  // both sides have content; otherwise the lone side renders full width.
+  const twoCol = hasMeetings && hasBills
 
   return (
     <div className="cmte-detail-page">
@@ -113,53 +117,65 @@ export default function CommitteeDetail() {
           </section>
         )}
 
-        {hasUpcoming && (
-          <section className="cmte-detail-section" aria-labelledby="cmte-upcoming-h2">
-            <h2 id="cmte-upcoming-h2" className="cmte-detail-section-h2">Upcoming meetings</h2>
-            <div className="cmte-meeting-list">
-              {data.upcoming_meetings.map(ev => (
-                <EventCard key={ev.slug} event={ev} />
-              ))}
-            </div>
-          </section>
-        )}
+        {(hasMeetings || hasBills) && (
+          <div className={`cmte-detail-columns${twoCol ? ' cmte-detail-columns--two' : ''}`}>
 
-        {hasRecent && (
-          <section className="cmte-detail-section" aria-labelledby="cmte-recent-h2">
-            <h2 id="cmte-recent-h2" className="cmte-detail-section-h2">Recent meetings</h2>
-            <div className="cmte-meeting-list">
-              {data.recent_meetings.map(ev => (
-                <EventCard key={ev.slug} event={ev} />
-              ))}
-            </div>
-            {allMeetingsHref && (
-              <Link to={allMeetingsHref} className="cmte-detail-more-link">
-                View all meetings →
-              </Link>
+            {hasBills && (
+              <div className="cmte-detail-col">
+                <section className="cmte-detail-section" aria-labelledby="cmte-bills-h2">
+                  <h2 id="cmte-bills-h2" className="cmte-detail-section-h2">
+                    Bills considered by this committee
+                    <span className="cmte-detail-section-count"> ({data.bills_total})</span>
+                  </h2>
+                  <div className="cmte-bill-list">
+                    {data.bills.map(bill => (
+                      <LegislationCard key={bill.slug || bill.identifier} bill={bill} />
+                    ))}
+                  </div>
+                  {moreBills && (
+                    <p className="cmte-detail-more-note">
+                      Showing the {data.bills.length} most recent of {data.bills_total}.
+                    </p>
+                  )}
+                </section>
+              </div>
             )}
-          </section>
-        )}
 
-        {hasBills && (
-          <section className="cmte-detail-section" aria-labelledby="cmte-bills-h2">
-            <h2 id="cmte-bills-h2" className="cmte-detail-section-h2">
-              Bills before this committee
-              <span className="cmte-detail-section-count"> ({data.bills_total})</span>
-            </h2>
-            <div className="cmte-bill-list">
-              {data.bills.map(bill => (
-                <LegislationCard key={bill.slug || bill.identifier} bill={bill} />
-              ))}
-            </div>
-            {moreBills && (
-              <p className="cmte-detail-more-note">
-                Showing the {data.bills.length} most recent of {data.bills_total}.
-              </p>
+            {hasMeetings && (
+              <div className="cmte-detail-col">
+                {hasUpcoming && (
+                  <section className="cmte-detail-section" aria-labelledby="cmte-upcoming-h2">
+                    <h2 id="cmte-upcoming-h2" className="cmte-detail-section-h2">Upcoming meetings</h2>
+                    <div className="cmte-meeting-list">
+                      {data.upcoming_meetings.map(ev => (
+                        <EventCard key={ev.slug} event={ev} />
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {hasRecent && (
+                  <section className="cmte-detail-section" aria-labelledby="cmte-recent-h2">
+                    <h2 id="cmte-recent-h2" className="cmte-detail-section-h2">Recent meetings</h2>
+                    <div className="cmte-meeting-list">
+                      {data.recent_meetings.map(ev => (
+                        <EventCard key={ev.slug} event={ev} />
+                      ))}
+                    </div>
+                    {allMeetingsHref && (
+                      <Link to={allMeetingsHref} className="cmte-detail-more-link">
+                        View all meetings →
+                      </Link>
+                    )}
+                  </section>
+                )}
+              </div>
             )}
-          </section>
+
+          </div>
         )}
 
-        {!data.roster.length && !hasUpcoming && !hasRecent && !hasBills && (
+        {!data.roster.length && !hasMeetings && !hasBills && (
           <p className="cmte-detail-empty">
             No activity is currently recorded for this committee.
           </p>

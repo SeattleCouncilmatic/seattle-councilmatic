@@ -67,6 +67,30 @@
 .cmte-detail-source-link:hover { text-decoration: underline; }
 
 .cmte-detail-section { margin-top: 2.5rem; }
+
+/* Two-column band — Bills | Meetings — mirroring the home screen's
+   tw-grid. Collapses to a single column below 768px. Single-column mode
+   (only one of the two has content) is a plain block, so the lone side
+   keeps full width. */
+.cmte-detail-columns { margin-top: 2.5rem; }
+.cmte-detail-columns--two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.5rem;
+  align-items: start;
+}
+/* First section in each column hugs the top — the columns wrapper's
+   margin (and the grid gap when stacked) already provide separation.
+   Sections after the first (recent under upcoming) keep their margin. */
+.cmte-detail-col > .cmte-detail-section:first-child { margin-top: 0; }
+
+@media (max-width: 768px) {
+  .cmte-detail-columns--two {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+}
+
 .cmte-detail-section-h2 {
   font-size: 1.25rem;
   font-weight: 700;
