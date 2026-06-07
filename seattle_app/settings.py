@@ -254,6 +254,11 @@ CLAUDE_REP_SUMMARY_MODEL = os.getenv("CLAUDE_REP_SUMMARY_MODEL", "claude-sonnet-
 # (overview + array of item summaries) in a single call so prompt
 # caching applies once per meeting.
 CLAUDE_EVENT_SUMMARY_MODEL = os.getenv("CLAUDE_EVENT_SUMMARY_MODEL", "claude-sonnet-4-6")
+# Sonnet: 2-3 paragraph committee card — focus area + recent activity,
+# synthesized from the committee's roster, recent meeting overviews, and the
+# bills it has handled. Only 9 committees and re-summarized solely on change
+# (content_hash), so cost is negligible.
+CLAUDE_COMMITTEE_SUMMARY_MODEL = os.getenv("CLAUDE_COMMITTEE_SUMMARY_MODEL", "claude-sonnet-4-6")
 
 # Outbound email (pipeline health alerts — #210; and any future notifications).
 # Set the SMTP vars in the environment to enable real sending. Without

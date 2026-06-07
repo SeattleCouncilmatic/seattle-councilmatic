@@ -1098,16 +1098,30 @@ def _serialize_committee_bill(bill) -> dict:
     }
 
 
+def _committee_llm_summary(org):
+    """The committee's LLM summary card content, or None when the
+    summarize_committees pipeline hasn't generated one yet."""
+    from seattle_app.models import CommitteeSummary
+    s = CommitteeSummary.objects.filter(organization_id=org.id).first()
+    if not s:
+        return None
+    return {
+        'text':         s.summary,
+        'generated_at': s.generated_at.isoformat() if s.generated_at else None,
+        'model':        s.model_version,
+    }
+
+
 @require_GET
 def committee_detail(request, slug):
     """
     GET /api/committees/<slug>/
 
-    A single committee: roster, upcoming + recent meetings, and the bills it
-    has handled — split into ``current_bills`` (the committee is the bill's
-    current body) and ``past_bills`` (it voted on the bill, which has since
-    advanced). Each bucket is capped with a ``*_total`` count. 404 for an
-    unknown slug.
+    A single committee: roster, upcoming + recent meetings, the bills it has
+    handled — split into ``current_bills`` (the committee is the bill's current
+    body) and ``past_bills`` (it voted on the bill, which has since advanced),
+    each capped with a ``*_total`` count — and an ``llm_summary`` card. 404 for
+    an unknown slug.
     """
     org = _committee_by_slug(slug)
     if org is None:
@@ -1179,6 +1193,7 @@ def committee_detail(request, slug):
         'slug':                slugify(org.name),
         'source_url':          source_url,
         'member_count':        len(roster),
+        'llm_summary':         _committee_llm_summary(org),
         'roster':              roster,
         'upcoming_meetings':   upcoming_meetings,
         'recent_meetings':     recent_meetings,

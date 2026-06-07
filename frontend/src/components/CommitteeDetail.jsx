@@ -4,6 +4,7 @@ import { ExternalLink, Users } from 'lucide-react'
 import NotFound from './NotFound'
 import EventCard from './EventCard'
 import LegislationCard from './LegislationCard'
+import CommitteeSummaryCard from './CommitteeSummaryCard'
 import useDocumentTitle from '../hooks/useDocumentTitle'
 import './CommitteeDetail.css'
 
@@ -95,6 +96,8 @@ export default function CommitteeDetail() {
             )}
           </div>
         </header>
+
+        <CommitteeSummaryCard summary={data.llm_summary} />
 
         {data.roster.length > 0 && (
           <section className="cmte-detail-section" aria-labelledby="cmte-roster-h2">

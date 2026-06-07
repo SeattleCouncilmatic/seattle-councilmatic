@@ -19,7 +19,8 @@ from django.utils.html import format_html
 from opencivicdata.core.models import Person, Membership, Organization
 
 from seattle_app.models import (
-    BatchRun, BillTags, PipelineAlertState, PipelineRun, PipelineStep,
+    BatchRun, BillTags, CommitteeProfile, PipelineAlertState, PipelineRun,
+    PipelineStep,
 )
 
 
@@ -307,3 +308,15 @@ class PipelineAlertStateAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(CommitteeProfile)
+class CommitteeProfileAdmin(admin.ModelAdmin):
+    """Read-mostly admin for scraped committee scope + meeting schedule
+    (mirrors RepBioAdmin). Edits are allowed so curators can fix extraction
+    artifacts, but the next ``scrape_committee_info`` run overwrites them."""
+    list_display = ("organization", "meeting_schedule", "source_url", "scraped_at")
+    search_fields = ("organization__name",)
+    readonly_fields = ("scraped_at", "created_at")
+    fields = ("organization", "scope", "meeting_schedule", "source_url",
+              "scraped_at", "created_at")

@@ -56,15 +56,23 @@ _STEP_LISTS = {
         ("tag_bill_issue_areas", "manage", "tag_bill_issue_areas", True),
         ("summarize_legislation", "manage", "summarize_legislation", True),
         ("summarize_events", "manage", "summarize_events", True),
+        # Committee summaries fold in the bill/meeting summaries above; the
+        # content_hash makes unchanged committees a no-op, so it's cheap here.
+        ("summarize_committees", "manage", "summarize_committees", True),
     ],
     PipelineRun.KIND_OFFSET_DRAIN: [
         ("tag_bill_issue_areas", "manage", "tag_bill_issue_areas", True),
         ("summarize_legislation", "manage", "summarize_legislation", True),
         ("summarize_events", "manage", "summarize_events", True),
         ("summarize_reps", "manage", "summarize_reps", True),
+        ("summarize_committees", "manage", "summarize_committees", True),
     ],
     PipelineRun.KIND_WEEKLY_REP: [
         ("scrape_rep_bios", "manage", "scrape_rep_bios", False),
+        # Committee scope/schedule changes rarely (reorganizations) — scrape it
+        # on the same weekly cadence as rep bios; summarize_committees (in the
+        # full/offset cycles) reads it.
+        ("scrape_committee_info", "manage", "scrape_committee_info", False),
         ("summarize_reps", "manage", "summarize_reps", True),
     ],
 }
