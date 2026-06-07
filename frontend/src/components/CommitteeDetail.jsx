@@ -143,7 +143,7 @@ export default function CommitteeDetail() {
         {hasBills && (
           <section className="cmte-detail-section" aria-labelledby="cmte-bills-h2">
             <h2 id="cmte-bills-h2" className="cmte-detail-section-h2">
-              Bills before this committee
+              Bills considered by this committee
               <span className="cmte-detail-section-count"> ({data.bills_total})</span>
             </h2>
             <div className="cmte-bill-list">
