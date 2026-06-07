@@ -511,6 +511,119 @@ class EventSummary(models.Model):
         return f"Summary for {self.event}"
 
 
+class CommitteeProfile(models.Model):
+    """Scope + regular meeting schedule scraped from a committee's seattle.gov
+    page. One row per OCD ``Organization`` (committee). The committee page
+    publishes an authoritative "Committee Scope:" block (the departments and
+    policy areas the committee oversees) and a "Committee regular meeting days
+    and time:" line — neither of which is in the OCD scrape, so we fetch them
+    here and feed them into the committee LLM summary as ground truth (rather
+    than letting the model infer the remit from bill titles alone).
+
+    Mirrors ``RepBio``: raw scraped text, idempotent UPSERT by
+    ``organization_id`` (``scrape_committee_info``), safe to schedule weekly —
+    scope/schedule change rarely (committee reorganizations)."""
+
+    organization = models.OneToOneField(
+        "core.Organization",
+        on_delete=models.CASCADE,
+        related_name="committee_profile",
+        help_text="OCD Organization (committee) this profile belongs to.",
+    )
+    scope = models.TextField(
+        blank=True,
+        default="",
+        help_text="The committee's scope/remit prose from its seattle.gov "
+        "'Committee Scope:' section.",
+    )
+    meeting_schedule = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Regular meeting days/time, e.g. '2nd Thursdays at 9:30 a.m.'",
+    )
+    source_url = models.URLField(
+        max_length=500,
+        help_text="seattle.gov committee page the profile was scraped from.",
+    )
+    scraped_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Last time the profile was (re-)scraped.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Committee profile (scraped)"
+        verbose_name_plural = "Committee profiles (scraped)"
+
+    def __str__(self):
+        return f"Profile for {self.organization}"
+
+
+class CommitteeSummary(models.Model):
+    """LLM-generated "what this committee does and is working on" card for a
+    standing council committee. One row per OCD ``Organization`` (committees
+    live only in OCD — ``councilmatic_core.Organization`` is empty), keyed by a
+    ``OneToOneField`` to ``core.Organization`` like ``RepSummary`` keys to
+    ``core.Person``.
+
+    Unlike a bill or event (immutable once it happens), a committee's activity
+    evolves, so this summary is *refreshed* when its inputs change rather than
+    written once. ``content_hash`` is a digest of the stats snapshot the model
+    saw (roster, recent meeting overviews, bills); ``summarize_committees``
+    only (re-)submits a committee whose live hash differs from the stored one,
+    so unchanged committees don't burn tokens every cycle. ``stats_snapshot``
+    keeps the exact input for reproducibility. UPSERT by ``organization_id``."""
+
+    organization = models.OneToOneField(
+        "core.Organization",
+        on_delete=models.CASCADE,
+        related_name="committee_summary",
+        help_text="OCD Organization (committee) this summary belongs to.",
+    )
+    summary = models.TextField(
+        help_text="2-3 paragraph plain-prose synthesis: the committee's focus "
+        "plus recent activity. Paragraphs joined with '\\n\\n'.",
+    )
+    stats_snapshot = models.JSONField(
+        default=dict,
+        help_text="Structured context passed to the model — roster, recent "
+        "meeting overviews, bills handled. Reproducibility audit trail.",
+    )
+    content_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="SHA-256 of the input signal (bills, meetings, roster). The "
+        "command re-summarizes only when the live hash differs from this.",
+    )
+    model_version = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Claude model that generated the summary.",
+    )
+    summary_batch_id = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="Anthropic Message Batches ID this summary came from. "
+        "Empty for synchronous one-off retries.",
+    )
+    generated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Last time the summary was (re-)generated.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Committee LLM Summary"
+        verbose_name_plural = "Committee LLM Summaries"
+
+    def __str__(self):
+        return f"Summary for {self.organization}"
+
+
 class SeattleBill(Bill):
     """
     Extend the base Bill model for city-specific functionality.
@@ -1108,6 +1221,7 @@ class BatchRun(models.Model):
         ("summarize_legislation", "summarize_legislation"),
         ("summarize_events", "summarize_events"),
         ("summarize_reps", "summarize_reps"),
+        ("summarize_committees", "summarize_committees"),
     ]
 
     STATUS_SUBMITTED = "submitted"
