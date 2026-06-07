@@ -1083,14 +1083,31 @@ def committees_index(request):
     return JsonResponse({'results': committees})
 
 
+def _serialize_committee_bill(bill) -> dict:
+    """Card shape for the committee detail bill lists — matches what the
+    frontend LegislationCard consumes. ``sponsorships`` must be prefetched."""
+    sponsorship = bill.sponsorships.first()
+    status_label, status_variant = _normalise_status(bill.extras.get('MatterStatusName', ''))
+    return {
+        'identifier':     bill.identifier,
+        'title':          bill.title,
+        'sponsor':        sponsorship.entity_name if sponsorship else None,
+        'status':         status_label,
+        'status_variant': status_variant,
+        'slug':           bill.slug,
+    }
+
+
 @require_GET
 def committee_detail(request, slug):
     """
     GET /api/committees/<slug>/
 
-    A single committee: roster, upcoming + recent meetings, and the bills
-    currently before it (capped, with a total so the page can link to the
-    full filtered legislation view). 404 for an unknown slug.
+    A single committee: roster, upcoming + recent meetings, and the bills it
+    has handled — split into ``current_bills`` (the committee is the bill's
+    current body) and ``past_bills`` (it voted on the bill, which has since
+    advanced). Each bucket is capped with a ``*_total`` count. 404 for an
+    unknown slug.
     """
     org = _committee_by_slug(slug)
     if org is None:
@@ -1123,52 +1140,52 @@ def committee_detail(request, slug):
         upcoming_meetings = [_serialize_event(e) for e in upcoming_qs]
         recent_meetings = [_serialize_event(e) for e in recent_qs]
 
-    # Bills the committee has handled — currently before it (MatterBodyName)
-    # OR considered in the past (a committee vote event names it). The vote
-    # event is what recovers the association after a bill advances; without
-    # it the list would be near-empty since MatterBodyName parks advanced
-    # matters with "City Clerk". Most recent activity first, capped.
+    # Bills the committee has handled, split into two buckets:
+    #   * current — the committee is the bill's *current* body (MatterBodyName)
+    #   * past    — the committee *considered* it (a committee vote event names
+    #               it) but the bill has since advanced elsewhere
+    # The vote event is what recovers the association after a bill advances,
+    # since MatterBodyName parks advanced matters with "City Clerk". A bill
+    # that's both current and previously-voted lands in 'current'. Each bucket
+    # is most-recent-activity first and capped. annotate(Max(...)) groups by
+    # Bill pk, collapsing the row multiplication the votes/actions joins would
+    # otherwise cause, so each bill appears once and count() is distinct.
     body_names = _committee_body_names(norm)
     vote_body_names = _committee_vote_body_names(norm)
-    bills, bills_total = [], 0
-    if body_names or vote_body_names:
-        bill_filter = Q()
-        if body_names:
-            bill_filter |= Q(extras__MatterBodyName__in=body_names)
-        if vote_body_names:
-            bill_filter |= Q(votes__extras__event_body_name__in=vote_body_names)
-        # annotate(Max(...)) groups by Bill pk, collapsing the row
-        # multiplication the votes/actions joins would otherwise cause, so
-        # each bill appears once and count() is the distinct bill count.
-        bills_qs = (Bill.objects
-                    .filter(bill_filter)
-                    .prefetch_related('sponsorships')
-                    .annotate(latest_action_date=Max('actions__date'))
-                    .order_by('-latest_action_date'))
-        bills_total = bills_qs.count()
-        for bill in bills_qs[:_COMMITTEE_BILL_LIMIT]:
-            sponsorship = bill.sponsorships.first()
-            status_label, status_variant = _normalise_status(
-                bill.extras.get('MatterStatusName', ''))
-            bills.append({
-                'identifier':     bill.identifier,
-                'title':          bill.title,
-                'sponsor':        sponsorship.entity_name if sponsorship else None,
-                'status':         status_label,
-                'status_variant': status_variant,
-                'slug':           bill.slug,
-            })
+
+    current_qs = Bill.objects.none()
+    if body_names:
+        current_qs = (Bill.objects
+                      .filter(extras__MatterBodyName__in=body_names)
+                      .prefetch_related('sponsorships')
+                      .annotate(latest_action_date=Max('actions__date'))
+                      .order_by('-latest_action_date'))
+    current_ids = set(current_qs.values_list('id', flat=True))
+
+    past_qs = Bill.objects.none()
+    if vote_body_names:
+        past_qs = (Bill.objects
+                   .filter(votes__extras__event_body_name__in=vote_body_names)
+                   .exclude(id__in=current_ids)
+                   .prefetch_related('sponsorships')
+                   .annotate(latest_action_date=Max('actions__date'))
+                   .order_by('-latest_action_date'))
+
+    current_bills = [_serialize_committee_bill(b) for b in current_qs[:_COMMITTEE_BILL_LIMIT]]
+    past_bills = [_serialize_committee_bill(b) for b in past_qs[:_COMMITTEE_BILL_LIMIT]]
 
     return JsonResponse({
-        'name':              org.name,
-        'slug':              slugify(org.name),
-        'source_url':        source_url,
-        'member_count':      len(roster),
-        'roster':            roster,
-        'upcoming_meetings': upcoming_meetings,
-        'recent_meetings':   recent_meetings,
-        'bills':             bills,
-        'bills_total':       bills_total,
+        'name':                org.name,
+        'slug':                slugify(org.name),
+        'source_url':          source_url,
+        'member_count':        len(roster),
+        'roster':              roster,
+        'upcoming_meetings':   upcoming_meetings,
+        'recent_meetings':     recent_meetings,
+        'current_bills':       current_bills,
+        'current_bills_total': len(current_ids),
+        'past_bills':          past_bills,
+        'past_bills_total':    past_qs.count() if vote_body_names else 0,
     })
 
 
