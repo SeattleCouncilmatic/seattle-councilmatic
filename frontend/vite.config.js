@@ -53,6 +53,14 @@ export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/static/' : '/',
   plugins: [djangoTrailingSlashRedirect, react()],
   server: {
+    // Poll the filesystem for changes instead of relying on inotify.
+    // The dev server runs in a Docker container with the source bind-
+    // mounted from a Windows host, and inotify events don't cross that
+    // boundary — so without polling, Vite never sees edits or `git pull`s
+    // and HMR silently stops firing (you'd see stale modules until a
+    // container restart). Polling has a small CPU cost but is the
+    // standard fix for Docker-on-Windows dev.
+    watch: { usePolling: true },
     proxy: {
       '/api':    { target: 'http://app:8000', changeOrigin: true },
       '/admin':  { target: 'http://app:8000', changeOrigin: true },
