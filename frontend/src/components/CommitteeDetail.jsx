@@ -54,8 +54,15 @@ export default function CommitteeDetail() {
   const hasUpcoming = data.upcoming_meetings.length > 0
   const hasRecent = data.recent_meetings.length > 0
   const hasMeetings = hasUpcoming || hasRecent
-  const hasBills = data.bills.length > 0
-  const moreBills = data.bills_total > data.bills.length
+  // Bills split into current (committee is the bill's current body) and past
+  // (it voted on a bill that has since advanced). The "Currently in committee"
+  // group only renders when it has bills, so the common no-active-work case
+  // reads as one clean "Bills considered by this committee" list.
+  const hasCurrentBills = data.current_bills.length > 0
+  const hasPastBills = data.past_bills.length > 0
+  const hasBills = hasCurrentBills || hasPastBills
+  const moreCurrent = data.current_bills_total > data.current_bills.length
+  const morePast = data.past_bills_total > data.past_bills.length
   // Two columns (bills | meetings, mirroring the home screen) only when
   // both sides have content; otherwise the lone side renders full width.
   const twoCol = hasMeetings && hasBills
@@ -122,22 +129,43 @@ export default function CommitteeDetail() {
 
             {hasBills && (
               <div className="cmte-detail-col">
-                <section className="cmte-detail-section" aria-labelledby="cmte-bills-h2">
-                  <h2 id="cmte-bills-h2" className="cmte-detail-section-h2">
-                    Bills considered by this committee
-                    <span className="cmte-detail-section-count"> ({data.bills_total})</span>
-                  </h2>
-                  <div className="cmte-bill-list">
-                    {data.bills.map(bill => (
-                      <LegislationCard key={bill.slug || bill.identifier} bill={bill} />
-                    ))}
-                  </div>
-                  {moreBills && (
-                    <p className="cmte-detail-more-note">
-                      Showing the {data.bills.length} most recent of {data.bills_total}.
-                    </p>
-                  )}
-                </section>
+                {hasCurrentBills && (
+                  <section className="cmte-detail-section" aria-labelledby="cmte-current-bills-h2">
+                    <h2 id="cmte-current-bills-h2" className="cmte-detail-section-h2">
+                      Currently in committee
+                      <span className="cmte-detail-section-count"> ({data.current_bills_total})</span>
+                    </h2>
+                    <div className="cmte-bill-list">
+                      {data.current_bills.map(bill => (
+                        <LegislationCard key={bill.slug || bill.identifier} bill={bill} />
+                      ))}
+                    </div>
+                    {moreCurrent && (
+                      <p className="cmte-detail-more-note">
+                        Showing the {data.current_bills.length} most recent of {data.current_bills_total}.
+                      </p>
+                    )}
+                  </section>
+                )}
+
+                {hasPastBills && (
+                  <section className="cmte-detail-section" aria-labelledby="cmte-past-bills-h2">
+                    <h2 id="cmte-past-bills-h2" className="cmte-detail-section-h2">
+                      {hasCurrentBills ? 'Previously considered' : 'Bills considered by this committee'}
+                      <span className="cmte-detail-section-count"> ({data.past_bills_total})</span>
+                    </h2>
+                    <div className="cmte-bill-list">
+                      {data.past_bills.map(bill => (
+                        <LegislationCard key={bill.slug || bill.identifier} bill={bill} />
+                      ))}
+                    </div>
+                    {morePast && (
+                      <p className="cmte-detail-more-note">
+                        Showing the {data.past_bills.length} most recent of {data.past_bills_total}.
+                      </p>
+                    )}
+                  </section>
+                )}
               </div>
             )}
 
