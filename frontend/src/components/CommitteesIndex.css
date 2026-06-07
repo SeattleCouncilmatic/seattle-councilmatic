@@ -1,0 +1,124 @@
+.cmte-page {
+  background: #f9fafb;
+  min-height: calc(100vh - 4rem);
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+.cmte-container {
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.cmte-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: #6b7280;
+}
+.cmte-breadcrumb a { color: #2E3D5B; text-decoration: underline; }
+.cmte-breadcrumb-sep { color: #9ca3af; font-weight: 400; }
+.cmte-breadcrumb-current { color: #6b7280; font-weight: 500; }
+
+.cmte-header { margin-bottom: 2rem; }
+.cmte-h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: #1f2937;
+  margin: 0 0 0.5rem;
+  line-height: 1.2;
+}
+.cmte-subtitle {
+  margin: 0;
+  color: #6b7280;
+  max-width: 44rem;
+  line-height: 1.55;
+}
+
+.cmte-loading { color: #6b7280; }
+
+.cmte-card-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.875rem;
+}
+
+.cmte-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  height: 100%;
+  padding: 1.125rem 1.25rem;
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid #2E3D5B;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.cmte-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+.cmte-card:focus-visible {
+  outline: 2px solid #2E3D5B;
+  outline-offset: 2px;
+}
+
+.cmte-card-name {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.cmte-card-chair {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #374151;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.cmte-card-chair-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #2E3D5B;
+}
+
+.cmte-card-meta {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  padding-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+.cmte-card-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.cmte-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+}

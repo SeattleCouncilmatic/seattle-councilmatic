@@ -12,6 +12,7 @@ from django.db import connection
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.utils import timezone
+from django.utils.text import slugify
 from django.contrib.postgres.search import SearchHeadline, SearchQuery, SearchRank
 from django.db.models import Count, Max, Min, Q
 from councilmatic_core.models import Bill, Event
@@ -582,6 +583,7 @@ def event_detail(request, slug):
     return JsonResponse({
         'name':             event.name,
         'slug':             event.slug,
+        'committee_slug':   _committee_slug_for_body(event.name),
         'start_date':       start if isinstance(start, str) else start.isoformat() if start else None,
         'end_date':         (end if isinstance(end, str) else end.isoformat() if end else None) or None,
         'status':           event.status,
@@ -791,6 +793,7 @@ def legislation_detail(request, slug):
         'status':          status_label,
         'status_variant':  status_variant,
         'committee':       bill.extras.get('MatterBodyName', ''),
+        'committee_slug':  _committee_slug_for_body(bill.extras.get('MatterBodyName', '')),
         'bill_type':       bill.extras.get('MatterTypeName', ''),
         'last_modified':   bill.extras.get('MatterLastModifiedUtc', ''),
         'date_introduced': date_introduced,
@@ -872,6 +875,243 @@ def _build_roll_call(bill) -> list[dict]:
             'votes_by_option': votes_by_option,
         })
     return out
+
+
+# ---------------------------------------------------------------------------
+# Committees
+# ---------------------------------------------------------------------------
+#
+# Committees live only in OCD ``opencivicdata.core.Organization``
+# (classification='committee') — ``councilmatic_core.Organization`` is MTI
+# over it but empty. Organizations have no slug column, so we generate slugs
+# from the name with Django's ``slugify`` ("Land Use & Sustainability" ->
+# "land-use-sustainability") and resolve by slugifying each committee and
+# matching — the set is tiny (~9), cheaper than a stored slug.
+#
+# Linking a bill or event to a committee needs name *normalization*, not an
+# exact match: the committee ``Organization.name`` uses "&" and no suffix
+# ("Land Use & Sustainability"), but bills' ``MatterBodyName`` and
+# ``Event.name`` use "and" + a trailing "Committee" ("Land Use and
+# Sustainability Committee"). Historical / select committee names (e.g.
+# "Land Use Committee", "Select Budget Committee") normalize to a key no
+# current committee matches — they simply don't link, which is correct.
+
+_COMMITTEE_ROLE_ORDER = {'Chair': 0, 'Vice-Chair': 1, 'Member': 2}
+# How many recent meetings / inline bills the detail page ships before the
+# user clicks through to the filtered events / legislation views.
+_COMMITTEE_MEETING_LIMIT = 10
+_COMMITTEE_BILL_LIMIT = 25
+
+
+def _normalize_committee_name(name: str) -> str:
+    """Canonical key for matching a committee across its name variants.
+    Lowercases, maps '&'->'and', collapses punctuation to spaces, and drops
+    a trailing "committee" so ``Organization.name`` ('Public Safety') and the
+    bill/event form ('Public Safety Committee') reduce to one key."""
+    n = (name or '').lower().replace('&', 'and')
+    n = re.sub(r'[^a-z0-9]+', ' ', n).strip()
+    n = re.sub(r'\s*\bcommittee$', '', n).strip()
+    return n
+
+
+def _committee_orgs():
+    """Current committee Organizations (OCD). Imported lazily to match the
+    file's other model-at-call-time imports."""
+    from opencivicdata.core.models import Organization
+    return Organization.objects.filter(classification='committee')
+
+
+def _committee_by_slug(slug: str):
+    """Resolve a generated slug back to its committee Organization, or None."""
+    for org in _committee_orgs().prefetch_related('sources'):
+        if slugify(org.name) == slug:
+            return org
+    return None
+
+
+def _committee_norm_to_slug() -> dict:
+    """``{normalized_name: slug}`` for the current committees — used to map a
+    bill's MatterBodyName or an event's name to its committee page."""
+    return {_normalize_committee_name(o.name): slugify(o.name)
+            for o in _committee_orgs()}
+
+
+def _committee_slug_for_body(name: str):
+    """Committee-page slug for a bill body / event name, or None when it
+    doesn't map to a current committee (historical or select committees)."""
+    norm = _normalize_committee_name(name)
+    if not norm:
+        return None
+    return _committee_norm_to_slug().get(norm)
+
+
+def _committee_roster(org) -> list:
+    """Current members of a committee, ordered Chair → Vice-Chair → Member →
+    name. Each member resolves to their /reps/<slug> page where they're a
+    current council member; the slug lookup batches into one parameterized
+    query (same pattern as the sponsor name→slug resolution above)."""
+    memberships = list(
+        org.memberships
+        .filter(Q(end_date='') | Q(end_date__isnull=True))
+        .select_related('person')
+    )
+    person_ids = [m.person_id for m in memberships if m.person_id]
+    slugs: dict[str, str] = {}
+    if person_ids:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT cp.person_id, cp.slug
+                FROM councilmatic_core_person cp
+                WHERE cp.person_id = ANY(%s)
+                  AND cp.is_current = TRUE
+            """, [person_ids])
+            slugs = dict(cursor.fetchall())
+
+    roster, seen = [], set()
+    for m in memberships:
+        person = m.person
+        if not person or person.id in seen:
+            continue
+        seen.add(person.id)
+        roster.append({
+            'name':  person.name,
+            'role':  m.role or 'Member',
+            'slug':  slugs.get(person.id),
+            'image': person.image or None,
+        })
+    roster.sort(key=lambda r: (_COMMITTEE_ROLE_ORDER.get(r['role'], 99),
+                               r['name'].lower()))
+    return roster
+
+
+def _committee_event_names(norm: str) -> list:
+    """Distinct ``Event.name`` values that map to this committee."""
+    all_names = Event.objects.values_list('name', flat=True).distinct()
+    return [n for n in all_names if n and _normalize_committee_name(n) == norm]
+
+
+def _committee_body_names(norm: str) -> list:
+    """Distinct ``MatterBodyName`` values on bills that map to this committee."""
+    all_bodies = Bill.objects.values_list('extras__MatterBodyName', flat=True).distinct()
+    return [b for b in all_bodies if b and _normalize_committee_name(b) == norm]
+
+
+@require_GET
+def committees_index(request):
+    """
+    GET /api/committees/
+
+    The current City Council committees: name, slug, member count, chair, and
+    next upcoming meeting. Powers the /committees/ SPA index.
+    """
+    now = timezone.now()
+
+    # One query for the soonest upcoming meeting per committee: walk all
+    # upcoming events ascending and keep the first that maps to each
+    # committee key (cheaper than a per-committee query in the loop below).
+    next_by_norm: dict[str, str] = {}
+    for ev in (Event.objects
+               .filter(start_date__gte=now)
+               .exclude(status='cancelled')
+               .order_by('start_date')
+               .values_list('name', 'start_date')):
+        name, start = ev
+        key = _normalize_committee_name(name)
+        if key and key not in next_by_norm:
+            next_by_norm[key] = start
+
+    committees = []
+    for org in _committee_orgs():
+        roster = _committee_roster(org)
+        chair = next((m['name'] for m in roster if m['role'] == 'Chair'), None)
+        norm = _normalize_committee_name(org.name)
+        committees.append({
+            'name':         org.name,
+            'slug':         slugify(org.name),
+            'member_count': len(roster),
+            'chair':        chair,
+            'next_meeting': next_by_norm.get(norm),
+        })
+    committees.sort(key=lambda c: c['name'].lower())
+    return JsonResponse({'results': committees})
+
+
+@require_GET
+def committee_detail(request, slug):
+    """
+    GET /api/committees/<slug>/
+
+    A single committee: roster, upcoming + recent meetings, and the bills
+    currently before it (capped, with a total so the page can link to the
+    full filtered legislation view). 404 for an unknown slug.
+    """
+    org = _committee_by_slug(slug)
+    if org is None:
+        return JsonResponse({'error': 'Committee not found'}, status=404)
+
+    norm = _normalize_committee_name(org.name)
+    now = timezone.now()
+
+    sources = list(org.sources.all())
+    source_url = sources[0].url if sources else None
+
+    roster = _committee_roster(org)
+
+    # Meetings — events whose name maps to this committee, split into
+    # upcoming (soonest first) and recent past (most recent first). The
+    # start_date CharField holds full ISO 8601, so the same datetime
+    # comparison events_index uses applies here.
+    event_names = _committee_event_names(norm)
+    upcoming_meetings, recent_meetings = [], []
+    if event_names:
+        upcoming_qs = (Event.objects
+                       .filter(name__in=event_names, start_date__gte=now)
+                       .exclude(status='cancelled')
+                       .prefetch_related('sources')
+                       .order_by('start_date')[:_COMMITTEE_MEETING_LIMIT])
+        recent_qs = (Event.objects
+                     .filter(name__in=event_names, start_date__lt=now)
+                     .prefetch_related('sources')
+                     .order_by('-start_date')[:_COMMITTEE_MEETING_LIMIT])
+        upcoming_meetings = [_serialize_event(e) for e in upcoming_qs]
+        recent_meetings = [_serialize_event(e) for e in recent_qs]
+
+    # Bills currently before the committee (by MatterBodyName), most recent
+    # activity first, capped — `bills_total` lets the page surface a
+    # "view all" link to the filtered legislation index.
+    body_names = _committee_body_names(norm)
+    bills, bills_total = [], 0
+    if body_names:
+        bills_qs = (Bill.objects
+                    .filter(extras__MatterBodyName__in=body_names)
+                    .prefetch_related('sponsorships')
+                    .annotate(latest_action_date=Max('actions__date'))
+                    .order_by('-latest_action_date'))
+        bills_total = bills_qs.count()
+        for bill in bills_qs[:_COMMITTEE_BILL_LIMIT]:
+            sponsorship = bill.sponsorships.first()
+            status_label, status_variant = _normalise_status(
+                bill.extras.get('MatterStatusName', ''))
+            bills.append({
+                'identifier':     bill.identifier,
+                'title':          bill.title,
+                'sponsor':        sponsorship.entity_name if sponsorship else None,
+                'status':         status_label,
+                'status_variant': status_variant,
+                'slug':           bill.slug,
+            })
+
+    return JsonResponse({
+        'name':              org.name,
+        'slug':              slugify(org.name),
+        'source_url':        source_url,
+        'member_count':      len(roster),
+        'roster':            roster,
+        'upcoming_meetings': upcoming_meetings,
+        'recent_meetings':   recent_meetings,
+        'bills':             bills,
+        'bills_total':       bills_total,
+    })
 
 
 # ---------------------------------------------------------------------------

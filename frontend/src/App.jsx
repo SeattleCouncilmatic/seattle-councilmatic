@@ -8,6 +8,8 @@ import LegislationIndex from './components/LegislationIndex'
 import LegislationDetail from './components/LegislationDetail'
 import EventsIndex from './components/EventsIndex'
 import EventDetail from './components/EventDetail'
+import CommitteesIndex from './components/CommitteesIndex'
+import CommitteeDetail from './components/CommitteeDetail'
 import MuniCodeIndex from './components/MuniCodeIndex'
 import MuniCodeTitle from './components/MuniCodeTitle'
 import MuniCodeChapter from './components/MuniCodeChapter'
@@ -72,6 +74,9 @@ function App() {
           <Route path="/events" element={<EventsIndex />} />
           <Route path="/events/" element={<EventsIndex />} />
           <Route path="/events/:slug" element={<EventDetail />} />
+          <Route path="/committees" element={<CommitteesIndex />} />
+          <Route path="/committees/" element={<CommitteesIndex />} />
+          <Route path="/committees/:slug" element={<CommitteeDetail />} />
           <Route path="/municode" element={<MuniCodeIndex />} />
           <Route path="/municode/" element={<MuniCodeIndex />} />
           <Route path="/municode/:title/appendix/:label" element={<MuniCodeAppendix />} />
