@@ -92,6 +92,18 @@
   color: #5b21b6;
 }
 
+/* Committee chip is a link to the committee page when the bill's body
+   maps to a current committee — keep the chip look, add an affordance. */
+.leg-detail-meta-chip--link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.leg-detail-meta-chip--link:hover {
+  background: #2E3D5B;
+  color: #ffffff;
+}
+
 /* In-page jump links for narrow screens. Same indigo chip aesthetic
    as MuniCodeSection's `.smc-summary-jump` so the affordance reads
    consistently across section and bill pages. Hidden ≥768 px. */

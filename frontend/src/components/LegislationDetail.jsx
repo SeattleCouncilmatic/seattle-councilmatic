@@ -139,7 +139,9 @@ export default function LegislationDetail() {
           <div className="leg-detail-meta-row">
             <StatusTag label={bill.status} variant={bill.status_variant} />
             {bill.committee && (
-              <span className="leg-detail-meta-chip">{bill.committee}</span>
+              bill.committee_slug
+                ? <Link to={`/committees/${bill.committee_slug}`} className="leg-detail-meta-chip leg-detail-meta-chip--link">{bill.committee}</Link>
+                : <span className="leg-detail-meta-chip">{bill.committee}</span>
             )}
             {bill.bill_type && (
               <span className="leg-detail-meta-chip leg-detail-meta-chip--type">{bill.bill_type}</span>
@@ -167,7 +169,13 @@ export default function LegislationDetail() {
                 <dt>Introduced</dt>
                 <dd>{formatDate(bill.date_introduced)}</dd>
                 <dt>Committee</dt>
-                <dd>{bill.committee || '—'}</dd>
+                <dd>
+                  {bill.committee
+                    ? (bill.committee_slug
+                        ? <Link to={`/committees/${bill.committee_slug}`} className="leg-detail-sponsor-link">{bill.committee}</Link>
+                        : bill.committee)
+                    : '—'}
+                </dd>
                 <dt>Type</dt>
                 <dd>{bill.bill_type || '—'}</dd>
                 <dt>Last updated</dt>

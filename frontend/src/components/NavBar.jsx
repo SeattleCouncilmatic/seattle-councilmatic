@@ -6,6 +6,7 @@ import './NavBar.css';
 const NAV_ITEMS = [
   { label: 'Home',         to: '/' },
   { label: 'City Council', to: '/reps' },
+  { label: 'Committees',   to: '/committees' },
   { label: 'Legislation',  to: '/legislation' },
   { label: 'Events',       to: '/events' },
   { label: 'Municode',     to: '/municode' },

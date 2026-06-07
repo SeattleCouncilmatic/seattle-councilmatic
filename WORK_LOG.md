@@ -49,6 +49,8 @@ Parser corpus state (post-fix re-parse 2026-04-26 after `93cb885`): 7,435 sectio
 
 **Prod `.env` can override `settings.py` model defaults — verify the live value before a model rollout.** Prod ran `summarize_legislation` on `claude-opus-4-7` via a stale live-`.env` override while the committed default was Sonnet (realigned to Sonnet 2026-06-03). Don't assume prod == the committed defaults; an env var beats `settings.py`.
 
+**Committees live only in OCD `Organization` (no slug) and join to bills/events by *normalized* name, not exact match (#199).** `councilmatic_core.Organization` is empty — the 9 standing committees are `opencivicdata.core.Organization` rows with `classification='committee'`. Organization has **no slug column**, so committee-page slugs are generated with `slugify(org.name)` and resolved by slugifying each committee and matching (the set is ~9 — cheaper than a stored slug). Critically, the three name sources disagree: `Organization.name` uses `&` and no suffix (`"Land Use & Sustainability"`), but a bill's `extras['MatterBodyName']` and an `Event.name` use `and` + a trailing `"Committee"` (`"Land Use and Sustainability Committee"`). So linking a bill/event to a committee runs through `_normalize_committee_name()` (lowercase, `&`→`and`, strip punctuation, drop trailing "committee") on both sides — never `==`. Historical/select committee names (`"Land Use Committee"`, `"Select Budget Committee"`) normalize to a key no current committee matches and simply don't link, which is correct. Bills "in" a committee are matched on `MatterBodyName` (the body the matter is *currently* with), so most bills show under City Council, not a committee — expected.
+
 ---
 
 ## Done

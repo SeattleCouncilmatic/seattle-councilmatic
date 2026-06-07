@@ -220,6 +220,20 @@ export default function EventDetail() {
               </>
             )}
 
+            {event.committee_slug && (
+              <>
+                <dt className="evt-sr-only">Committee</dt>
+                <dd className="evt-detail-meta-item">
+                  <Link
+                    to={`/committees/${event.committee_slug}`}
+                    className="evt-detail-external-link"
+                  >
+                    View committee →
+                  </Link>
+                </dd>
+              </>
+            )}
+
             {legistarUrl && (
               <>
                 <dt className="evt-sr-only">Legistar</dt>
