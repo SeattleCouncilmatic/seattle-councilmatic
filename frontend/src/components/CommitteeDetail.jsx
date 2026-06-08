@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ExternalLink, Users } from 'lucide-react'
+import { ExternalLink, Users, CalendarClock } from 'lucide-react'
 import NotFound from './NotFound'
 import EventCard from './EventCard'
 import LegislationCard from './LegislationCard'
@@ -97,125 +97,144 @@ export default function CommitteeDetail() {
           </div>
         </header>
 
-        <CommitteeSummaryCard summary={data.llm_summary} />
-
-        {data.roster.length > 0 && (
-          <section className="cmte-detail-section" aria-labelledby="cmte-roster-h2">
-            <h2 id="cmte-roster-h2" className="cmte-detail-section-h2">Members</h2>
-            <ul className="cmte-roster">
-              {data.roster.map(m => {
-                const inner = (
-                  <>
-                    {m.image && (
-                      <img className="cmte-roster-photo" src={m.image} alt="" />
-                    )}
-                    <div className="cmte-roster-body">
-                      <span className={roleClass(m.role)}>{m.role}</span>
-                      <span className="cmte-roster-name">{m.name}</span>
-                    </div>
-                  </>
-                )
-                return (
-                  <li key={m.name} className="cmte-roster-item">
-                    {m.slug
-                      ? <Link to={`/reps/${m.slug}`} className="cmte-roster-link">{inner}</Link>
-                      : <div className="cmte-roster-link cmte-roster-link--static">{inner}</div>}
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
-        )}
-
-        {(hasMeetings || hasBills) && (
-          <div className={`cmte-detail-columns${twoCol ? ' cmte-detail-columns--two' : ''}`}>
-
-            {hasBills && (
-              <div className="cmte-detail-col">
-                {hasCurrentBills && (
-                  <section className="cmte-detail-section" aria-labelledby="cmte-current-bills-h2">
-                    <h2 id="cmte-current-bills-h2" className="cmte-detail-section-h2">
-                      Currently in committee
-                      <span className="cmte-detail-section-count"> ({data.current_bills_total})</span>
-                    </h2>
-                    <div className="cmte-bill-list">
-                      {data.current_bills.map(bill => (
-                        <LegislationCard key={bill.slug || bill.identifier} bill={bill} />
-                      ))}
-                    </div>
-                    {moreCurrent && (
-                      <p className="cmte-detail-more-note">
-                        Showing the {data.current_bills.length} most recent of {data.current_bills_total}.
-                      </p>
-                    )}
-                  </section>
-                )}
-
-                {hasPastBills && (
-                  <section className="cmte-detail-section" aria-labelledby="cmte-past-bills-h2">
-                    <h2 id="cmte-past-bills-h2" className="cmte-detail-section-h2">
-                      {hasCurrentBills ? 'Previously considered' : 'Bills considered by this committee'}
-                      <span className="cmte-detail-section-count"> ({data.past_bills_total})</span>
-                    </h2>
-                    <div className="cmte-bill-list">
-                      {data.past_bills.map(bill => (
-                        <LegislationCard key={bill.slug || bill.identifier} bill={bill} />
-                      ))}
-                    </div>
-                    {morePast && (
-                      <p className="cmte-detail-more-note">
-                        Showing the {data.past_bills.length} most recent of {data.past_bills_total}.
-                      </p>
-                    )}
-                  </section>
-                )}
+        <div className="cmte-detail-grid">
+          {/* Left rail: logistics (meeting schedule) + roster — the
+              committee equivalent of RepDetail's contact/staff rail. */}
+          <aside className="cmte-detail-rail">
+            {data.meeting_schedule && (
+              <div className="cmte-detail-schedule">
+                <CalendarClock size={16} aria-hidden="true" />
+                <div>
+                  <div className="cmte-detail-schedule-label">Regular meetings</div>
+                  <div className="cmte-detail-schedule-value">{data.meeting_schedule}</div>
+                </div>
               </div>
             )}
 
-            {hasMeetings && (
-              <div className="cmte-detail-col">
-                {/* Always shown — committees meet on staggered schedules and
-                    often have no future meeting posted yet, so an empty state
-                    is more reassuring than a missing section. */}
-                <section className="cmte-detail-section" aria-labelledby="cmte-upcoming-h2">
-                  <h2 id="cmte-upcoming-h2" className="cmte-detail-section-h2">Upcoming meetings</h2>
-                  {hasUpcoming ? (
-                    <div className="cmte-meeting-list">
-                      {data.upcoming_meetings.map(ev => (
-                        <EventCard key={ev.slug} event={ev} />
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="cmte-detail-meetings-empty">No upcoming meetings scheduled.</p>
-                  )}
-                </section>
+            {data.roster.length > 0 && (
+              <section className="cmte-detail-rail-section" aria-labelledby="cmte-roster-h2">
+                <h2 id="cmte-roster-h2" className="cmte-detail-rail-h2">Members</h2>
+                <ul className="cmte-roster">
+                  {data.roster.map(m => {
+                    const inner = (
+                      <>
+                        {m.image && (
+                          <img className="cmte-roster-photo" src={m.image} alt="" />
+                        )}
+                        <div className="cmte-roster-body">
+                          <span className={roleClass(m.role)}>{m.role}</span>
+                          <span className="cmte-roster-name">{m.name}</span>
+                        </div>
+                      </>
+                    )
+                    return (
+                      <li key={m.name} className="cmte-roster-item">
+                        {m.slug
+                          ? <Link to={`/reps/${m.slug}`} className="cmte-roster-link">{inner}</Link>
+                          : <div className="cmte-roster-link cmte-roster-link--static">{inner}</div>}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            )}
+          </aside>
 
-                {hasRecent && (
-                  <section className="cmte-detail-section" aria-labelledby="cmte-recent-h2">
-                    <h2 id="cmte-recent-h2" className="cmte-detail-section-h2">Recent meetings</h2>
-                    <div className="cmte-meeting-list">
-                      {data.recent_meetings.map(ev => (
-                        <EventCard key={ev.slug} event={ev} />
-                      ))}
-                    </div>
-                    {allMeetingsHref && (
-                      <Link to={allMeetingsHref} className="cmte-detail-more-link">
-                        View all meetings →
-                      </Link>
+          {/* Main: LLM overview + bills | meetings. */}
+          <div className="cmte-detail-main">
+            <CommitteeSummaryCard summary={data.llm_summary} />
+
+            {(hasMeetings || hasBills) && (
+              <div className={`cmte-detail-columns${twoCol ? ' cmte-detail-columns--two' : ''}`}>
+
+                {hasBills && (
+                  <div className="cmte-detail-col">
+                    {hasCurrentBills && (
+                      <section className="cmte-detail-section" aria-labelledby="cmte-current-bills-h2">
+                        <h2 id="cmte-current-bills-h2" className="cmte-detail-section-h2">
+                          Currently in committee
+                          <span className="cmte-detail-section-count"> ({data.current_bills_total})</span>
+                        </h2>
+                        <div className="cmte-bill-list">
+                          {data.current_bills.map(bill => (
+                            <LegislationCard key={bill.slug || bill.identifier} bill={bill} />
+                          ))}
+                        </div>
+                        {moreCurrent && (
+                          <p className="cmte-detail-more-note">
+                            Showing the {data.current_bills.length} most recent of {data.current_bills_total}.
+                          </p>
+                        )}
+                      </section>
                     )}
-                  </section>
+
+                    {hasPastBills && (
+                      <section className="cmte-detail-section" aria-labelledby="cmte-past-bills-h2">
+                        <h2 id="cmte-past-bills-h2" className="cmte-detail-section-h2">
+                          {hasCurrentBills ? 'Previously considered' : 'Bills considered by this committee'}
+                          <span className="cmte-detail-section-count"> ({data.past_bills_total})</span>
+                        </h2>
+                        <div className="cmte-bill-list">
+                          {data.past_bills.map(bill => (
+                            <LegislationCard key={bill.slug || bill.identifier} bill={bill} />
+                          ))}
+                        </div>
+                        {morePast && (
+                          <p className="cmte-detail-more-note">
+                            Showing the {data.past_bills.length} most recent of {data.past_bills_total}.
+                          </p>
+                        )}
+                      </section>
+                    )}
+                  </div>
                 )}
+
+                {hasMeetings && (
+                  <div className="cmte-detail-col">
+                    {/* Always shown — committees meet on staggered schedules and
+                        often have no future meeting posted yet, so an empty state
+                        is more reassuring than a missing section. */}
+                    <section className="cmte-detail-section" aria-labelledby="cmte-upcoming-h2">
+                      <h2 id="cmte-upcoming-h2" className="cmte-detail-section-h2">Upcoming meetings</h2>
+                      {hasUpcoming ? (
+                        <div className="cmte-meeting-list">
+                          {data.upcoming_meetings.map(ev => (
+                            <EventCard key={ev.slug} event={ev} />
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="cmte-detail-meetings-empty">No upcoming meetings scheduled.</p>
+                      )}
+                    </section>
+
+                    {hasRecent && (
+                      <section className="cmte-detail-section" aria-labelledby="cmte-recent-h2">
+                        <h2 id="cmte-recent-h2" className="cmte-detail-section-h2">Recent meetings</h2>
+                        <div className="cmte-meeting-list">
+                          {data.recent_meetings.map(ev => (
+                            <EventCard key={ev.slug} event={ev} />
+                          ))}
+                        </div>
+                        {allMeetingsHref && (
+                          <Link to={allMeetingsHref} className="cmte-detail-more-link">
+                            View all meetings →
+                          </Link>
+                        )}
+                      </section>
+                    )}
+                  </div>
+                )}
+
               </div>
             )}
 
+            {!data.roster.length && !hasMeetings && !hasBills && (
+              <p className="cmte-detail-empty">
+                No activity is currently recorded for this committee.
+              </p>
+            )}
           </div>
-        )}
-
-        {!data.roster.length && !hasMeetings && !hasBills && (
-          <p className="cmte-detail-empty">
-            No activity is currently recorded for this committee.
-          </p>
-        )}
+        </div>
       </div>
     </div>
   )

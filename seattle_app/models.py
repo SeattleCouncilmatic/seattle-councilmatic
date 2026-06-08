@@ -581,9 +581,22 @@ class CommitteeSummary(models.Model):
         related_name="committee_summary",
         help_text="OCD Organization (committee) this summary belongs to.",
     )
+    scope_points = models.JSONField(
+        default=list,
+        help_text="Bulleted list (array of strings) of what the committee "
+        "oversees — its departments and policy areas.",
+    )
+    activity_points = models.JSONField(
+        default=list,
+        help_text="Bulleted list (array of strings) of the committee's recent "
+        "work, each citing representative bills.",
+    )
     summary = models.TextField(
-        help_text="2-3 paragraph plain-prose synthesis: the committee's focus "
-        "plus recent activity. Paragraphs joined with '\\n\\n'.",
+        blank=True,
+        default="",
+        help_text="Plain-text join of the bullet lists — a fallback for "
+        "search / non-UI consumers. The UI renders scope_points + "
+        "activity_points as lists.",
     )
     stats_snapshot = models.JSONField(
         default=dict,

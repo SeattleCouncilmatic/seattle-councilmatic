@@ -264,52 +264,64 @@ COMMITTEE_SUMMARY_SYSTEM_PROMPT = (
     "overview of a Seattle City Council committee for residents who want to "
     "understand what the committee does and what it has been working on. You "
     "will receive a structured snapshot describing the committee: its name, "
-    "its official scope statement and regular meeting schedule (scraped from "
-    "the committee's seattle.gov page), current roster (chair, vice-chair, "
-    "members), a list of its recent meetings with one-line overviews, and the "
-    "bills it has handled (identifier, title, status).\n\n"
-    "Produce 2 to 3 short paragraphs of plain prose. Hard cap 180 words. "
-    "Constraints:\n"
-    "  - First paragraph: describe what the committee oversees — its policy "
-    "domain. When a 'scope' is provided, treat it as the authoritative remit "
-    "and summarize the concrete departments and policy areas it names (e.g. "
-    "'Seattle Public Utilities, information technology, and general government "
-    "oversight'); do not contradict or pad it. Only fall back to inferring "
-    "the domain from the committee name and its bills/meetings when no scope "
-    "is given. You may name the chair, and state the regular meeting schedule "
-    "when provided (e.g. 'It meets on 2nd Thursdays at 9:30 a.m.').\n"
-    "  - Following paragraph(s): describe what the committee has focused on "
-    "recently — the themes running through its recent bills and meetings. "
-    "Cite a few representative bills by identifier (e.g. 'CB 121180') when "
-    "they illustrate a theme; don't list every bill.\n"
+    "its official scope statement (scraped from the committee's seattle.gov "
+    "page), current roster, a list of its recent meetings with one-line "
+    "overviews, and the bills it has handled (identifier, title, status).\n\n"
+    "Produce two bulleted lists as arrays of short, scannable plain-text "
+    "bullets:\n\n"
+    "  1. **scope** — 3 to 5 bullets on what the committee oversees, its "
+    "departments and policy areas. When a 'scope' is provided in the input, "
+    "treat it as the authoritative remit and condense it into bullets (one "
+    "department or policy cluster per bullet, e.g. 'Seattle Public Utilities "
+    "— rates, finances, and the Utility Discount Program'); do not contradict "
+    "or pad it. Only infer the domain from the committee name and its "
+    "bills/meetings when no scope is given.\n"
+    "  2. **recent_activity** — up to 5 bullets on what the committee has "
+    "worked on recently, grouped by theme, each citing a representative bill "
+    "or two by identifier (e.g. 'Advanced the 2026 Stormwater Code Update "
+    "(CB 121190) for state compliance'). An empty array is fine when there's "
+    "no recent activity to report.\n\n"
+    "Quality rules:\n"
+    "  - Each bullet is one concise phrase or sentence (aim for under 25 "
+    "words). Lead with the substance; don't begin every bullet with the same "
+    "word.\n"
+    "  - Plain text per bullet — no leading '-' or '*', no markdown, no bold. "
+    "The UI renders the bullet markers.\n"
     "  - Be neutral and factual. Do not speculate on political alignment, "
     "ideology, motivations, or whether the committee is effective or "
     "controversial. Describe what it works on, not why.\n"
-    "  - Plain prose only. No markdown headers, bullets, or bold. The "
-    "committee's name is displayed alongside your summary — do not repeat it "
-    "at the start or write 'This committee'.\n"
-    "  - Use only the committee, members, meetings, and bills in the input. "
-    "Do not invent bills, members, or activities not present.\n"
-    "  - Degrade silently when inputs are thin. Do not mention data "
-    "availability in the prose (e.g. 'no recent meetings are available'); "
-    "simply synthesize from what you have. If there's little recent activity, "
-    "a single paragraph on the committee's focus is fine."
+    "  - Do not name the chair or the meeting schedule — those are displayed "
+    "separately. Do not repeat the committee's name (shown alongside).\n"
+    "  - Use only the committee, meetings, and bills in the input. Do not "
+    "invent bills or activities not present.\n"
+    "  - Degrade silently when inputs are thin: fewer bullets is fine, and do "
+    "not write bullets about missing data."
 )
 
 
 COMMITTEE_SUMMARY_OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {
-        "summary": {
-            "type": "string",
+        "scope": {
+            "type": "array",
+            "items": {"type": "string"},
             "description": (
-                "2 to 3 paragraphs of plain prose: the committee's policy "
-                "focus, then what it has worked on recently. Paragraphs "
-                "separated by '\\n\\n'. Hard cap 180 words; no markdown."
+                "3 to 5 plain-text bullets on what the committee oversees — "
+                "its departments and policy areas, condensed from the "
+                "official scope. No leading bullet markers or markdown."
+            ),
+        },
+        "recent_activity": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": (
+                "Up to 5 plain-text bullets on the committee's recent work, "
+                "grouped by theme, each citing representative bill "
+                "identifiers. Empty array when there's no recent activity."
             ),
         },
     },
-    "required": ["summary"],
+    "required": ["scope", "recent_activity"],
     "additionalProperties": False,
 }
 
