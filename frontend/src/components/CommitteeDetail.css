@@ -5,7 +5,9 @@
 }
 
 .cmte-detail-container {
-  max-width: 56rem;
+  /* Wider (matches RepDetail) to fit the left rail + the bills|meetings
+     two-column main without crowding. */
+  max-width: 90rem;
   margin: 0 auto;
 }
 
@@ -66,6 +68,62 @@
 }
 .cmte-detail-source-link:hover { text-decoration: underline; }
 
+/* Rail (left) + main (right), mirroring RepDetail. Single column on
+   tablet/mobile; rail anchored to the top via align-items: start. */
+.cmte-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+@media (min-width: 1024px) {
+  .cmte-detail-grid {
+    grid-template-columns: 20rem 1fr;
+    align-items: start;
+  }
+}
+.cmte-detail-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.cmte-detail-main {
+  min-width: 0; /* keep the grid item from blowing out wider than its track */
+}
+
+/* Regular-meeting schedule — logistical info at the top of the rail,
+   the committee equivalent of a rep's office-hours line. */
+.cmte-detail-schedule {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 0.875rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  color: #374151;
+}
+.cmte-detail-schedule-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #2E3D5B;
+}
+.cmte-detail-schedule-value {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.cmte-detail-rail-h2 {
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  margin: 0 0 0.75rem;
+}
+
 .cmte-detail-section { margin-top: 2.5rem; }
 
 /* Two-column band — Bills | Meetings — mirroring the home screen's
@@ -102,14 +160,14 @@
   color: #9ca3af;
 }
 
-/* Roster */
+/* Roster — a vertical list in the left rail (one member per row). */
 .cmte-roster {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 0.625rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 .cmte-roster-link {
   display: flex;

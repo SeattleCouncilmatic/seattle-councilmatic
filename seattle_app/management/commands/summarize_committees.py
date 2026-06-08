@@ -170,8 +170,9 @@ class Command(BatchPipelineCommand):
             if err:
                 errors.append((org_id, err))
                 continue
-            summary = (data.get("summary") or "").strip()
-            if not summary:
+            scope = [b.strip() for b in (data.get("scope") or []) if b and b.strip()]
+            activity = [b.strip() for b in (data.get("recent_activity") or []) if b and b.strip()]
+            if not scope and not activity:
                 errors.append((org_id, "empty summary in output"))
                 continue
             org = orgs_by_id.get(org_id)
@@ -182,7 +183,8 @@ class Command(BatchPipelineCommand):
                 ctx = build_committee_stats_context(org)
                 self._upsert_summary(
                     org=org,
-                    summary_text=summary,
+                    scope_points=scope,
+                    activity_points=activity,
                     stats_snapshot=ctx,
                     content_hash=committee_content_hash(ctx),
                     model_version=model_version,
@@ -195,13 +197,27 @@ class Command(BatchPipelineCommand):
         return success, errors
 
     @staticmethod
+    def _joined_text(scope_points: list, activity_points: list) -> str:
+        """Plain-text join of the bullet lists — fallback for search / non-UI
+        consumers (the UI renders the lists directly)."""
+        parts = []
+        if scope_points:
+            parts.append("Scope:\n" + "\n".join(f"- {b}" for b in scope_points))
+        if activity_points:
+            parts.append("Recent activity:\n" + "\n".join(f"- {b}" for b in activity_points))
+        return "\n\n".join(parts)
+
+    @classmethod
     @transaction.atomic
-    def _upsert_summary(*, org, summary_text: str, stats_snapshot: dict,
-                        content_hash: str, model_version: str, batch_id: str) -> None:
+    def _upsert_summary(cls, *, org, scope_points: list, activity_points: list,
+                        stats_snapshot: dict, content_hash: str,
+                        model_version: str, batch_id: str) -> None:
         CommitteeSummary.objects.update_or_create(
             organization=org,
             defaults={
-                "summary": summary_text,
+                "scope_points": scope_points,
+                "activity_points": activity_points,
+                "summary": cls._joined_text(scope_points, activity_points),
                 "stats_snapshot": stats_snapshot,
                 "content_hash": content_hash,
                 "model_version": model_version,

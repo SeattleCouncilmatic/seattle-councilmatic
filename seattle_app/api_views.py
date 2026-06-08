@@ -1100,16 +1100,28 @@ def _serialize_committee_bill(bill) -> dict:
 
 def _committee_llm_summary(org):
     """The committee's LLM summary card content, or None when the
-    summarize_committees pipeline hasn't generated one yet."""
+    summarize_committees pipeline hasn't generated one yet. ``scope`` and
+    ``recent_activity`` are bullet lists; ``text`` is a plain-text join kept
+    as a fallback for any summary generated before the bulleted format."""
     from seattle_app.models import CommitteeSummary
     s = CommitteeSummary.objects.filter(organization_id=org.id).first()
     if not s:
         return None
     return {
-        'text':         s.summary,
-        'generated_at': s.generated_at.isoformat() if s.generated_at else None,
-        'model':        s.model_version,
+        'scope':           s.scope_points or [],
+        'recent_activity': s.activity_points or [],
+        'text':            s.summary,
+        'generated_at':    s.generated_at.isoformat() if s.generated_at else None,
+        'model':           s.model_version,
     }
+
+
+def _committee_meeting_schedule(org):
+    """Regular meeting schedule scraped from the committee's seattle.gov page,
+    or '' if not scraped yet."""
+    from seattle_app.models import CommitteeProfile
+    p = CommitteeProfile.objects.filter(organization_id=org.id).only('meeting_schedule').first()
+    return p.meeting_schedule if p else ''
 
 
 @require_GET
@@ -1193,6 +1205,7 @@ def committee_detail(request, slug):
         'slug':                slugify(org.name),
         'source_url':          source_url,
         'member_count':        len(roster),
+        'meeting_schedule':    _committee_meeting_schedule(org),
         'llm_summary':         _committee_llm_summary(org),
         'roster':              roster,
         'upcoming_meetings':   upcoming_meetings,
