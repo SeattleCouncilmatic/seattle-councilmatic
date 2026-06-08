@@ -221,6 +221,18 @@ corresponding step to [scripts/update_seattle.sh](scripts/update_seattle.sh)
 or [scripts/poll_llm_batches.sh](scripts/poll_llm_batches.sh) so the
 new pipeline is in the automation from day one.
 
+> **Rebuild the image before regenerating when a summarizer's _code_ or
+> _output format_ changes — not just its data.** Prod bakes both the Django
+> code and the built Vite bundle into the image (no bind-mount; see the
+> multi-stage `Dockerfile`). So a PR that changes a summarizer's prompt,
+> schema, or model fields needs `git pull && docker compose -f
+> docker-compose.prod.yml up -d --build` **first**, _then_ the `migrate` +
+> `--force` regen. Running the regen against the old image silently
+> produces old-format rows (and the old SPA keeps rendering), which looks
+> like "the change didn't take" even though the batch ingested fine. This
+> bit us on the committee scope-intro change (2026-06-08): the regen ran
+> against the pre-change image and emitted bulleted summaries with no intro.
+
 ### View logs
 
 ```
