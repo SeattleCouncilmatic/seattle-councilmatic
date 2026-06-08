@@ -1108,6 +1108,7 @@ def _committee_llm_summary(org):
     if not s:
         return None
     return {
+        'scope_intro':     s.scope_intro,
         'scope':           s.scope_points or [],
         'recent_activity': s.activity_points or [],
         'text':            s.summary,

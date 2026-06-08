@@ -15,7 +15,7 @@ export default function CommitteeSummaryCard({ summary }) {
   if (!summary) return null
   const scope = summary.scope || []
   const activity = summary.recent_activity || []
-  const hasBullets = scope.length > 0 || activity.length > 0
+  const hasBullets = scope.length > 0 || activity.length > 0 || !!summary.scope_intro
   // Fallback for summaries generated before the bulleted format — they
   // only have `text` (paragraphs).
   const paragraphs = !hasBullets && summary.text
@@ -31,12 +31,17 @@ export default function CommitteeSummaryCard({ summary }) {
 
       {hasBullets ? (
         <div className="cmte-summary-card-body">
-          {scope.length > 0 && (
+          {(summary.scope_intro || scope.length > 0) && (
             <>
               <h3 className="cmte-summary-card-h3">Scope</h3>
-              <ul className="cmte-summary-card-list">
-                {scope.map((b, i) => <li key={i}>{b}</li>)}
-              </ul>
+              {summary.scope_intro && (
+                <p className="cmte-summary-card-p">{summary.scope_intro}</p>
+              )}
+              {scope.length > 0 && (
+                <ul className="cmte-summary-card-list">
+                  {scope.map((b, i) => <li key={i}>{b}</li>)}
+                </ul>
+              )}
             </>
           )}
           {activity.length > 0 && (

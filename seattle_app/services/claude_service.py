@@ -267,16 +267,23 @@ COMMITTEE_SUMMARY_SYSTEM_PROMPT = (
     "its official scope statement (scraped from the committee's seattle.gov "
     "page), current roster, a list of its recent meetings with one-line "
     "overviews, and the bills it has handled (identifier, title, status).\n\n"
-    "Produce two bulleted lists as arrays of short, scannable plain-text "
-    "bullets:\n\n"
-    "  1. **scope** — 3 to 5 bullets on what the committee oversees, its "
+    "Produce a short scope introduction plus two bulleted lists (arrays of "
+    "short, scannable plain-text bullets):\n\n"
+    "  1. **scope_intro** — 1 to 2 sentences (hard cap 45 words) giving the "
+    "big-picture remit before the bullets, so the section doesn't read as a "
+    "bare list. Summarize the committee's overall purpose (e.g. 'The "
+    "committee sets policy and provides oversight for the city's utilities, "
+    "technology, and general-government functions.'). You may write 'the "
+    "committee' here, but do not repeat its full proper name.\n"
+    "  2. **scope** — 3 to 5 bullets on what the committee oversees, its "
     "departments and policy areas. When a 'scope' is provided in the input, "
     "treat it as the authoritative remit and condense it into bullets (one "
     "department or policy cluster per bullet, e.g. 'Seattle Public Utilities "
     "— rates, finances, and the Utility Discount Program'); do not contradict "
-    "or pad it. Only infer the domain from the committee name and its "
-    "bills/meetings when no scope is given.\n"
-    "  2. **recent_activity** — up to 5 bullets on what the committee has "
+    "or pad it. The bullets carry the specifics — keep the intro general and "
+    "non-redundant with them. Only infer the domain from the committee name "
+    "and its bills/meetings when no scope is given.\n"
+    "  3. **recent_activity** — up to 5 bullets on what the committee has "
     "worked on recently, grouped by theme, each citing a representative bill "
     "or two by identifier (e.g. 'Advanced the 2026 Stormwater Code Update "
     "(CB 121190) for state compliance'). An empty array is fine when there's "
@@ -291,7 +298,8 @@ COMMITTEE_SUMMARY_SYSTEM_PROMPT = (
     "ideology, motivations, or whether the committee is effective or "
     "controversial. Describe what it works on, not why.\n"
     "  - Do not name the chair or the meeting schedule — those are displayed "
-    "separately. Do not repeat the committee's name (shown alongside).\n"
+    "separately. Do not repeat the committee's full proper name (shown "
+    "alongside); 'the committee' is fine in the intro.\n"
     "  - Use only the committee, meetings, and bills in the input. Do not "
     "invent bills or activities not present.\n"
     "  - Degrade silently when inputs are thin: fewer bullets is fine, and do "
@@ -302,6 +310,13 @@ COMMITTEE_SUMMARY_SYSTEM_PROMPT = (
 COMMITTEE_SUMMARY_OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {
+        "scope_intro": {
+            "type": "string",
+            "description": (
+                "1 to 2 sentences introducing the committee's overall remit, "
+                "shown above the scope bullets. Plain prose; hard cap 45 words."
+            ),
+        },
         "scope": {
             "type": "array",
             "items": {"type": "string"},
@@ -321,7 +336,7 @@ COMMITTEE_SUMMARY_OUTPUT_SCHEMA = {
             ),
         },
     },
-    "required": ["scope", "recent_activity"],
+    "required": ["scope_intro", "scope", "recent_activity"],
     "additionalProperties": False,
 }
 

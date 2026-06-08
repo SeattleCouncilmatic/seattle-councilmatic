@@ -581,6 +581,11 @@ class CommitteeSummary(models.Model):
         related_name="committee_summary",
         help_text="OCD Organization (committee) this summary belongs to.",
     )
+    scope_intro = models.TextField(
+        blank=True,
+        default="",
+        help_text="1-2 sentence lead-in shown above the scope bullets.",
+    )
     scope_points = models.JSONField(
         default=list,
         help_text="Bulleted list (array of strings) of what the committee "
