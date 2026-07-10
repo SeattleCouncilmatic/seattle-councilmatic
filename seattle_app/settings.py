@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "seattle_app",
     "seattle",
     "reps",
+    "digests",
     # CMS layer - Remove if CMS not required
     "councilmatic_cms",
     "wagtail.contrib.forms",
@@ -301,6 +302,25 @@ PIPELINE_ALERT_EMAILS = [
     e.strip() for e in os.getenv("PIPELINE_ALERT_EMAILS", "").split(",") if e.strip()
 ]
 
+# Email digests (#231). Phase 1 ships subscription plumbing; digest
+# composition/LLM/Postmark land in later phases.
+#
+# All outbound digest mail goes through the DigestEmailClient interface
+# (digests/services/email_client.py). "smtp" reuses the EMAIL_* config
+# above and is for TEST-TO-SELF ONLY — never real subscribers (no bounce
+# handling, relay volume caps). "postmark" is the production transport,
+# wired in Phase 4.
+DIGEST_EMAIL_BACKEND = os.getenv("DIGEST_EMAIL_BACKEND", "smtp")
+DIGEST_FROM_EMAIL = os.getenv("DIGEST_FROM_EMAIL", DEFAULT_FROM_EMAIL)
+# Keys the stateless HMAC manage/unsubscribe tokens. Dedicated secret so it
+# rotates independently of SECRET_KEY (rotation invalidates outstanding
+# email links but not sessions); tokens.py falls back to SECRET_KEY when
+# unset so dev works without it.
+SUBSCRIBER_TOKEN_SECRET = os.getenv("SUBSCRIBER_TOKEN_SECRET", "")
+# CAN-SPAM physical postal address, rendered in every digest footer
+# (Phase 2 templates). Required before public launch.
+DIGEST_POSTAL_ADDRESS = os.getenv("DIGEST_POSTAL_ADDRESS", "")
+
 # Logging (#205). The project previously defined no LOGGING, so settings.LOGGING
 # was Django's default {} — which is what made pupa's CLI KeyError (#216). A real
 # config quiets chatty scrape/HTTP libraries and stamps the pipeline run_key onto
@@ -316,6 +336,12 @@ LOGGING = {
         "pipeline_run_key": {
             "()": "seattle_app.logging_filters.PipelineRunKeyFilter",
         },
+        # Masks anything email-shaped in log output — subscriber emails
+        # (#231) must never reach logs. Digest code paths log subscriber
+        # ids; this filter is the backstop for third-party/library lines.
+        "redact_emails": {
+            "()": "seattle_app.logging_filters.EmailRedactionFilter",
+        },
     },
     "formatters": {
         "tagged": {"format": "[%(run_key)s] %(levelname)s %(name)s: %(message)s"},
@@ -323,7 +349,7 @@ LOGGING = {
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "filters": ["pipeline_run_key"],
+            "filters": ["pipeline_run_key", "redact_emails"],
             "formatter": "tagged",
         },
     },

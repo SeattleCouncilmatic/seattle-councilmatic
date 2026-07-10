@@ -7,6 +7,8 @@ from django.views.generic import RedirectView
 from wagtail.admin import urls as wagtailadmin_urls
 from wagtail.documents import urls as wagtaildocs_urls
 
+from digests import urls as digests_urls
+
 from . import views
 from . import api_views
 
@@ -35,6 +37,12 @@ urlpatterns = [
     path("cms",   RedirectView.as_view(url="/cms/",   permanent=True)),
     path("admin/", admin.site.urls),
     path("api/reps/", include("reps.urls")),
+    # Digest subscriptions (#231). Two mounts of the same app: JSON API for
+    # the SPA, and server-rendered token pages that email links land on.
+    # The SPA-owned /digests/subscribe and /digests/preferences routes match
+    # neither list and fall through to the React catch-all below.
+    path("api/digests/", include((digests_urls.api_urlpatterns, "digests_api"))),
+    path("digests/", include((digests_urls.page_urlpatterns, "digests"))),
     path("api/legislation/recent/", api_views.recent_legislation, name="api_legislation_recent"),
     path("api/legislation/", api_views.legislation_index, name="api_legislation_index"),
     path("api/legislation/<slug:slug>/", api_views.legislation_detail, name="api_legislation_detail"),

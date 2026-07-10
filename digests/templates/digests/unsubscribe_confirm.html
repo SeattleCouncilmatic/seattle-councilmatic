@@ -1,0 +1,27 @@
+{% extends "digests/base.html" %}
+
+{% block title %}Unsubscribe{% endblock %}
+
+{% block content %}
+<h1>Unsubscribe from digests</h1>
+{% if already_unsubscribed %}
+<p><strong>{{ email_masked }}</strong> is already unsubscribed. No further
+emails will be sent.</p>
+{% else %}
+<p>Stop digest emails to <strong>{{ email_masked }}</strong>?</p>
+{% endif %}
+<form method="post">
+    <input type="hidden" name="token" value="{{ token }}">
+    <div class="checkbox-row">
+        <input type="checkbox" id="delete_now" name="delete_now" value="1">
+        <label for="delete_now">
+            Also delete my data immediately.
+            <span class="muted">Otherwise your email address is kept for 30
+            days (in case you resubscribe) and then deleted automatically.</span>
+        </label>
+    </div>
+    <button type="submit" class="btn">
+        {% if already_unsubscribed %}Confirm{% else %}Unsubscribe{% endif %}
+    </button>
+</form>
+{% endblock %}

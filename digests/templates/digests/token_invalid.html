@@ -1,0 +1,13 @@
+{% extends "digests/base.html" %}
+
+{% block title %}Link not valid{% endblock %}
+
+{% block content %}
+<h1>That link didn't work</h1>
+<p>{{ message }}</p>
+<p>
+    Already subscribed? <a href="/digests/preferences">Request a fresh
+    manage link by email</a>.
+</p>
+<p><a href="/digests/subscribe">Subscribe to email digests</a></p>
+{% endblock %}

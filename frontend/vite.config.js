@@ -62,11 +62,24 @@ export default defineConfig(({ command }) => ({
     // standard fix for Docker-on-Windows dev.
     watch: { usePolling: true },
     proxy: {
+      // /api/digests keeps the browser's Host header (changeOrigin: false):
+      // the subscribe endpoint builds the verification-email confirm link
+      // with build_absolute_uri, so under changeOrigin the emailed link
+      // would point at the Docker-internal `app:8000` instead of
+      // localhost:5173. Must stay ABOVE the general /api key — Vite uses
+      // the first matching prefix.
+      '/api/digests': { target: 'http://app:8000', changeOrigin: false },
       '/api':    { target: 'http://app:8000', changeOrigin: true },
       '/admin':  { target: 'http://app:8000', changeOrigin: true },
       '/cms':    { target: 'http://app:8000', changeOrigin: true },
       '/static': { target: 'http://app:8000', changeOrigin: true },
       '/media':  { target: 'http://app:8000', changeOrigin: true },
+      // Django-owned digest token pages (email links land here). The
+      // SPA-owned /digests/subscribe and /digests/preferences are NOT
+      // proxied — they fall through to the history fallback + React Router.
+      '/digests/confirm':     { target: 'http://app:8000', changeOrigin: false },
+      '/digests/manage':      { target: 'http://app:8000', changeOrigin: false },
+      '/digests/unsubscribe': { target: 'http://app:8000', changeOrigin: false },
     },
   },
 }))
