@@ -1,0 +1,37 @@
+{% autoescape off %}SEATTLE COUNCILMATIC
+Your {{ cadence }} council digest{% if window_label %} - {{ window_label }}{% endif %}
+{% if intro %}
+{{ intro }}
+{% endif %}{% if quiet %}
+A quiet week at Seattle City Council - nothing matched your interests
+since the last digest. We'll be back next week; in the meantime you can
+browse recent legislation any time: {{ site_base }}/legislation
+{% endif %}{% if bill_items %}
+LEGISLATION
+-----------
+{% for item in bill_items %}
+{% if item.identifier %}{{ item.identifier }}: {% endif %}{{ item.title }}
+  Why: {{ item.reasons|join:"; " }}{% if item.latest_action %}
+  Latest action{% if item.date %} ({{ item.date }}){% endif %}: {{ item.latest_action }}{% endif %}{% if item.blurb %}
+  {{ item.blurb }}{% endif %}{% if item.summary %}
+  {{ item.summary }}{% endif %}
+  {{ site_base }}{{ item.url_path }}
+{% endfor %}{% endif %}{% if meeting_items %}
+COMMITTEE MEETINGS
+------------------
+{% for item in meeting_items %}
+{{ item.title }}{% if item.date %} - {{ item.date }}{% endif %}
+  Why: {{ item.reasons|join:"; " }}{% if item.blurb %}
+  {{ item.blurb }}{% endif %}{% if item.summary %}
+  {{ item.summary }}{% endif %}
+  {{ site_base }}{{ item.url_path }}
+{% endfor %}{% endif %}
+--
+You're receiving this because you subscribed to Seattle Councilmatic
+email digests.
+
+Update your preferences: {{ manage_url }}
+Unsubscribe: {{ unsubscribe_url }}
+{% if postal_address %}
+{{ postal_address }}
+{% endif %}{% endautoescape %}

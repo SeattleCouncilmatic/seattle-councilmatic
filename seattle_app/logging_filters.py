@@ -33,6 +33,13 @@ _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _MASK = "«email»"
 
 
+def redact_emails(text: str) -> str:
+    """Mask email-shaped substrings in ``text``. For non-log surfaces that
+    persist exception text — e.g. ``DigestSend.error``, which renders in the
+    admin and must never hold a recipient address."""
+    return _EMAIL_RE.sub(_MASK, text or "")
+
+
 class EmailRedactionFilter(logging.Filter):
     """Mask anything email-shaped before it reaches a handler. Digest code
     logs ``subscriber.id`` on purpose; this is the backstop for library

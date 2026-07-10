@@ -159,15 +159,26 @@ class SubscriberPreferences(models.Model):
 
 
 class DigestSend(models.Model):
-    """Append-only log of every digest email sent. Used for dedup (one send
-    per cadence per day), audit, cost attribution, and as the snapshot the
-    future feed page re-renders — which is why ``matched_item_ids`` and
-    ``llm_payload`` exist from Phase 1 even though nothing writes them until
-    Phases 2-3: later phases drop in without a migration."""
+    """One digest email, from composition through delivery. ``compose_digests``
+    creates the row in ``pending`` with the ``matched_item_ids`` snapshot;
+    ``send_digest_batches`` renders from the snapshot and flips it to ``sent``
+    (or ``failed``). The row IS the compose state — the plan's JSON state
+    files predate the #208 state-lives-in-the-DB refactor. Also used for
+    dedup (one send per cadence per day), audit, cost attribution, and as
+    the snapshot the future feed page re-renders."""
 
     CADENCE_WEEKLY = "weekly"
     CADENCE_DAILY = "daily"
     CADENCE_CHOICES = [(CADENCE_WEEKLY, "Weekly"), (CADENCE_DAILY, "Daily")]
+
+    STATUS_PENDING = "pending"  # composed, snapshot taken, not yet rendered/sent
+    STATUS_SENT = "sent"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_SENT, "Sent"),
+        (STATUS_FAILED, "Failed"),
+    ]
 
     subscriber = models.ForeignKey(
         # CASCADE: right-to-delete hard-deletes the subscriber row, and the
@@ -177,7 +188,29 @@ class DigestSend(models.Model):
         related_name="sends",
     )
     cadence = models.CharField(max_length=8, choices=CADENCE_CHOICES)
-    sent_at = models.DateTimeField(default=timezone.now)
+    status = models.CharField(
+        max_length=8,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When compose_digests created the row (composition time).",
+    )
+    sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Delivery time. NULL until send_digest_batches sends it.",
+    )
+    error = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Why a failed send failed. Email-redacted BEFORE storing — "
+        "SMTP exceptions embed the recipient address and this field renders "
+        "in the admin.",
+    )
     item_count = models.PositiveIntegerField(default=0)
     postmark_message_id = models.CharField(
         max_length=100,
@@ -201,8 +234,10 @@ class DigestSend(models.Model):
     matched_item_ids = models.JSONField(
         default=list,
         blank=True,
-        help_text="Snapshot of [{type, id}, ...] items in this digest — not "
-        "a live query. Read by the future feed page.",
+        help_text="Snapshot of [{type, id, reasons}, ...] items in this "
+        "digest — not a live query. Reasons are the compose-time match "
+        "explanations; content (titles, summaries) is re-fetched by id at "
+        "render time. Read by the future feed page.",
     )
     llm_payload = models.JSONField(
         null=True,

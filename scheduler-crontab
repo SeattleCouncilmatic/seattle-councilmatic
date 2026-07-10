@@ -29,6 +29,15 @@ CRON_TZ=America/Los_Angeles
 # can't collide with a 6h cycle.
 30 2 * * 0 . /etc/cron-env && cd /app && flock -n /tmp/seattle_pipeline.lock /app/scripts/update_reps.sh 2>&1 | ts >> /var/log/cron/sync.log
 
+# Weekly email digest (Sunday 6 AM, #235): compose pending DigestSends and
+# deliver them. Runs after the overnight 0:00 cycle + 1:00 drain so the DB
+# has the freshest summaries. Its own lock, not the pipeline flock — digests
+# only read pipeline data, and a slow scrape shouldn't delay the send.
+# Inert in prod until Phase 4: with signups closed there are no subscribers,
+# and send_digest_batches refuses the SMTP transport outside DEBUG anyway.
+# The daily cadence stays off in v1 (see the digests plan).
+0 6 * * 0 . /etc/cron-env && cd /app && flock -n /tmp/seattle_digests.lock /app/scripts/compose_and_send_digests.sh weekly 2>&1 | ts >> /var/log/cron/sync.log
+
 # Pipeline health alert (#210) — independent hourly tick at :30, deliberately
 # NOT under the pipeline flock, so it still fires if a run is wedged holding the
 # lock. Emails PIPELINE_ALERT_EMAILS when no successful full-cycle has finished
