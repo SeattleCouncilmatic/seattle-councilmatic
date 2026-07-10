@@ -95,9 +95,12 @@ class DigestConfigAdmin(admin.ModelAdmin):
 
 @admin.register(DigestSend)
 class DigestSendAdmin(admin.ModelAdmin):
-    list_display = ("id", "subscriber_id", "cadence", "sent_at", "item_count", "bounce_status")
-    list_filter = ("cadence", "bounce_status")
-    ordering = ("-sent_at",)
+    list_display = (
+        "id", "subscriber_id", "cadence", "status", "created_at", "sent_at",
+        "item_count", "error", "bounce_status",
+    )
+    list_filter = ("cadence", "status", "bounce_status")
+    ordering = ("-created_at",)
 
     def has_add_permission(self, request):
         return False

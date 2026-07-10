@@ -325,6 +325,12 @@ SUBSCRIBER_TOKEN_SECRET = os.getenv("SUBSCRIBER_TOKEN_SECRET", "")
 # CAN-SPAM physical postal address, rendered in every digest footer
 # (Phase 2 templates). Required before public launch.
 DIGEST_POSTAL_ADDRESS = os.getenv("DIGEST_POSTAL_ADDRESS", "")
+# Absolute-URL base for links inside digest emails (item pages,
+# manage/unsubscribe). Needed because compose/send run from cron with no
+# request to build_absolute_uri from. Dev default points at the Vite dev
+# server (which proxies /digests/* to Django); prod sets the public origin
+# — on the Phase 4 launch checklist.
+DIGEST_SITE_BASE_URL = os.getenv("DIGEST_SITE_BASE_URL", "http://localhost:5173")
 
 # Logging (#205). The project previously defined no LOGGING, so settings.LOGGING
 # was Django's default {} — which is what made pupa's CLI KeyError (#216). A real
