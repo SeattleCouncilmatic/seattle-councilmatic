@@ -1,0 +1,20 @@
+{% extends "digests/base.html" %}
+
+{% block title %}Subscription confirmed{% endblock %}
+
+{% block content %}
+<h1>You're subscribed 🎉</h1>
+<p>
+    Digest emails for <strong>{{ email_masked }}</strong> are confirmed.
+    You'll get a weekly summary of Seattle City Council activity matched
+    to your preferences.
+</p>
+<p>
+    <a href="{{ manage_url }}">Review or change your preferences</a>
+    — a link to this page is also included in every digest email.
+</p>
+<p class="muted">
+    Every email we send has a one-click unsubscribe link. We never share
+    your address with anyone.
+</p>
+{% endblock %}

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import './Footer.css'
 
 const REPO_URL = 'https://github.com/SeattleCouncilmatic/seattle-councilmatic'
@@ -10,6 +11,8 @@ export default function Footer() {
       <div className="site-footer-inner">
         <p className="site-footer-copyright">© {year} Seattle Councilmatic</p>
         <div className="site-footer-links">
+          <Link to="/digests/subscribe">Email digests</Link>
+          <span className="site-footer-sep" aria-hidden="true">·</span>
           <a href={REPO_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
           <span className="site-footer-sep" aria-hidden="true">·</span>
           <span>

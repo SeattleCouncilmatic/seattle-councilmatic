@@ -1,0 +1,234 @@
+.subscribe-form {
+  background: #f3f6fa;
+  border-top: 1px solid #e5e7eb;
+}
+
+.sf-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 3.5rem;
+}
+
+/* Standalone /digests/subscribe page: give the form room to breathe. */
+.subscribe-page {
+  min-height: 60vh;
+  background: #f3f6fa;
+}
+.subscribe-page .subscribe-form {
+  border-top: none;
+}
+
+.sf-header {
+  margin-bottom: 1.5rem;
+}
+
+.sf-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #1f2937;
+  margin: 0 0 0.375rem;
+}
+
+.sf-title-icon {
+  color: #2e3d5b;
+  flex-shrink: 0;
+}
+
+.sf-subtitle {
+  font-size: 0.9375rem;
+  color: #4b5563;
+  margin: 0;
+  max-width: 46rem;
+}
+
+.sf-step-count {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #4b5563;
+  margin: 0 0 0.5rem;
+}
+
+.sf-step-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 0.75rem;
+}
+.sf-step-title:focus {
+  outline: none;
+}
+.sf-step-title:focus-visible {
+  outline: 3px solid #2e5d8c;
+  outline-offset: 3px;
+}
+
+.sf-label,
+.sf-legend {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.375rem;
+}
+
+.sf-input {
+  display: block;
+  width: 100%;
+  max-width: 26rem;
+  box-sizing: border-box;
+  font-size: 1rem;
+  color: #1f2937;
+  background: #fff;
+  border: 1px solid #6b7280;
+  border-radius: 6px;
+  padding: 0.55rem 0.75rem;
+  margin-bottom: 1rem;
+}
+.sf-input:focus-visible {
+  outline: 3px solid #2e5d8c;
+  outline-offset: 1px;
+}
+
+.sf-fieldset {
+  border: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+.sf-fieldset .sf-step-title {
+  margin-bottom: 0.25rem;
+}
+
+.sf-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.25rem 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.sf-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  color: #1f2937;
+  padding: 0.3rem 0;
+  cursor: pointer;
+}
+.sf-check input {
+  margin-top: 0.2rem;
+  width: 1rem;
+  height: 1rem;
+  accent-color: #2e3d5b;
+  flex-shrink: 0;
+}
+.sf-check input:focus-visible {
+  outline: 3px solid #2e5d8c;
+  outline-offset: 1px;
+}
+
+.sf-muted {
+  color: #4b5563;
+  font-size: 0.875rem;
+}
+.sf-muted a {
+  color: #2e5d8c;
+}
+
+.sf-review {
+  margin: 0 0 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.5rem 1rem;
+}
+.sf-review > div {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.sf-review > div:last-child {
+  border-bottom: none;
+}
+.sf-review dt {
+  flex: 0 0 6.5rem;
+  font-weight: 600;
+  color: #4b5563;
+  font-size: 0.875rem;
+  padding-top: 0.1rem;
+}
+.sf-review dd {
+  margin: 0;
+  color: #1f2937;
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.sf-error {
+  color: #b91c1c;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0;
+}
+
+.sf-nav {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.sf-btn {
+  background: #2e3d5b;
+  color: #fff;
+  border: 1px solid #2e3d5b;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  padding: 0.6rem 1.4rem;
+  cursor: pointer;
+}
+.sf-btn:hover {
+  background: #24304a;
+}
+/* Explicit disabled colors, not opacity (AUDIT_FINDINGS: opacity
+   composites against the bg and fails AA). #6b7280 on white ≈ 4.83:1. */
+.sf-btn:disabled {
+  color: #6b7280;
+  border-color: #6b7280;
+  background: #ffffff;
+  cursor: not-allowed;
+}
+.sf-btn:focus-visible {
+  outline: 3px solid #2e5d8c;
+  outline-offset: 2px;
+}
+
+.sf-btn--secondary {
+  background: #fff;
+  color: #2e3d5b;
+}
+.sf-btn--secondary:hover {
+  background: #eef2f7;
+}
+
+.sf-done p {
+  font-size: 1rem;
+  color: #1f2937;
+  max-width: 40rem;
+}
+
+/* Honeypot: moved out of the viewport, not display:none — some bots skip
+   fields hidden via display/visibility. */
+.sf-hp {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}

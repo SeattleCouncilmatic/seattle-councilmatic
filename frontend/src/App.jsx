@@ -20,6 +20,8 @@ import RepDetail from './components/RepDetail'
 import RepDistrict from './components/RepDistrict'
 import Search from './components/Search'
 import About from './components/About'
+import SubscribeForm, { SubscribePage } from './components/SubscribeForm'
+import DigestPreferences from './components/DigestPreferences'
 import NotFound from './components/NotFound'
 import useDocumentTitle from './hooks/useDocumentTitle'
 import './App.css'
@@ -49,6 +51,7 @@ function HomePage() {
     <>
       <LegislationHero />
       <ThisWeek />
+      <SubscribeForm embedded />
     </>
   )
 }
@@ -91,6 +94,11 @@ function App() {
           <Route path="/search/" element={<Search />} />
           <Route path="/about" element={<About />} />
           <Route path="/about/" element={<About />} />
+          {/* SPA-owned digest routes. /digests/confirm, /manage, and
+              /unsubscribe are Django-rendered token pages, never routed
+              here (Vite proxies them in dev; Django owns them in prod). */}
+          <Route path="/digests/subscribe" element={<SubscribePage />} />
+          <Route path="/digests/preferences" element={<DigestPreferences />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

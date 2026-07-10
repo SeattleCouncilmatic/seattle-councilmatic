@@ -1,0 +1,78 @@
+{% comment %}
+Self-contained shell for the digests token pages (confirm / manage /
+unsubscribe). Deliberately does NOT extend seattle_app's base.html —
+that file is legacy cookiecutter kept only for the 404/500 templates.
+These pages are landing targets from email links, so they inline all
+styling and load no JS.
+{% endcomment %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <title>{% block title %}Email digests{% endblock %} | Seattle Councilmatic</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <style>
+        :root { color-scheme: light; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                         "Helvetica Neue", Arial, sans-serif;
+            background: #f4f6f9;
+            color: #1c2733;
+            line-height: 1.55;
+        }
+        .digest-header {
+            background: #14284b;
+            color: #fff;
+            padding: 0.9rem 1.25rem;
+        }
+        .digest-header a {
+            color: #fff;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.05rem;
+        }
+        .digest-header a:hover, .digest-header a:focus { text-decoration: underline; }
+        main {
+            max-width: 34rem;
+            margin: 2.5rem auto;
+            padding: 0 1.25rem;
+        }
+        .card {
+            background: #fff;
+            border: 1px solid #d9dee6;
+            border-radius: 8px;
+            padding: 1.75rem;
+        }
+        h1 { font-size: 1.35rem; margin: 0 0 0.75rem; }
+        p { margin: 0.6rem 0; }
+        a { color: #14508c; }
+        .btn {
+            display: inline-block;
+            background: #14508c;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 0.6rem 1.2rem;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .btn:hover, .btn:focus { background: #0e3c6b; }
+        :focus-visible { outline: 3px solid #14508c; outline-offset: 2px; }
+        .checkbox-row { display: flex; gap: 0.5rem; align-items: flex-start; margin: 1rem 0; }
+        .checkbox-row input { margin-top: 0.3rem; }
+        .muted { color: #55636f; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <header class="digest-header">
+        <a href="/">Seattle Councilmatic</a>
+    </header>
+    <main>
+        <div class="card">
+        {% block content %}{% endblock %}
+        </div>
+    </main>
+</body>
+</html>

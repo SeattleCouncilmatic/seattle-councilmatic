@@ -1,0 +1,16 @@
+{% extends "digests/base.html" %}
+
+{% block title %}Unsubscribed{% endblock %}
+
+{% block content %}
+<h1>You're unsubscribed</h1>
+{% if deleted %}
+<p>Your email address and preferences have been permanently deleted. Nothing
+about your subscription remains in our records.</p>
+{% else %}
+<p>No more digest emails will be sent. Your record will be deleted
+automatically in 30 days — if you resubscribe before then, your
+preferences will still be here.</p>
+{% endif %}
+<p><a href="/">Back to Seattle Councilmatic</a></p>
+{% endblock %}

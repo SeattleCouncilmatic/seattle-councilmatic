@@ -1,0 +1,14 @@
+Confirm your Seattle Councilmatic digest subscription
+
+Someone (hopefully you) asked for email digests of Seattle City Council
+activity at seattlecouncilmatic.org. To start receiving them, confirm
+your address by opening this link:
+
+{{ confirm_url }}
+
+If you didn't request this, do nothing — the subscription will never
+activate and you won't be emailed again.
+
+—
+Seattle Councilmatic
+An independent, open-source window into the Seattle City Council.
