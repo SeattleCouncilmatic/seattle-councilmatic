@@ -15,6 +15,7 @@ app_name = "digests"
 api_urlpatterns = [
     path("subscribe", views.subscribe, name="subscribe"),
     path("preferences", views.preferences_api, name="preferences"),
+    path("manage-link", views.send_manage_link, name="manage_link"),
     path("options", views.options, name="options"),
 ]
 

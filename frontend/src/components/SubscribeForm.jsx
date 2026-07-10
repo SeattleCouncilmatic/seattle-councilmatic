@@ -124,6 +124,10 @@ export default function SubscribeForm({ embedded = false }) {
             topics, councilmembers, and district you choose. Free, no account,
             unsubscribe anytime.
           </p>
+          <p className="sf-muted">
+            Already subscribed?{' '}
+            <Link to="/digests/preferences">Manage your preferences</Link>.
+          </p>
         </header>
 
         {done ? (

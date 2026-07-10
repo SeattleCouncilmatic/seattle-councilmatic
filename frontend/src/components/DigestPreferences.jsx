@@ -20,9 +20,14 @@ export default function DigestPreferences() {
   const [options, setOptions] = useState(null)
   const [prefs, setPrefs] = useState(null)     // server payload
   const [authError, setAuthError] = useState(false)
+  const [sessionExpired, setSessionExpired] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const [saving, setSaving] = useState(false)
   const [statusMsg, setStatusMsg] = useState(null)   // {kind: 'ok'|'error', text}
+  // Request-a-manage-link form (shown when unauthenticated).
+  const [requestEmail, setRequestEmail] = useState('')
+  const [requestState, setRequestState] = useState('idle')  // idle | sending | sent
+  const [requestError, setRequestError] = useState(null)
   const uid = useId()
   const statusRef = useRef(null)
 
@@ -81,7 +86,7 @@ export default function DigestPreferences() {
           district_id: prefs.district_id,
         }),
       })
-      if (r.status === 401) { setAuthError(true); return }
+      if (r.status === 401) { setAuthError(true); setSessionExpired(true); return }
       const data = await r.json().catch(() => ({}))
       if (r.ok) {
         setPrefs(data)
@@ -96,20 +101,81 @@ export default function DigestPreferences() {
     }
   }
 
+  const requestManageLink = async e => {
+    e.preventDefault()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requestEmail.trim())) {
+      setRequestError('Please enter a valid email address.')
+      return
+    }
+    setRequestState('sending')
+    setRequestError(null)
+    try {
+      const r = await fetch('/api/digests/manage-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: requestEmail.trim() }),
+      })
+      if (r.status === 202) {
+        setRequestState('sent')
+      } else {
+        const data = await r.json().catch(() => ({}))
+        setRequestState('idle')
+        setRequestError(data.error || `Something went wrong (HTTP ${r.status}). Please try again.`)
+      }
+    } catch {
+      setRequestState('idle')
+      setRequestError('Could not reach the server. Please try again.')
+    }
+  }
+
   if (authError) {
     return (
       <div className="digest-prefs">
         <div className="dp-inner">
           <h1 className="dp-title">Email digest preferences</h1>
-          <div className="dp-notice" role="status">
-            <p>
-              This page needs the <strong>manage preferences</strong> link from
-              one of your digest emails — open that link to sign in (it lasts
-              an hour, no password needed).
-            </p>
-            <p>
-              Not subscribed yet? <Link to="/digests/subscribe">Sign up for digests</Link>.
-            </p>
+          <div className="dp-notice">
+            {requestState === 'sent' ? (
+              <p role="status">
+                If <strong>{requestEmail.trim()}</strong> is subscribed, a
+                manage link is on its way — check your inbox.
+              </p>
+            ) : (
+              <>
+                <p role="status">
+                  {sessionExpired
+                    ? 'Your session expired. Enter your email and we’ll send a fresh manage link.'
+                    : 'This page needs a manage link — enter your subscribed email and we’ll send you one (no password needed; the link signs you in for an hour).'}
+                </p>
+                <form onSubmit={requestManageLink} className="dp-request-form">
+                  <label className="dp-legend" htmlFor={`${uid}-request-email`}>
+                    Email address
+                  </label>
+                  <input
+                    className="dp-input"
+                    id={`${uid}-request-email`}
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={requestEmail}
+                    onChange={e2 => setRequestEmail(e2.target.value)}
+                    aria-describedby={requestError ? `${uid}-request-error` : undefined}
+                  />
+                  {requestError && (
+                    <p className="dp-error" id={`${uid}-request-error`} role="alert">
+                      {requestError}
+                    </p>
+                  )}
+                  <div className="dp-actions">
+                    <button type="submit" className="dp-btn" disabled={requestState === 'sending'}>
+                      {requestState === 'sending' ? 'Sending…' : 'Email me a manage link'}
+                    </button>
+                  </div>
+                </form>
+                <p className="dp-muted">
+                  Not subscribed yet? <Link to="/digests/subscribe">Sign up for digests</Link>.
+                </p>
+              </>
+            )}
           </div>
         </div>
       </div>

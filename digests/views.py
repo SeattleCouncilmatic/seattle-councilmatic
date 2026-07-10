@@ -155,6 +155,19 @@ def _send_verification_email(request, subscriber):
     )
 
 
+def _send_manage_link_email(request, subscriber):
+    manage_url = request.build_absolute_uri(
+        f"/digests/manage?token={make_token(subscriber, PURPOSE_MANAGE)}"
+    )
+    context = {"manage_url": manage_url}
+    get_email_client().send(
+        to=subscriber.email,
+        subject="Manage your Seattle Councilmatic digest preferences",
+        text_body=render_to_string("email/manage_link.txt", context),
+        html_body=render_to_string("email/manage_link.html", context),
+    )
+
+
 def _preferences_payload(request, subscriber):
     prefs = subscriber.preferences
     return {
@@ -248,6 +261,61 @@ def subscribe(request):
     return JsonResponse({"status": "ok"}, status=202)
 
 
+@csrf_exempt  # Public unauthenticated endpoint; same abuse controls as subscribe.
+@require_POST
+@ratelimit(key="ip", rate="5/h", method="POST", block=False)
+@ratelimit(key=_email_hash_key, rate="1/h", method="POST", block=False)
+def send_manage_link(request):
+    """POST /api/digests/manage-link — body: {email}.
+
+    Self-service recovery for the preferences page: emails a fresh manage
+    link to an *active* subscriber (a *pending* one gets their verification
+    email re-sent instead — the manage page is useless until they confirm).
+    Always 202 on well-formed input, whether or not the address is
+    subscribed — same enumeration guard as subscribe.
+    """
+    if getattr(request, "limited", False):
+        return _rate_limited_response()
+
+    try:
+        data = json.loads(request.body)
+    except ValueError:
+        return JsonResponse({"error": "Invalid JSON body."}, status=400)
+
+    email = data.get("email", "")
+    if not isinstance(email, str):
+        return JsonResponse({"error": "email must be a string."}, status=400)
+    email = email.strip().lower()
+    try:
+        validate_email(email)
+    except ValidationError:
+        return JsonResponse({"error": "Please enter a valid email address."}, status=400)
+
+    subscriber = Subscriber.objects.filter(email=email).first()
+    try:
+        if subscriber and subscriber.status == Subscriber.STATUS_ACTIVE:
+            _send_manage_link_email(request, subscriber)
+            logger.info("Manage link sent for subscriber %s", subscriber.pk)
+        elif subscriber and subscriber.status == Subscriber.STATUS_PENDING:
+            if not subscriber.verification_token:
+                subscriber.verification_token = get_random_string(43)
+                subscriber.save(update_fields=["verification_token"])
+            _send_verification_email(request, subscriber)
+            logger.info("Verification email re-sent for subscriber %s", subscriber.pk)
+        # Unknown / unsubscribed / bounced: silently no-op — the 202 below
+        # is identical either way.
+    except Exception:
+        logger.exception(
+            "Manage-link email send failed for subscriber %s",
+            subscriber.pk if subscriber else "?",
+        )
+        return JsonResponse(
+            {"error": "Could not send the email. Please try again later."},
+            status=500,
+        )
+    return JsonResponse({"status": "ok"}, status=202)
+
+
 @require_GET
 def options(request):
     """GET /api/digests/options — vocabulary the subscribe/preferences forms
@@ -288,6 +356,11 @@ def preferences_api(request):
             {"error": "Not authenticated. Use the manage link from a digest email."},
             status=401,
         )
+
+    # Sliding expiry: any authenticated interaction resets the 1-hour
+    # clock, so the session can't lapse mid-edit. Idle sessions still
+    # die after SESSION_TTL_SECONDS.
+    request.session.set_expiry(SESSION_TTL_SECONDS)
 
     if request.method == "POST":
         try:

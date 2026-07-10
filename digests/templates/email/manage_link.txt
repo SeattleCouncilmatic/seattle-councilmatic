@@ -1,0 +1,14 @@
+Manage your Seattle Councilmatic digest preferences
+
+You (or someone with your email address) asked for a link to manage
+your digest preferences. Open this link to review your topics,
+councilmembers, district, and cadence — or to unsubscribe:
+
+{{ manage_url }}
+
+If you didn't request this, you can safely ignore it — the link only
+works for your own subscription, and nothing has changed.
+
+—
+Seattle Councilmatic
+An independent, open-source window into the Seattle City Council.

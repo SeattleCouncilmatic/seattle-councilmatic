@@ -46,6 +46,13 @@
   color: #2e5d8c;
 }
 
+.dp-request-form {
+  margin: 1rem 0 1.25rem;
+}
+.dp-request-form .dp-actions {
+  margin-top: 0.75rem;
+}
+
 .dp-fieldset {
   border: none;
   padding: 0;

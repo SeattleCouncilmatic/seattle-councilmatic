@@ -123,6 +123,64 @@ class SubscribeRateLimitTests(TestCase):
         self.assertEqual(sixth.status_code, 429)
 
 
+class ManageLinkRequestTests(TestCase):
+    def _request(self, email):
+        return self.client.post(
+            "/api/digests/manage-link",
+            data=json.dumps({"email": email}),
+            content_type="application/json",
+        )
+
+    def test_active_subscriber_gets_manage_link(self):
+        Subscriber.objects.create(
+            email="linkme@example.org", status=Subscriber.STATUS_ACTIVE
+        )
+        response = self._request("LinkMe@Example.org")
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("/digests/manage?token=", mail.outbox[0].body)
+
+    def test_pending_subscriber_gets_verification_resend(self):
+        Subscriber.objects.create(
+            email="stillpending@example.org",
+            status=Subscriber.STATUS_PENDING,
+            verification_token="tok-pending-123",
+        )
+        response = self._request("stillpending@example.org")
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("/digests/confirm?token=tok-pending-123", mail.outbox[0].body)
+
+    def test_unknown_email_same_202_no_email(self):
+        # Enumeration guard: the response is indistinguishable from success.
+        response = self._request("nobody@example.org")
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_unsubscribed_gets_nothing(self):
+        Subscriber.objects.create(
+            email="gone@example.org", status=Subscriber.STATUS_UNSUBSCRIBED
+        )
+        response = self._request("gone@example.org")
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_invalid_email_rejected(self):
+        self.assertEqual(self._request("not-an-email").status_code, 400)
+
+    @override_settings(CACHES=LOCMEM_CACHE)
+    def test_rate_limited_per_email(self):
+        from django.core.cache import cache
+        cache.clear()
+        Subscriber.objects.create(
+            email="ratelimit@example.org", status=Subscriber.STATUS_ACTIVE
+        )
+        self.assertEqual(self._request("ratelimit@example.org").status_code, 202)
+        second = self._request("ratelimit@example.org")
+        self.assertEqual(second.status_code, 429)
+        self.assertEqual(second["Retry-After"], "3600")
+
+
 class ConfirmTests(TestCase):
     def test_confirm_activates_and_clears_token(self):
         _subscribe(self.client, {"email": "confirm@example.org"})
@@ -188,6 +246,16 @@ class ManageAndPreferencesTests(TestCase):
         prefs = SubscriberPreferences.objects.get(subscriber=self.subscriber)
         self.assertFalse(prefs.weekly_enabled)
         self.assertEqual(prefs.issue_areas, ["Labor"])
+
+    def test_preferences_requests_slide_session_expiry(self):
+        # Every authenticated call resets the 1-hour clock so the session
+        # can't lapse mid-edit.
+        self._open_manage_session()
+        session = self.client.session
+        session.set_expiry(10)  # nearly-expired
+        session.save()
+        self.client.get("/api/digests/preferences")
+        self.assertGreater(self.client.session.get_expiry_age(), 3000)
 
     def test_preferences_post_invalid_tag_rejected(self):
         self._open_manage_session()
