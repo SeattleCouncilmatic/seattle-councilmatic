@@ -42,7 +42,10 @@ export default function SubscribeForm({ embedded = false }) {
     fetch('/api/digests/options')
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(data => { if (!cancelled) setOptions(data) })
-      .catch(() => { if (!cancelled) setOptions({ issue_areas: [], reps: [], districts: [] }) })
+      // Fail open on a fetch error (signup_open: true): the picker lists
+      // degrade to empty but the form still works, and the server-side
+      // DIGESTS_ENABLED gate is what actually enforces closed signups.
+      .catch(() => { if (!cancelled) setOptions({ signup_open: true, issue_areas: [], reps: [], districts: [] }) })
     return () => { cancelled = true }
   }, [])
 
@@ -108,6 +111,13 @@ export default function SubscribeForm({ embedded = false }) {
     ? options?.districts.find(d => String(d.id) === String(districtId))?.name
     : null
 
+  // Signups closed (DIGESTS_ENABLED off — the pre-launch state on prod):
+  // the homepage embed disappears entirely (also while options load, so a
+  // closed prod homepage never flashes the form); the standalone page
+  // explains. The footer link stays, which is fine — it just lands here.
+  const signupClosed = options && options.signup_open === false
+  if (embedded && (!options || signupClosed)) return null
+
   return (
     <section
       className={`subscribe-form${embedded ? ' subscribe-form--embedded' : ''}`}
@@ -130,7 +140,17 @@ export default function SubscribeForm({ embedded = false }) {
           </p>
         </header>
 
-        {done ? (
+        {signupClosed ? (
+          <div className="sf-done" role="status">
+            <SubH className="sf-step-title" tabIndex={-1}>
+              Coming soon
+            </SubH>
+            <p>
+              Digest signups aren't open yet — we're still testing the first
+              issues. Check back soon.
+            </p>
+          </div>
+        ) : done ? (
           <div className="sf-done" role="status">
             <SubH className="sf-step-title" tabIndex={-1} ref={headingRef}>
               Check your inbox

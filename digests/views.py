@@ -23,6 +23,7 @@ import hashlib
 import json
 import logging
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.http import HttpResponse, JsonResponse
@@ -206,6 +207,12 @@ def subscribe(request):
     the address was already subscribed (enumeration guard). ``website`` is
     the honeypot: humans never see it, bots fill it, we accept-and-drop.
     """
+    # Launch gate / kill switch: signups closed unless DIGESTS_ENABLED.
+    # Existing-subscriber self-service (confirm/manage/preferences/
+    # unsubscribe/manage-link) deliberately stays up — see settings.py.
+    if not settings.DIGESTS_ENABLED:
+        return JsonResponse({"error": "Digest signups aren't open yet."}, status=403)
+
     if getattr(request, "limited", False):
         return _rate_limited_response()
 
@@ -333,6 +340,9 @@ def options(request):
         for d in District.objects.order_by("number")
     ]
     return JsonResponse({
+        # The SPA's SubscribeForm keys off this: closed → homepage embed
+        # renders nothing, /digests/subscribe shows a coming-soon notice.
+        "signup_open": settings.DIGESTS_ENABLED,
         "issue_areas": list(BILL_TAG_VOCABULARY),
         "reps": reps,
         "districts": districts,
