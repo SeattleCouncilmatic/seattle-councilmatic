@@ -4,7 +4,7 @@ from django.contrib.gis.geos import MultiPolygon, Polygon
 from django.core import mail
 from django.test import TestCase, override_settings
 
-from digests.models import Subscriber, SubscriberPreferences
+from digests.models import DigestConfig, Subscriber, SubscriberPreferences
 from digests.services.tokens import PURPOSE_MANAGE, PURPOSE_UNSUBSCRIBE, make_token
 from reps.models import District
 
@@ -18,6 +18,13 @@ LOCMEM_CACHE = {
 }
 
 
+def _set_signups(open_):
+    """Pin the DigestConfig singleton's signup gate. Tests set this
+    explicitly rather than relying on the DEBUG-derived seed (the test
+    runner forces DEBUG=False, which would seed 'closed')."""
+    DigestConfig.objects.update_or_create(pk=1, defaults={"signups_enabled": open_})
+
+
 def _subscribe(client, payload):
     return client.post(
         "/api/digests/subscribe",
@@ -26,7 +33,90 @@ def _subscribe(client, payload):
     )
 
 
+class SignupFlagTests(TestCase):
+    """Signups closed (the DigestConfig admin toggle off — prod's seeded
+    pre-launch state) blocks acquisition but must leave every
+    existing-subscriber surface working — it doubles as a post-launch kill
+    switch, so it can never break links already in inboxes."""
+
+    def setUp(self):
+        _set_signups(False)
+
+    def test_singleton_seeds_closed_when_debug_false(self):
+        # The test runner runs with DEBUG=False (prod-like): first access
+        # must create the row closed. Delete the setUp row to exercise the
+        # seeding path itself.
+        DigestConfig.objects.all().delete()
+        self.assertFalse(DigestConfig.signups_open())
+        self.assertEqual(DigestConfig.objects.count(), 1)
+
+    def test_save_enforces_singleton_pk(self):
+        config = DigestConfig(signups_enabled=True)
+        config.save()
+        self.assertEqual(config.pk, 1)
+        self.assertEqual(DigestConfig.objects.count(), 1)
+
+    def test_subscribe_closed(self):
+        response = _subscribe(self.client, {"email": "early@example.org"})
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Subscriber.objects.exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_options_reports_closed_but_still_serves_vocab(self):
+        response = self.client.get("/api/digests/options")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data["signup_open"])
+        self.assertIn("Housing", data["issue_areas"])
+
+    def test_existing_subscriber_flows_stay_live(self):
+        pending = Subscriber.objects.create(
+            email="pending@example.org",
+            status=Subscriber.STATUS_PENDING,
+            verification_token="tok-flag-test",
+        )
+        active = Subscriber.objects.create(
+            email="active@example.org", status=Subscriber.STATUS_ACTIVE
+        )
+        SubscriberPreferences.objects.create(subscriber=active)
+
+        # Confirm link from an already-sent verification email still works.
+        self.assertEqual(
+            self.client.get("/digests/confirm?token=tok-flag-test").status_code, 200
+        )
+        pending.refresh_from_db()
+        self.assertEqual(pending.status, Subscriber.STATUS_ACTIVE)
+
+        # Manage link → session → preferences API still works.
+        manage = self.client.get(
+            f"/digests/manage?token={make_token(active, PURPOSE_MANAGE)}"
+        )
+        self.assertEqual(manage.status_code, 302)
+        self.assertEqual(self.client.get("/api/digests/preferences").status_code, 200)
+
+        # Manage-link recovery email still sends.
+        response = self.client.post(
+            "/api/digests/manage-link",
+            data=json.dumps({"email": "active@example.org"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(len(mail.outbox), 1)
+
+        # Unsubscribe still works.
+        unsub = self.client.post(
+            "/digests/unsubscribe",
+            {"token": make_token(active, PURPOSE_UNSUBSCRIBE)},
+        )
+        self.assertEqual(unsub.status_code, 200)
+        active.refresh_from_db()
+        self.assertEqual(active.status, Subscriber.STATUS_UNSUBSCRIBED)
+
+
 class SubscribeTests(TestCase):
+    def setUp(self):
+        _set_signups(True)
+
     def test_happy_path_creates_pending_and_sends_verification(self):
         response = _subscribe(self.client, {
             "email": "new@example.org",
@@ -105,6 +195,7 @@ class SubscribeTests(TestCase):
 @override_settings(CACHES=LOCMEM_CACHE)
 class SubscribeRateLimitTests(TestCase):
     def setUp(self):
+        _set_signups(True)
         from django.core.cache import cache
         cache.clear()
 
@@ -182,6 +273,11 @@ class ManageLinkRequestTests(TestCase):
 
 
 class ConfirmTests(TestCase):
+    def setUp(self):
+        # These tests create their subscribers through the subscribe
+        # endpoint, so the signup gate must be open.
+        _set_signups(True)
+
     def test_confirm_activates_and_clears_token(self):
         _subscribe(self.client, {"email": "confirm@example.org"})
         subscriber = Subscriber.objects.get(email="confirm@example.org")
@@ -309,10 +405,14 @@ class UnsubscribeTests(TestCase):
 
 
 class OptionsTests(TestCase):
+    def setUp(self):
+        _set_signups(True)
+
     def test_options_lists_vocabulary(self):
         response = self.client.get("/api/digests/options")
         self.assertEqual(response.status_code, 200)
         data = response.json()
+        self.assertTrue(data["signup_open"])
         self.assertIn("Housing", data["issue_areas"])
         self.assertEqual(data["reps"], [])       # no council members in test DB
         self.assertEqual(data["districts"], [])

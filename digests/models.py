@@ -14,6 +14,7 @@ Privacy constraints that shape these models:
   ``manage.py purge_unsubscribed`` (right-to-delete; keeps the standing
   pool of stored addresses small).
 """
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
@@ -220,3 +221,49 @@ class DigestSend(models.Model):
 
     def __str__(self):
         return f"{self.cadence} send to subscriber {self.subscriber_id} at {self.sent_at:%Y-%m-%d}"
+
+
+class DigestConfig(models.Model):
+    """Singleton (pk=1) runtime configuration, toggled in the Django admin —
+    the same pattern as ``PipelineAlertState``. The admin checkbox is the
+    ONLY control; there is deliberately no env-var override (split-brain
+    config drift is what the WORK_LOG model-defaults convention exists to
+    prevent). Future runtime flags (e.g. Phase 5's DIGEST_INCLUDE_BLURBS)
+    belong on this row too.
+
+    ``signups_enabled`` gates ACQUISITION only — the subscribe endpoint and
+    the SPA's subscribe form. Confirm/manage/preferences/unsubscribe stay
+    live regardless, so unticking it post-launch (kill switch) never breaks
+    unsubscribe links already sitting in inboxes.
+    """
+
+    signups_enabled = models.BooleanField(
+        help_text="Allow new digest signups. Off = subscribe endpoint 403s "
+        "and the SPA hides the form; existing subscribers are unaffected.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Digest configuration"
+        verbose_name_plural = "Digest configuration"
+
+    def __str__(self):
+        return f"Digest configuration (signups {'open' if self.signups_enabled else 'closed'})"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1  # enforce the singleton
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        # Seeded on first access: open in dev (DEBUG), closed in prod — so
+        # merged digest code rides along on prod deploys with signups shut
+        # until launch day ticks the box.
+        obj, _ = cls.objects.get_or_create(
+            pk=1, defaults={"signups_enabled": settings.DEBUG}
+        )
+        return obj
+
+    @classmethod
+    def signups_open(cls) -> bool:
+        return cls.load().signups_enabled

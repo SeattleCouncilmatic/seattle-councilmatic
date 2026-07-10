@@ -30,11 +30,12 @@ from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.crypto import get_random_string
+from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 from django_ratelimit.decorators import ratelimit
 
-from .models import Subscriber, SubscriberPreferences, validate_issue_areas
+from .models import DigestConfig, Subscriber, SubscriberPreferences, validate_issue_areas
 from .services.email_client import get_email_client
 from .services.tokens import (
     PURPOSE_MANAGE,
@@ -206,6 +207,13 @@ def subscribe(request):
     the address was already subscribed (enumeration guard). ``website`` is
     the honeypot: humans never see it, bots fill it, we accept-and-drop.
     """
+    # Launch gate / kill switch: signups closed unless the admin toggle
+    # (DigestConfig.signups_enabled) is on. Existing-subscriber
+    # self-service (confirm/manage/preferences/unsubscribe/manage-link)
+    # deliberately stays up — see the DigestConfig docstring.
+    if not DigestConfig.signups_open():
+        return JsonResponse({"error": "Digest signups aren't open yet."}, status=403)
+
     if getattr(request, "limited", False):
         return _rate_limited_response()
 
@@ -316,10 +324,14 @@ def send_manage_link(request):
     return JsonResponse({"status": "ok"}, status=202)
 
 
+@never_cache  # signup_open must reflect an admin kill-switch flip within
+# seconds — prod's 10-minute page-cache middleware would otherwise keep
+# serving the stale flag to the SPA.
 @require_GET
 def options(request):
     """GET /api/digests/options — vocabulary the subscribe/preferences forms
-    render: issue-area tags, current councilmembers, districts."""
+    render (issue-area tags, current councilmembers, districts) plus the
+    ``signup_open`` flag."""
     from reps.services import _query_current_council_members
     from reps.models import District
     from seattle_app.services.claude_service import BILL_TAG_VOCABULARY
@@ -333,6 +345,9 @@ def options(request):
         for d in District.objects.order_by("number")
     ]
     return JsonResponse({
+        # The SPA's SubscribeForm keys off this: closed → homepage embed
+        # renders nothing, /digests/subscribe shows a coming-soon notice.
+        "signup_open": DigestConfig.signups_open(),
         "issue_areas": list(BILL_TAG_VOCABULARY),
         "reps": reps,
         "districts": districts,
