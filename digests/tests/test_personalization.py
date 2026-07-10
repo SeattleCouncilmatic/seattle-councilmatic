@@ -115,6 +115,37 @@ class BillMatchTests(TestCase):
         self.assertIsNone(item["blurb"])
 
 
+class ShortTitleTests(TestCase):
+    """Digest headlines from Seattle's semicolon-chained legal titles."""
+
+    def test_first_semicolon_clause_wins(self):
+        self.assertEqual(
+            personalization._short_title(
+                "An ordinance relating to the City Light Department; "
+                "authorizing the General Manager and Chief Executive Officer "
+                "to grant an easement over a portion of fee owned property."
+            ),
+            "An ordinance relating to the City Light Department",
+        )
+
+    def test_long_clause_truncates_at_word_boundary(self):
+        title = (
+            "A resolution regarding next steps after the forensic evaluation "
+            "of the King County Regional Homelessness Authority (KCRHA) and "
+            "further steps beyond those next steps"
+        )
+        short = personalization._short_title(title)
+        self.assertLessEqual(len(short), personalization.SHORT_TITLE_MAX + 1)
+        self.assertTrue(short.endswith("…"))
+        # No mid-word cut: everything before the ellipsis is a title prefix.
+        self.assertIn(short[:-1], title)
+        self.assertTrue(title.startswith(short[:-1].rstrip()))
+
+    def test_short_title_passes_through(self):
+        title = "A resolution creating an Arts and Cultural District."
+        self.assertEqual(personalization._short_title(title), title)
+
+
 class MeetingMatchTests(TestCase):
     def test_meeting_of_followed_reps_committee(self):
         rep = fixtures.councilmember("Robert Kettle", "District 7")

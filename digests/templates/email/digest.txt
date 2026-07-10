@@ -10,7 +10,7 @@ browse recent legislation any time: {{ site_base }}/legislation
 LEGISLATION
 -----------
 {% for item in bill_items %}
-{% if item.identifier %}{{ item.identifier }}: {% endif %}{{ item.title }}
+{{ item.identifier }} - {{ item.short_title }}
   Why: {{ item.reasons|join:"; " }}{% if item.latest_action %}
   Latest action{% if item.date %} ({{ item.date }}){% endif %}: {{ item.latest_action }}{% endif %}{% if item.blurb %}
   {{ item.blurb }}{% endif %}{% if item.summary %}

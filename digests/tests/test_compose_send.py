@@ -166,6 +166,24 @@ class SendTests(TestCase):
         sub.refresh_from_db()
         self.assertIsNotNone(sub.last_sent_at)
 
+    def test_legal_title_boilerplate_stays_out_of_the_email(self):
+        fixtures.bill(
+            "CB 200007",
+            action_date=RECENT,
+            tags=["Housing"],
+            title="An ordinance relating to housing; authorizing the Director "
+            "of Housing to execute an amendment to an agreement and ratifying "
+            "and confirming certain prior acts.",
+        )
+        fixtures.subscriber("longtitle@example.org", issue_areas=["Housing"])
+        _compose(cadence="weekly")
+        _send()
+        message = mail.outbox[0]
+        for body in (message.body, message.alternatives[0][0]):
+            self.assertIn("CB 200007", body)
+            self.assertIn("An ordinance relating to housing", body)
+            self.assertNotIn("ratifying and confirming", body)
+
     def test_quiet_week_email(self):
         fixtures.subscriber("quietsend@example.org", issue_areas=["Housing"])
         _compose(cadence="weekly")

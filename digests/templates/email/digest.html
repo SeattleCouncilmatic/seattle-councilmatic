@@ -33,7 +33,8 @@ built from {{ site_base }} — there's no request context at send time.
   {% for item in bill_items %}
   <div style="margin:0 0 20px;padding:0 0 0 12px;border-left:3px solid #c9d4e8;">
     <p style="margin:0 0 4px;font-size:16px;line-height:1.4;">
-      <a href="{{ site_base }}{{ item.url_path }}" style="color:#2b5ca8;font-weight:bold;">{% if item.identifier %}{{ item.identifier }}: {% endif %}{{ item.title }}</a>
+      <a href="{{ site_base }}{{ item.url_path }}" style="color:#2b5ca8;font-weight:bold;">{{ item.identifier }}</a>
+      &mdash; {{ item.short_title }}
     </p>
     <p style="margin:0 0 6px;font-size:13px;color:#5a6172;">
       {{ item.reasons|join:" &middot; " }}

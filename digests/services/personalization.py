@@ -186,6 +186,7 @@ def _bill_item(bill, reasons) -> dict:
         "id": bill.id,
         "identifier": bill.identifier,
         "title": bill.title or "",
+        "short_title": _short_title(bill.title or ""),
         "url_path": f"/legislation/{bill.slug}",
         "date": (latest.date or "")[:10] if latest else "",
         "latest_action": latest.description if latest else "",
@@ -243,6 +244,7 @@ def _meeting_item(event, reasons) -> dict:
         "id": event.id,
         "identifier": "",
         "title": event.name,
+        "short_title": event.name,
         "url_path": f"/events/{event.slug}",
         "date": (event.start_date or "")[:10],
         "latest_action": "",
@@ -285,3 +287,23 @@ def _first_paragraph(text: str) -> str:
     the linked detail page has the rest. Content is verbatim, just truncated
     at the paragraph boundary."""
     return (text or "").strip().split("\n\n", 1)[0]
+
+
+# Cap for the digest headline derived from a bill's legal title.
+SHORT_TITLE_MAX = 110
+
+
+def _short_title(title: str) -> str:
+    """Digest headline from a Seattle legal title. These run to hundreds of
+    chars of semicolon-chained boilerplate ("An ordinance relating to the
+    City Light Department; authorizing the General Manager and Chief
+    Executive Officer to grant an easement over…"), and the first
+    semicolon clause is the informative topic — so take that, then
+    word-boundary truncate in case the clause itself runs long (some
+    resolutions have no semicolon at all). The linked bill page has the
+    full title."""
+    clause = title.split(";", 1)[0].strip()
+    if len(clause) <= SHORT_TITLE_MAX:
+        return clause
+    cut = clause[:SHORT_TITLE_MAX].rsplit(" ", 1)[0].rstrip(",.:")
+    return f"{cut}…"
