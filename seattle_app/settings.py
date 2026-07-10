@@ -305,13 +305,10 @@ PIPELINE_ALERT_EMAILS = [
 # Email digests (#231). Phase 1 ships subscription plumbing; digest
 # composition/LLM/Postmark land in later phases.
 #
-# DIGESTS_ENABLED gates ACQUISITION only — the subscribe endpoint and the
-# SPA's subscribe form. Confirm/manage/preferences/unsubscribe stay live
-# regardless, so flipping this off post-launch (kill switch) never breaks
-# unsubscribe links already sitting in inboxes. Defaults on in dev (DEBUG),
-# off in prod: merged digest code rides along on prod deploys safely until
-# the Phase 4 launch flips DIGESTS_ENABLED=true in the live .env.
-DIGESTS_ENABLED = os.getenv("DIGESTS_ENABLED", "true" if DEBUG else "false").lower() == "true"
+# The signups launch gate / kill switch is NOT a setting: it's the
+# DigestConfig singleton (digests/models.py), toggled in the Django admin.
+# Seeded open in dev / closed in prod on first access; gates acquisition
+# only, so unsubscribe links keep working if it's ever flipped off.
 #
 # All outbound digest mail goes through the DigestEmailClient interface
 # (digests/services/email_client.py). "smtp" reuses the EMAIL_* config

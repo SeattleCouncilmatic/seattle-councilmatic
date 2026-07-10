@@ -9,7 +9,7 @@ shell`` where access is already shell-level.
 """
 from django.contrib import admin
 
-from .models import DigestSend, Subscriber, SubscriberPreferences
+from .models import DigestConfig, DigestSend, Subscriber, SubscriberPreferences
 
 
 def _mask_email(email: str) -> str:
@@ -68,6 +68,28 @@ class SubscriberPreferencesAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(DigestConfig)
+class DigestConfigAdmin(admin.ModelAdmin):
+    """The one EDITABLE thing in this admin (everything else is read-only
+    subscriber data): the signups launch gate / kill switch."""
+
+    list_display = ("__str__", "signups_enabled", "updated_at")
+    readonly_fields = ("updated_at",)
+
+    def get_queryset(self, request):
+        # Ensure the singleton exists so the toggle is always visible in
+        # the changelist — without this, a fresh deploy shows an empty
+        # list with no Add button and nothing to click.
+        DigestConfig.load()
+        return super().get_queryset(request)
+
+    def has_add_permission(self, request):
+        return False  # the singleton auto-creates; pk=1 is enforced in save()
+
+    def has_delete_permission(self, request, obj=None):
         return False
 
 

@@ -4,7 +4,7 @@ from django.contrib.gis.geos import MultiPolygon, Polygon
 from django.core import mail
 from django.test import TestCase, override_settings
 
-from digests.models import Subscriber, SubscriberPreferences
+from digests.models import DigestConfig, Subscriber, SubscriberPreferences
 from digests.services.tokens import PURPOSE_MANAGE, PURPOSE_UNSUBSCRIBE, make_token
 from reps.models import District
 
@@ -18,6 +18,13 @@ LOCMEM_CACHE = {
 }
 
 
+def _set_signups(open_):
+    """Pin the DigestConfig singleton's signup gate. Tests set this
+    explicitly rather than relying on the DEBUG-derived seed (the test
+    runner forces DEBUG=False, which would seed 'closed')."""
+    DigestConfig.objects.update_or_create(pk=1, defaults={"signups_enabled": open_})
+
+
 def _subscribe(client, payload):
     return client.post(
         "/api/digests/subscribe",
@@ -26,12 +33,28 @@ def _subscribe(client, payload):
     )
 
 
-@override_settings(DIGESTS_ENABLED=False)
 class SignupFlagTests(TestCase):
-    """DIGESTS_ENABLED=False (prod's pre-launch default) closes acquisition
-    but must leave every existing-subscriber surface working — it doubles
-    as a post-launch kill switch, so it can never break links already in
-    inboxes."""
+    """Signups closed (the DigestConfig admin toggle off — prod's seeded
+    pre-launch state) blocks acquisition but must leave every
+    existing-subscriber surface working — it doubles as a post-launch kill
+    switch, so it can never break links already in inboxes."""
+
+    def setUp(self):
+        _set_signups(False)
+
+    def test_singleton_seeds_closed_when_debug_false(self):
+        # The test runner runs with DEBUG=False (prod-like): first access
+        # must create the row closed. Delete the setUp row to exercise the
+        # seeding path itself.
+        DigestConfig.objects.all().delete()
+        self.assertFalse(DigestConfig.signups_open())
+        self.assertEqual(DigestConfig.objects.count(), 1)
+
+    def test_save_enforces_singleton_pk(self):
+        config = DigestConfig(signups_enabled=True)
+        config.save()
+        self.assertEqual(config.pk, 1)
+        self.assertEqual(DigestConfig.objects.count(), 1)
 
     def test_subscribe_closed(self):
         response = _subscribe(self.client, {"email": "early@example.org"})
@@ -90,8 +113,10 @@ class SignupFlagTests(TestCase):
         self.assertEqual(active.status, Subscriber.STATUS_UNSUBSCRIBED)
 
 
-@override_settings(DIGESTS_ENABLED=True)
 class SubscribeTests(TestCase):
+    def setUp(self):
+        _set_signups(True)
+
     def test_happy_path_creates_pending_and_sends_verification(self):
         response = _subscribe(self.client, {
             "email": "new@example.org",
@@ -167,9 +192,10 @@ class SubscribeTests(TestCase):
         self.assertEqual(len(mail.outbox), 2)
 
 
-@override_settings(CACHES=LOCMEM_CACHE, DIGESTS_ENABLED=True)
+@override_settings(CACHES=LOCMEM_CACHE)
 class SubscribeRateLimitTests(TestCase):
     def setUp(self):
+        _set_signups(True)
         from django.core.cache import cache
         cache.clear()
 
@@ -247,6 +273,11 @@ class ManageLinkRequestTests(TestCase):
 
 
 class ConfirmTests(TestCase):
+    def setUp(self):
+        # These tests create their subscribers through the subscribe
+        # endpoint, so the signup gate must be open.
+        _set_signups(True)
+
     def test_confirm_activates_and_clears_token(self):
         _subscribe(self.client, {"email": "confirm@example.org"})
         subscriber = Subscriber.objects.get(email="confirm@example.org")
@@ -373,8 +404,10 @@ class UnsubscribeTests(TestCase):
         self.assertEqual(self.client.post("/digests/unsubscribe", {"token": "1.junk"}).status_code, 404)
 
 
-@override_settings(DIGESTS_ENABLED=True)
 class OptionsTests(TestCase):
+    def setUp(self):
+        _set_signups(True)
+
     def test_options_lists_vocabulary(self):
         response = self.client.get("/api/digests/options")
         self.assertEqual(response.status_code, 200)
