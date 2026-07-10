@@ -224,41 +224,52 @@ OCD_CITY_COUNCIL_NAME = os.getenv("OCD_CITY_COUNCIL_NAME", WAGTAIL_SITE_NAME)
 
 # Claude / Anthropic API for plain-English summaries
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-# Sonnet: balanced cost/quality for the bulk SMC-section summary backfill.
-# Cached few-shot system prompt + Anthropic Batch API keep cost reasonable;
-# Haiku 4.5 was tried and is too inconsistent for legal-summary work.
-CLAUDE_CODE_SECTION_MODEL = os.getenv("CLAUDE_CODE_SECTION_MODEL", "claude-sonnet-4-6")
+# The defaults below are the CANONICAL per-pipeline model choices. The env
+# overrides exist for deliberate per-environment pins only — never set a
+# CLAUDE_*_MODEL env var that merely duplicates the default: stale pins
+# silently detach an environment when the default moves (prod ran the
+# legislation pipeline on a superseded Opus for weeks, and a leftover Haiku
+# pin surfaced in the Sonnet 5 rollout audit — see WORK_LOG).
+# All Sonnet pipelines moved 4.6 → Sonnet 5 on 2026-07-09. Sonnet 5 accepts
+# the adaptive `thinking` param the batch commands send (the only gate is
+# _supports_adaptive_thinking's haiku check in claude_service.py).
+#
+# Sonnet: balanced cost/quality for SMC-section summaries. Cached few-shot
+# system prompt + Anthropic Batch API keep cost reasonable. The corpus
+# backfill ran on Sonnet 4.6; Haiku 4.5 was tried and is too inconsistent
+# for legal-summary work.
+CLAUDE_CODE_SECTION_MODEL = os.getenv("CLAUDE_CODE_SECTION_MODEL", "claude-sonnet-5")
 # Sonnet: balanced cost/quality for legislation summarization. The
 # task is mostly reformatting the staff Summary and Fiscal Note into
 # the structured JSON schema (output_config enforces format), so
 # Sonnet is sufficient. Set CLAUDE_LEGISLATION_MODEL=claude-opus-4-8
 # in the environment for higher-quality runs (~5x cost).
-CLAUDE_LEGISLATION_MODEL = os.getenv("CLAUDE_LEGISLATION_MODEL", "claude-sonnet-4-6")
+CLAUDE_LEGISLATION_MODEL = os.getenv("CLAUDE_LEGISLATION_MODEL", "claude-sonnet-5")
 # Opus: gold-standard summaries of a curated section set; the outputs become
 # few-shot examples for the bulk Sonnet run. Calibration only — not bulk.
 CLAUDE_BOOTSTRAP_MODEL = os.getenv("CLAUDE_BOOTSTRAP_MODEL", "claude-opus-4-8")
 # Sonnet: balanced cost/quality for interactive chat.
-CLAUDE_CHAT_MODEL = os.getenv("CLAUDE_CHAT_MODEL", "claude-sonnet-4-6")
+CLAUDE_CHAT_MODEL = os.getenv("CLAUDE_CHAT_MODEL", "claude-sonnet-5")
 # Sonnet: short structured-JSON tagging task (1-3 enum tags per bill).
 # Inputs are tiny (title + first 2k chars of bill text); cached system
 # prompt makes per-bill cost cents. Haiku 4.5 likely sufficient too —
 # revisit if Sonnet cost becomes meaningful at corpus scale.
-CLAUDE_BILL_TAG_MODEL = os.getenv("CLAUDE_BILL_TAG_MODEL", "claude-sonnet-4-6")
+CLAUDE_BILL_TAG_MODEL = os.getenv("CLAUDE_BILL_TAG_MODEL", "claude-sonnet-5")
 # Sonnet: 2-3 paragraph rep summary card synthesizing tenure, committees,
 # sponsorship portfolio, voting record, and bio prose. Per-rep input is
 # ~2-4 KB; cached system prompt makes the 9-rep batch cost trivial.
-CLAUDE_REP_SUMMARY_MODEL = os.getenv("CLAUDE_REP_SUMMARY_MODEL", "claude-sonnet-4-6")
+CLAUDE_REP_SUMMARY_MODEL = os.getenv("CLAUDE_REP_SUMMARY_MODEL", "claude-sonnet-5")
 # Sonnet: meeting overview + per-agenda-item summaries from the
 # captioned transcript + roster + chapter list. Per-meeting input is
 # ~30-100 KB (auto-captioned SRT text); two-tier structured output
 # (overview + array of item summaries) in a single call so prompt
 # caching applies once per meeting.
-CLAUDE_EVENT_SUMMARY_MODEL = os.getenv("CLAUDE_EVENT_SUMMARY_MODEL", "claude-sonnet-4-6")
+CLAUDE_EVENT_SUMMARY_MODEL = os.getenv("CLAUDE_EVENT_SUMMARY_MODEL", "claude-sonnet-5")
 # Sonnet: 2-3 paragraph committee card — focus area + recent activity,
 # synthesized from the committee's roster, recent meeting overviews, and the
 # bills it has handled. Only 9 committees and re-summarized solely on change
 # (content_hash), so cost is negligible.
-CLAUDE_COMMITTEE_SUMMARY_MODEL = os.getenv("CLAUDE_COMMITTEE_SUMMARY_MODEL", "claude-sonnet-4-6")
+CLAUDE_COMMITTEE_SUMMARY_MODEL = os.getenv("CLAUDE_COMMITTEE_SUMMARY_MODEL", "claude-sonnet-5")
 
 # Outbound email (pipeline health alerts — #210; and any future notifications).
 # Set the SMTP vars in the environment to enable real sending. Without
