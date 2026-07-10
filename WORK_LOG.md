@@ -57,6 +57,19 @@ Parser corpus state (post-fix re-parse 2026-04-26 after `93cb885`): 7,435 sectio
 
 ## Done
 
+### Digests — Phase 3: personalized LLM intro over SMTP — 2026-07-10 (#238)
+
+`compose_digests` now submits one Anthropic Batch request per non-quiet digest (a Haiku-written intro paragraph personalized to the subscriber's preferences and this week's matched items); `send_digest_batches` polls the batch, persists `{intro}` to `DigestSend.llm_payload`, and the Phase 2 template slot renders it. Non-obvious decisions:
+
+- **The LLM can only ever ADD to a digest — never block one.** Every failure mode degrades to the Phase 2 templated send: backend off or key missing (`get_llm_client()` returns None), submit exception (rows stay batch-less), per-subscriber request errored/missing from results, batch in a terminal non-success state, and — the load-bearing one — `LLM_MAX_DELAY` (6h): a row still waiting on its batch past that age sends without the intro. That cap matters because pending rows also block re-compose, so a wedged/expired batch would otherwise silently swallow a whole cadence cycle. This invariant is the organizing principle of `test_llm_intro.py`.
+- **Not a `BatchPipelineCommand` subclass — deliberately.** That base couples drain-then-submit into one command keyed by `BatchRun` rows; digests split submit (compose) and poll (send) across two commands with state on the `DigestSend` rows themselves (`compose_batch_id`, there since Phase 1). Digest batches therefore don't appear in the pipeline admin dashboard — `DigestSendAdmin` is their surface. Result parsing mirrors `iter_json_results`; `format_batch_error` is imported, not forked.
+- **`DigestLLMClient` interface** (`digests/services/llm_client.py`), dispatched on `DIGEST_LLM_BACKEND`: `anthropic` (default), `openai` (deliberately unimplemented stub for the plan's provider-hosted-OSS future), `none` (templated-only). Mirrors the `DigestEmailClient` pattern.
+- **No PII to Anthropic** (plan §security 11): requests are built from a whitelisted field set in `intro_prompt.py` — issue tags, councilmember *names*, district *label*, bill identifiers, item content; `custom_id = sub-<internal id>`. Regression test serializes the full request and asserts `_EMAIL_RE` finds nothing. The system prompt is cached (`cache_control: ephemeral`, amortizes across the cohort); `thinking` omitted (Haiku rejects it); `max_tokens=300`.
+- **`compose_schema(include_blurbs)`** (`llm_schema.py`): Phase 5's per-item blurbs are a kwarg flip — schema tested under both values now so the flip can't surprise.
+- **Model: `CLAUDE_DIGEST_MODEL` = Haiku 4.5** — the one pipeline whose call volume scales with subscribers, so the cheap tier is the deliberate default (~$0.001/send batched). Canonical default in settings.py per the model-defaults convention.
+- **Test hygiene:** the Phase 2 pipeline test classes carry `override_settings(DIGEST_LLM_BACKEND="none")` — the dev container has a real API key, and without the override compose's submit step would hit the live Batch API from inside the test suite. New intro tests use a fake client patched at each command module's import site.
+- Cron wrapper now runs `send_digest_batches --wait 45` (internal 30s poll loop) so Sunday's intros land in the same cron tick; anything slower falls to the 6h cap.
+
 ### Digests — Phase 2: templated digest composition + delivery over SMTP — 2026-07-10 (#235)
 
 `compose_digests` + `send_digest_batches` now produce real personalized weekly digests (no LLM yet), delivered test-to-self over SMTP. Non-obvious decisions:

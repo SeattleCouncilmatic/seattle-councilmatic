@@ -1,11 +1,18 @@
-"""Render and deliver pending digests (Phase 2, #235).
+"""Render and deliver pending digests, polling the intro batch first
+(Phases 2-3, #235/#238).
 
-Picks up ``DigestSend(status=pending)`` rows written by ``compose_digests``,
-re-fetches item content from the ``matched_item_ids`` snapshot, renders the
-HTML + plaintext pair, and hands the message to the configured
-``DigestEmailClient``. In Phase 3 this command also polls the Anthropic
-Batch and merges the intro into ``llm_payload`` before rendering — the
-``intro`` template slot already reads from there.
+Picks up ``DigestSend(status=pending)`` rows written by ``compose_digests``.
+Rows with a ``compose_batch_id`` wait for their Anthropic Batch: once it
+ends, each subscriber's ``{intro}`` is persisted to ``llm_payload`` (the
+template's intro slot reads from there) and the digest renders + sends.
+Rows without a batch id — quiet weeks, LLM off, submit failures — send
+templated-only immediately.
+
+The intro can delay a digest but never block it: rows still awaiting a
+batch after ``LLM_MAX_DELAY`` send without the intro, and a batch that
+ends in a terminal non-success state degrades the same way. ``--wait N``
+keeps polling for up to N minutes (the cron wrapper uses this); the
+default is a single pass.
 
 SMTP safety: the SMTP transport is TEST-TO-SELF ONLY, never real
 subscribers (no bounce handling, relay volume caps). Outside DEBUG the
@@ -20,10 +27,13 @@ admin); the logging path is already covered by ``EmailRedactionFilter``.
 
 Usage:
     python manage.py send_digest_batches
+    python manage.py send_digest_batches --wait 45
     python manage.py send_digest_batches --limit 5 --allow-smtp
 """
 import logging
 import smtplib
+import time
+from datetime import timedelta
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
@@ -33,14 +43,24 @@ from django.utils import timezone
 from digests.models import DigestSend, Subscriber
 from digests.services import personalization
 from digests.services.email_client import get_email_client
+from digests.services.llm_client import IN_FLIGHT_STATUSES, get_llm_client
 from digests.services.tokens import PURPOSE_MANAGE, PURPOSE_UNSUBSCRIBE, make_token
 from seattle_app.logging_filters import redact_emails
 
 logger = logging.getLogger(__name__)
 
+# A digest still waiting on its intro batch past this age sends without the
+# intro. Keeps a wedged/expired batch from silently blocking the cadence
+# (pending rows also block re-compose, so a stuck batch would otherwise
+# swallow a whole week).
+LLM_MAX_DELAY = timedelta(hours=6)
+
+# Seconds between polls under --wait.
+POLL_INTERVAL_SECONDS = 30
+
 
 class Command(BaseCommand):
-    help = "Render pending DigestSend rows and deliver them through the digest email transport."
+    help = "Render pending DigestSend rows (waiting on their intro batch when one exists) and deliver them."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -50,6 +70,13 @@ class Command(BaseCommand):
             help="Max pending sends to deliver this run (testing).",
         )
         parser.add_argument(
+            "--wait",
+            type=int,
+            default=0,
+            help="Keep polling the intro batch for up to N minutes instead "
+            "of a single pass. The weekly cron wrapper passes this.",
+        )
+        parser.add_argument(
             "--allow-smtp",
             action="store_true",
             help="Deliver over the SMTP transport outside DEBUG. SMTP is "
@@ -57,6 +84,25 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **opts):
+        deadline = time.monotonic() + opts["wait"] * 60
+        while True:
+            awaiting = self._pass(opts)
+            if not awaiting:
+                return
+            if time.monotonic() >= deadline:
+                self.stdout.write(self.style.NOTICE(
+                    f"{awaiting} digest(s) still awaiting their intro batch; "
+                    "re-run to poll again (they send without the intro after "
+                    f"{int(LLM_MAX_DELAY.total_seconds() // 3600)}h)."
+                ))
+                return
+            time.sleep(POLL_INTERVAL_SECONDS)
+
+    # ------------------------------------------------------------------ #
+
+    def _pass(self, opts) -> int:
+        """One poll-and-send pass. Returns how many pending rows are still
+        waiting on an in-flight intro batch (0 ⇒ nothing left to wait for)."""
         pending = list(
             DigestSend.objects.filter(status=DigestSend.STATUS_PENDING)
             .select_related("subscriber")
@@ -64,7 +110,7 @@ class Command(BaseCommand):
         )
         if not pending:
             self.stdout.write("No pending digests. Done.")
-            return
+            return 0
 
         # Checked only when there IS something to send, so the pre-Phase-4
         # prod cron (signups closed, zero subscribers) exits quietly above
@@ -81,9 +127,11 @@ class Command(BaseCommand):
                 "(Phase 4) for real subscribers."
             )
 
+        ready, awaiting = self._resolve_intros(pending)
+
         client = get_email_client()
         sent = failed = 0
-        for send in pending:
+        for send in ready:
             subscriber = send.subscriber
             if subscriber.status != Subscriber.STATUS_ACTIVE:
                 # Unsubscribed/bounced between compose and send. Not an
@@ -110,7 +158,77 @@ class Command(BaseCommand):
                 failed += 1
 
         style = self.style.SUCCESS if not failed else self.style.WARNING
-        self.stdout.write(style(f"Delivered {sent} digest(s); {failed} failed."))
+        self.stdout.write(style(
+            f"Delivered {sent} digest(s); {failed} failed; "
+            f"{len(awaiting)} awaiting their intro batch."
+        ))
+        return len(awaiting)
+
+    def _resolve_intros(self, pending):
+        """Split pending rows into (ready-to-send, still-awaiting-batch),
+        persisting fetched intros onto ``llm_payload``. Degradation rules:
+        no batch id → ready without intro; batch ended → ready (with intro
+        when this subscriber's request succeeded); batch in a terminal
+        non-success state or unpollable-because-LLM-off → ready without
+        intro; in flight or transient poll error → awaiting, but never past
+        LLM_MAX_DELAY."""
+        batch_ids = sorted({s.compose_batch_id for s in pending if s.compose_batch_id})
+        llm = get_llm_client() if batch_ids else None
+
+        ready, awaiting = [], []
+        results_by_batch: dict[str, dict | None] = {}
+        for batch_id in batch_ids:
+            if llm is None:
+                # Composed with a batch but the backend is now off — can't
+                # poll, don't wait forever.
+                logger.warning(
+                    "batch %s unpollable (LLM backend off); sending without intros",
+                    batch_id,
+                )
+                results_by_batch[batch_id] = {}
+                continue
+            try:
+                status = llm.batch_status(batch_id)
+                if status == "ended":
+                    results_by_batch[batch_id] = llm.batch_results(batch_id)
+                elif status in IN_FLIGHT_STATUSES:
+                    results_by_batch[batch_id] = None  # keep waiting
+                else:
+                    logger.warning(
+                        "batch %s in terminal state %r; sending without intros",
+                        batch_id, status,
+                    )
+                    results_by_batch[batch_id] = {}
+            except Exception:
+                # Transient API trouble: wait (the age cap below bounds it)
+                # rather than strip intros from the whole cohort over a blip.
+                logger.exception("polling batch %s failed", batch_id)
+                results_by_batch[batch_id] = None
+
+        now = timezone.now()
+        for send in pending:
+            if not send.compose_batch_id:
+                ready.append(send)
+                continue
+            results = results_by_batch[send.compose_batch_id]
+            if results is None:
+                if now - send.created_at > LLM_MAX_DELAY:
+                    logger.warning(
+                        "digest %s exceeded LLM_MAX_DELAY; sending without intro",
+                        send.id,
+                    )
+                    ready.append(send)
+                else:
+                    awaiting.append(send)
+                continue
+            data = results.get(f"sub-{send.subscriber_id}")
+            if data:
+                send.llm_payload = data
+                # Persisted before delivery so a send crash can't lose the
+                # fetched intro (and the future feed page can re-render it).
+                send.save(update_fields=["llm_payload"])
+            ready.append(send)
+        return ready, awaiting
 
     # ------------------------------------------------------------------ #
 
@@ -124,8 +242,6 @@ class Command(BaseCommand):
         )
         context = {
             "cadence": send.cadence,
-            # Phase 3 writes {"intro": ...} to llm_payload; renders as soon
-            # as it does.
             "intro": (send.llm_payload or {}).get("intro"),
             "quiet": not items,
             "window_label": timezone.localdate().strftime("%B %d, %Y"),
@@ -168,8 +284,9 @@ class Command(BaseCommand):
         subscriber.last_sent_at = now
         subscriber.save(update_fields=["last_sent_at"])
         logger.info(
-            "digest sent: subscriber %s, %s, %d item(s)",
+            "digest sent: subscriber %s, %s, %d item(s)%s",
             subscriber.id, send.cadence, len(items),
+            ", with intro" if (send.llm_payload or {}).get("intro") else "",
         )
 
     @staticmethod

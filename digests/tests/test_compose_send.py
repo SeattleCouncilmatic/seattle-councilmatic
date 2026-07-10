@@ -11,7 +11,7 @@ from unittest import mock
 
 from django.core import mail
 from django.core.management import CommandError, call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from digests.models import DigestSend, Subscriber
@@ -41,6 +41,11 @@ def _tagged_bill_and_subscriber(email="compose@example.org"):
     return bill, sub
 
 
+# LLM off for the Phase 2 pipeline tests: with the dev API key in the
+# environment, the default "anthropic" backend would submit a REAL batch
+# from compose. The intro paths get dedicated fake-client tests in
+# test_llm_intro.py.
+@override_settings(DIGEST_LLM_BACKEND="none")
 class ComposeTests(TestCase):
     def test_creates_pending_row_with_snapshot(self):
         bill, sub = _tagged_bill_and_subscriber()
@@ -135,6 +140,7 @@ class ComposeTests(TestCase):
         self.assertIn("1 item(s)", out)
 
 
+@override_settings(DIGEST_LLM_BACKEND="none")
 class SendTests(TestCase):
     def test_delivers_and_marks_sent(self):
         bill, sub = _tagged_bill_and_subscriber()
