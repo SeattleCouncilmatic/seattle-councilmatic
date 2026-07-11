@@ -84,9 +84,13 @@ def _validate_and_apply_preferences(prefs: SubscriberPreferences, data: dict):
     """Validate every preference field in ``data`` before applying any of
     them, then save. Raises ValidationError with a user-facing message.
 
+    The subscription model is district + topics: the district is REQUIRED
+    (it maps the subscriber to their representatives — the district seat
+    plus the citywide members), topics are optional. ``followed_rep_ids``
+    and ``followed_bill_ids`` are no longer accepted — the M2M fields stay
+    on the model (legacy rows still match), but no API path writes them.
+
     All id lookups go through the ORM (parameterized queries)."""
-    from councilmatic_core.models import Bill
-    from opencivicdata.core.models import Person
     from reps.models import District
 
     errors = []
@@ -98,49 +102,36 @@ def _validate_and_apply_preferences(prefs: SubscriberPreferences, data: dict):
         except ValidationError as exc:
             errors.extend(exc.messages)
 
-    rep_ids = data.get("followed_rep_ids")
-    reps = None
-    if rep_ids is not None:
-        if not isinstance(rep_ids, list):
-            errors.append("followed_rep_ids must be a list.")
-        else:
-            reps = list(Person.objects.filter(id__in=rep_ids))
-            if len(reps) != len(set(rep_ids)):
-                errors.append("One or more followed_rep_ids are unknown.")
-
-    bill_ids = data.get("followed_bill_ids")
-    bills = None
-    if bill_ids is not None:
-        if not isinstance(bill_ids, list):
-            errors.append("followed_bill_ids must be a list.")
-        else:
-            bills = list(Bill.objects.filter(id__in=bill_ids))
-            if len(bills) != len(set(bill_ids)):
-                errors.append("One or more followed_bill_ids are unknown.")
-
+    # Required outcome, whichever endpoint applied the change: a saved
+    # preference set always has a district. Omitting the key (or sending
+    # null) keeps an existing district; it can never clear one.
     district = None
     district_id = data.get("district_id")
     if district_id is not None:
         district = District.objects.filter(pk=district_id).first()
         if district is None:
             errors.append("Unknown district_id.")
+    elif not prefs.district_id:
+        errors.append("Please choose your council district.")
+
+    # Weekly is the only live cadence — daily is grayed out in the UI
+    # until its rollout (post-launch; see the digests plan), and enforced
+    # here so an API call can't quietly enable it either.
+    if not data.get("weekly_enabled", prefs.weekly_enabled):
+        errors.append(
+            "Weekly delivery is the only cadence available right now."
+        )
 
     if errors:
         raise ValidationError(errors)
 
-    if "weekly_enabled" in data:
-        prefs.weekly_enabled = bool(data["weekly_enabled"])
-    if "daily_enabled" in data:
-        prefs.daily_enabled = bool(data["daily_enabled"])
+    prefs.weekly_enabled = True
+    prefs.daily_enabled = False
     if issue_areas is not None:
         prefs.issue_areas = issue_areas
-    if "district_id" in data:
+    if district is not None:
         prefs.district = district
     prefs.save()
-    if reps is not None:
-        prefs.followed_reps.set(reps)
-    if bills is not None:
-        prefs.followed_bills.set(bills)
 
 
 def _send_verification_email(request, subscriber):
@@ -177,11 +168,6 @@ def _preferences_payload(request, subscriber):
         "weekly_enabled": prefs.weekly_enabled,
         "daily_enabled": prefs.daily_enabled,
         "issue_areas": prefs.issue_areas,
-        "followed_rep_ids": list(prefs.followed_reps.values_list("id", flat=True)),
-        "followed_bills": [
-            {"id": b["id"], "identifier": b["identifier"], "title": b["title"]}
-            for b in prefs.followed_bills.values("id", "identifier", "title")
-        ],
         "district_id": prefs.district_id,
         "unsubscribe_url": request.build_absolute_uri(
             f"/digests/unsubscribe?token={make_token(subscriber, PURPOSE_UNSUBSCRIBE)}"
@@ -200,8 +186,10 @@ def _preferences_payload(request, subscriber):
 def subscribe(request):
     """POST /api/digests/subscribe
 
-    Body: {email, weekly_enabled?, daily_enabled?, issue_areas?[],
-    followed_rep_ids?[], followed_bill_ids?[], district_id?, website?}.
+    Body: {email, district_id (required), issue_areas?[], weekly_enabled?,
+    website?}. The district maps the subscriber to their representatives
+    (district seat + citywide members); daily_enabled is not accepted
+    until the daily cadence rolls out.
 
     Always 202 on well-formed input — the response never discloses whether
     the address was already subscribed (enumeration guard). ``website`` is
@@ -330,16 +318,12 @@ def send_manage_link(request):
 @require_GET
 def options(request):
     """GET /api/digests/options — vocabulary the subscribe/preferences forms
-    render (issue-area tags, current councilmembers, districts) plus the
-    ``signup_open`` flag."""
-    from reps.services import _query_current_council_members
+    render (issue-area tags, districts) plus the ``signup_open`` flag.
+    No councilmember list: the subscription model is district + topics,
+    and the district maps to representatives server-side."""
     from reps.models import District
     from seattle_app.services.claude_service import BILL_TAG_VOCABULARY
 
-    reps = [
-        {"id": person_id, "name": name, "seat": label}
-        for name, _slug, label, person_id in _query_current_council_members()
-    ]
     districts = [
         {"id": d.pk, "number": d.number, "name": d.name, "description": d.description}
         for d in District.objects.order_by("number")
@@ -349,7 +333,6 @@ def options(request):
         # renders nothing, /digests/subscribe shows a coming-soon notice.
         "signup_open": DigestConfig.signups_open(),
         "issue_areas": list(BILL_TAG_VOCABULARY),
-        "reps": reps,
         "districts": districts,
     })
 

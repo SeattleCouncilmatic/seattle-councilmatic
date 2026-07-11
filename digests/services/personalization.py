@@ -7,14 +7,20 @@ contributes a human-readable reason (rendered in the email and, in Phase 3,
 fed to the LLM intro):
 
 - **issue areas** — the bill's ``BillTags`` overlap the subscriber's tags.
-- **followed reps** — a followed councilmember sponsored the bill.
-- **district** — the subscriber's district councilmember primary-sponsored
-  the bill (at-large "districts" match the Position 8/9 members).
-- **followed bills** — the subscriber follows the bill itself.
+- **representatives** — one of the subscriber's representatives sponsored
+  the bill. The (required) district maps to a representative set the same
+  way the council-map page does: the district's seat holder plus the
+  citywide Position members ("At Large" districts get the citywide members
+  only). Reasons name the sponsor and mark which hat they wear ("your
+  district's councilmember" / "(citywide)").
+- **followed reps / followed bills** — legacy dimensions: the subscribe
+  form no longer collects either, but the M2M fields remain on the model
+  and rows that carry them still match.
 
 Committee-meeting recaps join through people: meetings (``EventSummary``
-rows, so past + summarized) of committees a followed rep or the district
-rep sits on. RepSummary "updates" are deliberately NOT an item type: the
+rows, so past + summarized) of committees any of the subscriber's
+representatives (or legacy followed reps) sit on. RepSummary "updates" are
+deliberately NOT an item type: the
 weekly rep refresh bumps ``generated_at`` for every rep whether or not
 anything changed, so it can't distinguish news from regeneration — rep
 activity reaches the digest through the sponsorship dimension instead.
@@ -68,9 +74,11 @@ def match_items(prefs, since: date) -> list[dict]:
     ``_meeting_item``); bills first (most recent action first), then
     meeting recaps (most recent first)."""
     followed_rep_ids = list(prefs.followed_reps.values_list("id", flat=True))
-    district_rep_ids = _district_rep_ids(prefs.district)
-    items = _matched_bills(prefs, since, followed_rep_ids, district_rep_ids)
-    items += _matched_meetings(since, followed_rep_ids, district_rep_ids)
+    representatives = _representatives_of(prefs.district)
+    items = _matched_bills(prefs, since, followed_rep_ids, representatives)
+    items += _matched_meetings(
+        since, followed_rep_ids, list(representatives)
+    )
     return items
 
 
@@ -116,7 +124,7 @@ def items_from_snapshot(snap: list[dict]) -> list[dict]:
 # Bills
 # --------------------------------------------------------------------- #
 
-def _matched_bills(prefs, since, followed_rep_ids, district_rep_ids) -> list[dict]:
+def _matched_bills(prefs, since, followed_rep_ids, representatives) -> list[dict]:
     # BillAction.date is an ISO string (sometimes date-only, sometimes full
     # timestamp), so lexicographic >= against YYYY-MM-DD is the correct
     # comparison — same idiom as api_views' date-range filters.
@@ -133,20 +141,16 @@ def _matched_bills(prefs, since, followed_rep_ids, district_rep_ids) -> list[dic
         recent.filter(sponsorships__person_id__in=followed_rep_ids)
         .values_list("id", flat=True)
     ) if followed_rep_ids else set()
-    # Primary sponsorship only for the district dimension: "your district's
-    # councilmember signed on as cosponsor #6" isn't district news.
-    by_district = set(
-        recent.filter(
-            sponsorships__person_id__in=district_rep_ids,
-            sponsorships__primary=True,
-        ).values_list("id", flat=True)
-    ) if district_rep_ids else set()
+    by_representative = set(
+        recent.filter(sponsorships__person_id__in=list(representatives))
+        .values_list("id", flat=True)
+    ) if representatives else set()
     followed_bill_ids = set(prefs.followed_bills.values_list("id", flat=True))
     by_followed = set(
         recent.filter(id__in=followed_bill_ids).values_list("id", flat=True)
     ) if followed_bill_ids else set()
 
-    matched_ids = by_tag | by_rep | by_district | by_followed
+    matched_ids = by_tag | by_rep | by_representative | by_followed
     if not matched_ids:
         return []
 
@@ -167,15 +171,38 @@ def _matched_bills(prefs, since, followed_rep_ids, district_rep_ids) -> list[dic
         if bill.id in by_tag:
             tags = sorted(set(bill.issue_tags.tags) & set(prefs.issue_areas))
             reasons.append("Tagged " + ", ".join(tags))
+        sponsor_ids = {
+            s.person_id for s in bill.sponsorships.all() if s.person_id
+        }
+        # Representative sponsors get one named reason each, district seat
+        # first — the phrasing carries into the email pills and the LLM's
+        # matched_because, so the model never has to guess who "your
+        # district's councilmember" is.
+        rep_covered: set[str] = set()
+        if bill.id in by_representative:
+            for pid in sorted(
+                sponsor_ids & set(representatives),
+                key=lambda p: (representatives[p]["citywide"],
+                               representatives[p]["name"]),
+            ):
+                info = representatives[pid]
+                if info["citywide"]:
+                    reasons.append(f"Sponsored by {info['name']} (citywide)")
+                else:
+                    reasons.append(
+                        f"Sponsored by {info['name']}, your district's councilmember"
+                    )
+                rep_covered.add(pid)
         if bill.id in by_rep:
+            # Legacy followed reps not already covered by the
+            # representative mapping.
             sponsors = sorted({
-                rep_names[s.person_id]
-                for s in bill.sponsorships.all()
-                if s.person_id in rep_names
+                rep_names[pid]
+                for pid in sponsor_ids
+                if pid in rep_names and pid not in rep_covered
             })
-            reasons.append("Sponsored by " + ", ".join(sponsors))
-        if bill.id in by_district and bill.id not in by_rep:
-            reasons.append("Sponsored by your district's councilmember")
+            if sponsors:
+                reasons.append("Sponsored by " + ", ".join(sponsors))
         items.append(_bill_item(bill, reasons))
     return items
 
@@ -234,8 +261,8 @@ def _committees_of(rep_ids) -> dict[str, set[str]]:
     return committees
 
 
-def _matched_meetings(since, followed_rep_ids, district_rep_ids) -> list[dict]:
-    rep_ids = list(dict.fromkeys([*followed_rep_ids, *district_rep_ids]))
+def _matched_meetings(since, followed_rep_ids, representative_ids) -> list[dict]:
+    rep_ids = list(dict.fromkeys([*followed_rep_ids, *representative_ids]))
     if not rep_ids:
         return []
     committees = _committees_of(rep_ids)
@@ -296,7 +323,7 @@ def upcoming_meetings(prefs) -> list[dict]:
     a quiet week still worth opening)."""
     followed_rep_ids = list(prefs.followed_reps.values_list("id", flat=True))
     rep_ids = list(dict.fromkeys(
-        [*followed_rep_ids, *_district_rep_ids(prefs.district)]
+        [*followed_rep_ids, *_representatives_of(prefs.district)]
     ))
     if not rep_ids:
         return []
@@ -356,22 +383,28 @@ def _parse_start(start_date: str):
 # Helpers
 # --------------------------------------------------------------------- #
 
-def _district_rep_ids(district) -> list[str]:
-    """Person ids of the current councilmember(s) for a ``reps.District``.
-    Geographic districts map to the membership labeled "District <n>";
-    the "At Large" district maps to the citywide Position seats."""
+def _representatives_of(district) -> dict[str, dict]:
+    """``{person_id: {"name", "citywide"}}`` for the subscriber's
+    representatives — the district's seat holder plus the citywide Position
+    members, mirroring how the council-map page answers "who represents
+    me?". An "At Large" district has no district seat, so it maps to the
+    citywide members only."""
     if district is None:
-        return []
-    if district.number == "At Large":
-        seat_q = Q(label__startswith="Position")
-    else:
-        seat_q = Q(label=f"District {district.number}")
+        return {}
+    seat_q = Q(label__startswith="Position")
+    if district.number != "At Large":
+        seat_q |= Q(label=f"District {district.number}")
     active_q = Q(end_date="") | Q(end_date__gte=date.today().isoformat())
-    return list(
-        Membership.objects.filter(
-            seat_q, active_q, organization__name=_COUNCIL_ORG_NAME
-        ).values_list("person_id", flat=True)
-    )
+    reps: dict[str, dict] = {}
+    memberships = Membership.objects.filter(
+        seat_q, active_q, organization__name=_COUNCIL_ORG_NAME
+    ).select_related("person")
+    for m in memberships:
+        reps[m.person_id] = {
+            "name": m.person.name,
+            "citywide": m.label.startswith("Position"),
+        }
+    return reps
 
 
 def _names_for(person_ids) -> dict[str, str]:

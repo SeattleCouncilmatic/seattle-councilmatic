@@ -5,7 +5,6 @@ normally owns these tables. Everything funnels through ``get_or_create`` on
 stable ids so helpers compose freely inside one test without collisions.
 """
 from django.contrib.gis.geos import MultiPolygon, Polygon
-from django.db import connection
 from django.utils.text import slugify
 
 from councilmatic_core.models import Bill, Event
@@ -68,24 +67,11 @@ def committee(name):
     return org
 
 
-def _ensure_headshot_default():
-    """Upstream django-councilmatic dropped ``headshot`` from its Person
-    model, but our schema is pinned at councilmatic_core.0053 (see the
-    comment in digests/0001), so the test DB still carries the column as
-    NOT NULL. The library's post_save signal mirrors every new OCD Person
-    into councilmatic_core_person through the ORM — which can't see the
-    column — so give it a DB-level default. Static DDL, idempotent."""
-    with connection.cursor() as cursor:
-        cursor.execute(
-            "ALTER TABLE councilmatic_core_person "
-            "ALTER COLUMN headshot SET DEFAULT ''"
-        )
-
-
 def councilmember(name, seat_label):
     """Person + active council Membership (label like "District 3" or
-    "Position 8" — the label is what the district dimension matches on)."""
-    _ensure_headshot_default()
+    "Position 8" — the label is what the district dimension matches on).
+    Creating a Person works at all thanks to digests/0004, which gives the
+    orphaned NOT NULL ``headshot`` column a DB default."""
     person = Person.objects.create(name=name)
     Membership.objects.create(
         person=person,

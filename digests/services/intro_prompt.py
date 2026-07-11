@@ -60,15 +60,15 @@ Hard rules for both keys:
 them: if a reason says "your district's councilmember" without naming \
 anyone, use that phrase — never guess which named person it is, and never \
 merge it with a followed councilmember's name.
-- Followed councilmembers carry their council seat. Only a member whose \
-seat equals the subscriber's own district may be framed as theirs ("your \
-District 5 councilmember"); citywide (Position) members serve the whole \
-city — refer to them by name alone, and never describe the followed \
-members collectively as "your councilmembers."
-- Keep the follow relationships distinct: "bills you follow" means only \
-items matched because of followed_bills. Items matched through a \
-councilmember's sponsorship are "from councilmembers you follow" (or the \
-member's name); items matched by tag are about "issues you follow."
+- Councilmember framing comes from the input, never from inference. \
+Reasons name each sponsoring member and mark the hat they wear — echo \
+those framings: a member marked "your district's councilmember" may be \
+described that way; members marked "(citywide)" serve the whole city, so \
+refer to them by name alone. Never describe councilmembers collectively \
+as "your councilmembers."
+- Never say the subscriber "follows" specific bills — they can't. Items \
+matched by tag are about "issues you follow"; sponsored items are from \
+the named councilmember.
 - State only facts present in the input. Never invent bill contents, \
 votes, dates, or outcomes.
 - Nonpartisan, no speculation about motives or outcomes.
@@ -99,26 +99,24 @@ Stormwater Code.", "CB 121199 lets City Light accept salmon-habitat \
 properties; also this week: landmark protections for the Woodin House \
 (CB 121197)."]}
 
-Example input (abridged): {"subscriber_interests": {"followed_bills": \
-["Res 32201", "Res 32202"], "followed_councilmembers": [{"name": "Joy \
-Hollingsworth", "seat": "District 3"}, {"name": "Alexis Mercedes Rinck", \
-"seat": "Position 8 (citywide)"}], "district": "District 3"}, "items": \
-[{"identifier": "Res 32202", "matched_because": ["You follow this bill", \
-"Sponsored by Alexis Mercedes Rinck"], "latest_action": "Attested by \
-City Clerk", "date": "2026-06-04", "summary": "Next steps after the \
-forensic evaluation of the King County Regional Homelessness Authority…"}, \
-{"identifier": "Res 32201", "matched_because": ["You follow this bill", \
-"Sponsored by Joy Hollingsworth"], "latest_action": "Attested by City \
-Clerk", "date": "2026-05-22", "summary": "Creates an Arts and Cultural \
-District in Georgetown…"}]}
-Example output: {"intro": "Both bills you follow moved this week — one on \
-the region's homelessness authority, the other creating a Georgetown arts \
-district sponsored by your District 3 councilmember.", "highlights": \
-["Res 32202, next steps after the King County Regional Homelessness \
-Authority's forensic evaluation, was attested by the City Clerk June 4. \
-Alexis Mercedes Rinck sponsored.", "Res 32201, creating a Georgetown Arts \
-and Cultural District, was attested May 22. Sponsored by Joy \
-Hollingsworth, your District 3 councilmember."]}\
+Example input (abridged): {"subscriber_interests": {"issue_areas": \
+["Homelessness"], "district": "District 3"}, "items": [{"identifier": \
+"Res 32202", "matched_because": ["Tagged Homelessness", "Sponsored by \
+Alexis Mercedes Rinck (citywide)"], "latest_action": "Attested by City \
+Clerk", "date": "2026-06-04", "summary": "Next steps after the forensic \
+evaluation of the King County Regional Homelessness Authority…"}, \
+{"identifier": "Res 32201", "matched_because": ["Sponsored by Joy \
+Hollingsworth, your district's councilmember"], "latest_action": \
+"Attested by City Clerk", "date": "2026-05-22", "summary": "Creates an \
+Arts and Cultural District in Georgetown…"}]}
+Example output: {"intro": "Movement this week on homelessness — one of \
+the issues you follow — plus a new arts district from your district's \
+councilmember.", "highlights": ["Res 32202, next steps after the King \
+County Regional Homelessness Authority's forensic evaluation, was \
+attested by the City Clerk June 4. Sponsored by Alexis Mercedes Rinck.", \
+"Res 32201, creating a Georgetown Arts and Cultural District, was \
+attested May 22. Sponsored by Joy Hollingsworth, your district's \
+councilmember."]}\
 """
 
 
@@ -161,14 +159,17 @@ def build_intro_request(subscriber_id: int, prefs, items: list[dict],
 
 
 def _prefs_context(prefs) -> dict:
-    """Whitelisted, PII-free view of the subscriber's preferences."""
+    """Whitelisted, PII-free view of the subscriber's preferences.
+
+    No followed_bills key: the subscribe form can't create bill follows,
+    and feeding the list would tempt the model into "bills you follow"
+    phrasing the guide forbids. Legacy followed reps (also no longer
+    collectable) still ride along with seat labels so old rows keep
+    working."""
     return {
         "issue_areas": prefs.issue_areas,
         "followed_councilmembers": _followed_with_seats(prefs),
         "district": prefs.district.name if prefs.district else None,
-        "followed_bills": sorted(
-            prefs.followed_bills.values_list("identifier", flat=True)
-        ),
     }
 
 

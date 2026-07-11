@@ -25,7 +25,20 @@ def _set_signups(open_):
     DigestConfig.objects.update_or_create(pk=1, defaults={"signups_enabled": open_})
 
 
-def _subscribe(client, payload):
+def _district(number="3"):
+    square = MultiPolygon(Polygon(((0, 0), (0, 1), (1, 1), (1, 0), (0, 0))))
+    district, _ = District.objects.get_or_create(
+        number=number,
+        defaults={"name": f"District {number}", "geometry": square},
+    )
+    return district
+
+
+def _subscribe(client, payload, with_district=True):
+    """POST to subscribe. district_id is required by the endpoint, so the
+    helper injects one unless the test provides its own or opts out."""
+    if with_district:
+        payload.setdefault("district_id", _district().pk)
     return client.post(
         "/api/digests/subscribe",
         data=json.dumps(payload),
@@ -121,7 +134,7 @@ class SubscribeTests(TestCase):
         response = _subscribe(self.client, {
             "email": "new@example.org",
             "issue_areas": ["Housing"],
-            "daily_enabled": True,
+            "daily_enabled": True,  # not accepted until the daily rollout
         })
         self.assertEqual(response.status_code, 202)
         subscriber = Subscriber.objects.get(email="new@example.org")
@@ -130,7 +143,9 @@ class SubscribeTests(TestCase):
         prefs = subscriber.preferences
         self.assertEqual(prefs.issue_areas, ["Housing"])
         self.assertTrue(prefs.weekly_enabled)
-        self.assertTrue(prefs.daily_enabled)
+        # Daily is grayed out until rollout — the API ignores the flag.
+        self.assertFalse(prefs.daily_enabled)
+        self.assertIsNotNone(prefs.district)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn(subscriber.verification_token, mail.outbox[0].body)
         self.assertIn("/digests/confirm?token=", mail.outbox[0].body)
@@ -154,12 +169,31 @@ class SubscribeTests(TestCase):
         })
         self.assertEqual(response.status_code, 400)
 
-    def test_unknown_rep_id_rejected(self):
+    def test_missing_district_rejected(self):
+        response = _subscribe(
+            self.client, {"email": "nodistrict@example.org"}, with_district=False
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("district", response.json()["error"].lower())
+
+    def test_weekly_off_rejected(self):
         response = _subscribe(self.client, {
-            "email": "reps@example.org",
-            "followed_rep_ids": ["ocd-person/00000000-0000-0000-0000-000000000000"],
+            "email": "nocadence@example.org", "weekly_enabled": False,
         })
         self.assertEqual(response.status_code, 400)
+
+    def test_followed_rep_and_bill_ids_silently_ignored(self):
+        # The subscription model is district + topics; these legacy keys
+        # are no longer accepted and must not error or write anything.
+        response = _subscribe(self.client, {
+            "email": "legacykeys@example.org",
+            "followed_rep_ids": ["ocd-person/00000000-0000-0000-0000-000000000000"],
+            "followed_bill_ids": ["nope"],
+        })
+        self.assertEqual(response.status_code, 202)
+        prefs = Subscriber.objects.get(email="legacykeys@example.org").preferences
+        self.assertEqual(prefs.followed_reps.count(), 0)
+        self.assertEqual(prefs.followed_bills.count(), 0)
 
     def test_district_preference_applied(self):
         square = MultiPolygon(Polygon(((0, 0), (0, 1), (1, 1), (1, 0), (0, 0))))
@@ -332,16 +366,58 @@ class ManageAndPreferencesTests(TestCase):
         self.assertIn("/digests/unsubscribe?token=", data["unsubscribe_url"])
 
     def test_preferences_post_updates(self):
+        district = _district("5")
         self._open_manage_session()
         response = self.client.post(
             "/api/digests/preferences",
-            data=json.dumps({"weekly_enabled": False, "issue_areas": ["Labor"]}),
+            data=json.dumps({
+                "weekly_enabled": True,
+                "issue_areas": ["Labor"],
+                "district_id": district.pk,
+            }),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
         prefs = SubscriberPreferences.objects.get(subscriber=self.subscriber)
-        self.assertFalse(prefs.weekly_enabled)
+        self.assertTrue(prefs.weekly_enabled)
         self.assertEqual(prefs.issue_areas, ["Labor"])
+        self.assertEqual(prefs.district, district)
+
+    def test_preferences_post_weekly_off_rejected(self):
+        # Weekly is the only live cadence; turning everything off is what
+        # the unsubscribe link is for.
+        self._open_manage_session()
+        response = self.client.post(
+            "/api/digests/preferences",
+            data=json.dumps({"weekly_enabled": False, "district_id": _district().pk}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_preferences_post_requires_district_when_none_saved(self):
+        self._open_manage_session()
+        response = self.client.post(
+            "/api/digests/preferences",
+            data=json.dumps({"issue_areas": ["Labor"]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("district", response.json()["error"].lower())
+
+    def test_preferences_post_keeps_existing_district_when_key_absent(self):
+        district = _district("7")
+        prefs = SubscriberPreferences.objects.get(subscriber=self.subscriber)
+        prefs.district = district
+        prefs.save()
+        self._open_manage_session()
+        response = self.client.post(
+            "/api/digests/preferences",
+            data=json.dumps({"issue_areas": ["Labor"]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        prefs.refresh_from_db()
+        self.assertEqual(prefs.district, district)
 
     def test_preferences_requests_slide_session_expiry(self):
         # Every authenticated call resets the 1-hour clock so the session
@@ -414,5 +490,7 @@ class OptionsTests(TestCase):
         data = response.json()
         self.assertTrue(data["signup_open"])
         self.assertIn("Housing", data["issue_areas"])
-        self.assertEqual(data["reps"], [])       # no council members in test DB
         self.assertEqual(data["districts"], [])
+        # District + topics is the whole subscription model — no
+        # councilmember picker, so no reps payload.
+        self.assertNotIn("reps", data)

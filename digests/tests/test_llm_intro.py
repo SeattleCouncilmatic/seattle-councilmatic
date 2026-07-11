@@ -158,7 +158,9 @@ class IntroRequestTests(TestCase):
             [{"name": "Dan Strauss", "seat": "District 6"}],
         )
         self.assertEqual(interests["district"], "District 6")
-        self.assertEqual(interests["followed_bills"], ["CB 300002"])
+        # No followed_bills key: the form can't create bill follows, and
+        # feeding a list would tempt "bills you follow" phrasing.
+        self.assertNotIn("followed_bills", interests)
         item = payload["items"][0]
         self.assertTrue(item["item_id"].startswith("bill-"))
         self.assertEqual(item["identifier"], "CB 300002")

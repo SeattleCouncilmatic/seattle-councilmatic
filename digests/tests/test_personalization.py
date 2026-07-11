@@ -41,7 +41,7 @@ class BillMatchTests(TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["reasons"], ["Sponsored by Alexis Mercedes Rinck"])
 
-    def test_district_rep_primary_sponsorship_match(self):
+    def test_district_rep_sponsorship_match_named_reason(self):
         rep = fixtures.councilmember("Joy Hollingsworth", "District 3")
         fixtures.bill("CB 100005", action_date=RECENT, sponsors=[rep])
         sub = fixtures.subscriber(
@@ -50,16 +50,49 @@ class BillMatchTests(TestCase):
         items = _match(sub)
         self.assertEqual(len(items), 1)
         self.assertEqual(
-            items[0]["reasons"], ["Sponsored by your district's councilmember"]
+            items[0]["reasons"],
+            ["Sponsored by Joy Hollingsworth, your district's councilmember"],
         )
 
-    def test_district_dimension_ignores_cosponsorship(self):
+    def test_district_dimension_includes_cosponsorship(self):
+        # The district maps to "your representatives" — their co-sponsored
+        # work counts as district news too.
         rep = fixtures.councilmember("Joy Hollingsworth", "District 3")
         fixtures.bill("CB 100006", action_date=RECENT, sponsors=[rep], primary=False)
         sub = fixtures.subscriber(
             "cosponsor@example.org", district_obj=fixtures.district("3")
         )
-        self.assertEqual(_match(sub), [])
+        self.assertEqual(len(_match(sub)), 1)
+
+    def test_district_includes_citywide_members(self):
+        # A geographic district's representative set is the district seat
+        # PLUS the citywide Position members — mirroring the council map.
+        fixtures.councilmember("Joy Hollingsworth", "District 3")
+        citywide = fixtures.councilmember("Alexis Mercedes Rinck", "Position 8")
+        fixtures.bill("CB 100016", action_date=RECENT, sponsors=[citywide])
+        sub = fixtures.subscriber(
+            "citywide@example.org", district_obj=fixtures.district("3")
+        )
+        items = _match(sub)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(
+            items[0]["reasons"],
+            ["Sponsored by Alexis Mercedes Rinck (citywide)"],
+        )
+
+    def test_followed_rep_who_is_also_district_rep_gets_one_reason(self):
+        rep = fixtures.councilmember("Joy Hollingsworth", "District 3")
+        fixtures.bill("CB 100017", action_date=RECENT, sponsors=[rep])
+        sub = fixtures.subscriber(
+            "both@example.org",
+            followed_reps=[rep],
+            district_obj=fixtures.district("3"),
+        )
+        items = _match(sub)
+        self.assertEqual(
+            items[0]["reasons"],
+            ["Sponsored by Joy Hollingsworth, your district's councilmember"],
+        )
 
     def test_at_large_district_matches_position_seats(self):
         rep = fixtures.councilmember("Alexis Mercedes Rinck", "Position 8")
@@ -69,6 +102,10 @@ class BillMatchTests(TestCase):
         )
         items = _match(sub)
         self.assertEqual(len(items), 1)
+        self.assertEqual(
+            items[0]["reasons"],
+            ["Sponsored by Alexis Mercedes Rinck (citywide)"],
+        )
 
     def test_followed_bill_match(self):
         b = fixtures.bill("CB 100008", action_date=RECENT)
