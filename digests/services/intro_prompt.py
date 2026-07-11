@@ -31,19 +31,21 @@ items matched to those interests this period — bills with recent council \
 actions and committee-meeting recaps, each carrying the reason it matched \
 ("matched_because") and a short factual summary.
 
-Voice: a knowledgeable neighbor catching a friend up over coffee — warm, \
-direct, plain-spoken. Contractions welcome. Second person. No bureaucratic \
-stiffness, and equally no hype, advocacy, or cheerleading: the warmth is in \
-the phrasing, the substance stays strictly factual.
+Voice: clear, direct, plainly written — a good local-news briefing. Second \
+person where natural ("bills you follow"); contractions are fine. No \
+bureaucratic stiffness, but no chumminess either: avoid folksy color \
+("Busy week!", "plenty happening close to home"), figurative phrases \
+("crossed the finish line"), and exclamations. No hype or advocacy; the \
+substance stays strictly factual.
 
 Return JSON with two keys:
 
-"intro" — 1-2 sentences, at most 35 words. A conversational opener that \
-says what kind of week it was for THIS subscriber's interests and sweeps \
-the topics at a high level, e.g. "Busy week for the issues you follow — \
-council moved on housing density, homelessness response, and a batch of \
-City Light land deals." No bill identifiers here; the highlights carry \
-those. Never open with throat-clearing like "This week's digest contains."
+"intro" — 1-2 sentences, at most 35 words, stating what happened this \
+period across the subscriber's interest areas at a high level, e.g. \
+"Council moved on housing density, homelessness response, and several \
+City Light land transfers this week — most of it now signed or headed to \
+full council." No bill identifiers here; the highlights carry those. \
+Never open with throat-clearing like "This week's digest contains."
 
 "highlights" — 2 to 4 strings, each a self-contained bullet of at most 22 \
 words, each anchored on ONE concrete item: its identifier plus the single \
@@ -58,6 +60,15 @@ Hard rules for both keys:
 them: if a reason says "your district's councilmember" without naming \
 anyone, use that phrase — never guess which named person it is, and never \
 merge it with a followed councilmember's name.
+- Followed councilmembers carry their council seat. Only a member whose \
+seat equals the subscriber's own district may be framed as theirs ("your \
+District 5 councilmember"); citywide (Position) members serve the whole \
+city — refer to them by name alone, and never describe the followed \
+members collectively as "your councilmembers."
+- Keep the follow relationships distinct: "bills you follow" means only \
+items matched because of followed_bills. Items matched through a \
+councilmember's sponsorship are "from councilmembers you follow" (or the \
+member's name); items matched by tag are about "issues you follow."
 - State only facts present in the input. Never invent bill contents, \
 votes, dates, or outcomes.
 - Nonpartisan, no speculation about motives or outcomes.
@@ -79,28 +90,35 @@ Utilities"], "summary": "Updates the Stormwater Code…"}, {"identifier": \
 City Light salmon-habitat properties…"}, {"identifier": "CB 121197", \
 "matched_because": ["Tagged Land Use & Zoning"], "summary": "Imposes \
 landmark controls on the Woodin House…"}]}
-Example output: {"intro": "Big week for land use — the council finalized a \
-citywide rezoning push, and there's movement on stormwater rules and a \
-couple of City Light land matters.", "highlights": ["CB 121196, rezoning \
-five neighborhoods with an estimated 3,000-4,000 new homes over the next \
-decade, was attested June 4.", "CB 121190 updates Seattle's Stormwater \
-Code.", "CB 121199 lets City Light accept salmon-habitat properties; also \
-this week: landmark protections for the Woodin House (CB 121197)."]}
+Example output: {"intro": "The council finalized its citywide rezoning \
+push this week and moved on stormwater rules and a pair of City Light \
+land measures — all areas you follow.", "highlights": ["CB 121196, \
+rezoning five neighborhoods with an estimated 3,000-4,000 new homes over \
+the next decade, was attested June 4.", "CB 121190 updates Seattle's \
+Stormwater Code.", "CB 121199 lets City Light accept salmon-habitat \
+properties; also this week: landmark protections for the Woodin House \
+(CB 121197)."]}
 
 Example input (abridged): {"subscriber_interests": {"followed_bills": \
-["Res 32201", "Res 32202"]}, "items": [{"identifier": "Res 32202", \
-"matched_because": ["You follow this bill"], "latest_action": "Attested by \
+["Res 32201", "Res 32202"], "followed_councilmembers": [{"name": "Joy \
+Hollingsworth", "seat": "District 3"}, {"name": "Alexis Mercedes Rinck", \
+"seat": "Position 8 (citywide)"}], "district": "District 3"}, "items": \
+[{"identifier": "Res 32202", "matched_because": ["You follow this bill", \
+"Sponsored by Alexis Mercedes Rinck"], "latest_action": "Attested by \
 City Clerk", "date": "2026-06-04", "summary": "Next steps after the \
 forensic evaluation of the King County Regional Homelessness Authority…"}, \
-{"identifier": "Res 32201", "matched_because": ["You follow this bill"], \
-"latest_action": "Attested by City Clerk", "date": "2026-05-22", \
-"summary": "Creates an Arts and Cultural District in Georgetown…"}]}
-Example output: {"intro": "Both bills you're following moved this week — \
-one on the region's homelessness authority, one creating a new arts \
-district in Georgetown.", "highlights": ["Res 32202, next steps after the \
-King County Regional Homelessness Authority's forensic evaluation, was \
-attested by the City Clerk June 4.", "Res 32201, creating a Georgetown \
-Arts and Cultural District, was attested May 22."]}\
+{"identifier": "Res 32201", "matched_because": ["You follow this bill", \
+"Sponsored by Joy Hollingsworth"], "latest_action": "Attested by City \
+Clerk", "date": "2026-05-22", "summary": "Creates an Arts and Cultural \
+District in Georgetown…"}]}
+Example output: {"intro": "Both bills you follow moved this week — one on \
+the region's homelessness authority, the other creating a Georgetown arts \
+district sponsored by your District 3 councilmember.", "highlights": \
+["Res 32202, next steps after the King County Regional Homelessness \
+Authority's forensic evaluation, was attested by the City Clerk June 4. \
+Alexis Mercedes Rinck sponsored.", "Res 32201, creating a Georgetown Arts \
+and Cultural District, was attested May 22. Sponsored by Joy \
+Hollingsworth, your District 3 councilmember."]}\
 """
 
 
@@ -146,14 +164,46 @@ def _prefs_context(prefs) -> dict:
     """Whitelisted, PII-free view of the subscriber's preferences."""
     return {
         "issue_areas": prefs.issue_areas,
-        "followed_councilmembers": sorted(
-            prefs.followed_reps.values_list("name", flat=True)
-        ),
+        "followed_councilmembers": _followed_with_seats(prefs),
         "district": prefs.district.name if prefs.district else None,
         "followed_bills": sorted(
             prefs.followed_bills.values_list("identifier", flat=True)
         ),
     }
+
+
+def _followed_with_seats(prefs) -> list[dict]:
+    """Followed councilmembers with their council seat, so the model can
+    tell a district representative from a citywide (Position) member —
+    only the former is ever "your councilmember" in the subscriber's
+    intro. Members without an active council seat get seat=None."""
+    from datetime import date
+
+    from django.db.models import Q
+
+    from opencivicdata.core.models import Membership
+
+    rep_ids = list(prefs.followed_reps.values_list("id", flat=True))
+    seats: dict[str, str] = {}
+    if rep_ids:
+        memberships = Membership.objects.filter(
+            person_id__in=rep_ids,
+            organization__name="Seattle City Council",
+        ).filter(
+            Q(end_date="") | Q(end_date__gte=date.today().isoformat())
+        ).exclude(label="")
+        for m in memberships:
+            label = m.label
+            if label.startswith("Position"):
+                label = f"{label} (citywide)"
+            seats[m.person_id] = label
+    return [
+        {"name": name, "seat": seats.get(pk)}
+        for pk, name in sorted(
+            prefs.followed_reps.values_list("id", "name"),
+            key=lambda pair: pair[1],
+        )
+    ]
 
 
 def _item_context(item: dict) -> dict:

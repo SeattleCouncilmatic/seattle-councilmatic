@@ -150,7 +150,13 @@ class IntroRequestTests(TestCase):
         self.assertEqual(payload["cadence"], "weekly")
         interests = payload["subscriber_interests"]
         self.assertEqual(interests["issue_areas"], ["Housing"])
-        self.assertEqual(interests["followed_councilmembers"], ["Dan Strauss"])
+        # Seat labels ride along so the model can tell a district rep from
+        # a citywide (Position) member — only the former is ever "your
+        # councilmember" in the rendered intro.
+        self.assertEqual(
+            interests["followed_councilmembers"],
+            [{"name": "Dan Strauss", "seat": "District 6"}],
+        )
         self.assertEqual(interests["district"], "District 6")
         self.assertEqual(interests["followed_bills"], ["CB 300002"])
         item = payload["items"][0]
