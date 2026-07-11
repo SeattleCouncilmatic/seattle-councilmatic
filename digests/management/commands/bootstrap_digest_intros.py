@@ -118,9 +118,8 @@ class Command(BaseCommand):
             )
             data = json.loads(text)
             self.stdout.write(self.style.SUCCESS("  intro:"))
-            self.stdout.write(f"  {data.get('intro', '')}")
-            for line in data.get("highlights", []):
-                self.stdout.write(f"    * {line}")
+            for para in data.get("intro", "").split("\n\n"):
+                self.stdout.write(f"  {para.strip()}\n")
 
     # ------------------------------------------------------------------ #
 

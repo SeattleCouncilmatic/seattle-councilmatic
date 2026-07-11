@@ -244,10 +244,16 @@ class Command(BaseCommand):
             f"{base}/digests/unsubscribe?token="
             f"{make_token(subscriber, PURPOSE_UNSUBSCRIBE)}"
         )
+        intro = (send.llm_payload or {}).get("intro") or ""
         context = {
             "cadence": send.cadence,
-            "intro": (send.llm_payload or {}).get("intro"),
-            "highlights": (send.llm_payload or {}).get("highlights"),
+            "intro": intro,
+            # The editorial intro is 2-4 paragraphs split by blank lines;
+            # split here so the HTML template can style each <p> inline
+            # (linebreaks-filter markup can't carry email-safe styles).
+            "intro_paragraphs": [
+                p.strip() for p in intro.split("\n\n") if p.strip()
+            ],
             "quiet": not items,
             "window_label": timezone.localdate().strftime("%B %d, %Y"),
             "bill_items": [i for i in items if i["type"] == "bill"],

@@ -86,14 +86,10 @@ def _patch_send_llm(fake):
 
 
 class ComposeSchemaTests(TestCase):
-    def test_v1_shape_is_intro_and_highlights(self):
+    def test_v1_shape_is_intro_only(self):
         schema = compose_schema(include_blurbs=False)
-        self.assertEqual(list(schema["properties"]), ["intro", "highlights"])
-        self.assertEqual(schema["required"], ["intro", "highlights"])
-        # The API rejects maxItems and minItems > 1 in output schemas —
-        # the 2-4 bullet range lives in the prompt text instead.
-        self.assertNotIn("maxItems", schema["properties"]["highlights"])
-        self.assertEqual(schema["properties"]["highlights"]["minItems"], 1)
+        self.assertEqual(list(schema["properties"]), ["intro"])
+        self.assertEqual(schema["required"], ["intro"])
         self.assertFalse(schema["additionalProperties"])
 
     def test_blurbs_flip_adds_item_blurbs(self):
@@ -138,7 +134,10 @@ class IntroRequestTests(TestCase):
         _sub, request = self._request()
         params = request["params"]
         self.assertEqual(params["model"], "claude-test-model")
-        self.assertNotIn("thinking", params)  # Haiku rejects the param
+        # Non-Haiku models get adaptive thinking (same gate as the
+        # summarizer commands), at low effort.
+        self.assertEqual(params["thinking"], {"type": "adaptive"})
+        self.assertEqual(params["output_config"]["effort"], "low")
         self.assertEqual(
             params["system"][0]["cache_control"], {"type": "ephemeral"}
         )
@@ -244,11 +243,11 @@ class SendPollTests(TestCase):
         row.refresh_from_db()
         self.assertEqual(row.status, DigestSend.STATUS_PENDING)
 
-    def test_ended_batch_persists_intro_and_renders_it(self):
+    def test_ended_batch_persists_intro_and_renders_paragraphs(self):
         sub, row = self._pending_with_batch()
         payload = {
-            "intro": "Housing news this week.",
-            "highlights": ["CB 300001 saw its first committee action."],
+            "intro": "Housing news this week.\n\nCB 300001 saw its first "
+            "committee action — worth watching.",
         }
         fake = FakeLLMClient(results={f"sub-{sub.id}": payload})
         with _patch_send_llm(fake):
@@ -259,7 +258,14 @@ class SendPollTests(TestCase):
         message = mail.outbox[0]
         for body in (message.body, message.alternatives[0][0]):
             self.assertIn("Housing news this week.", body)
-            self.assertIn("CB 300001 saw its first committee action.", body)
+            self.assertIn("worth watching", body)
+        # Each blank-line-separated paragraph renders as its own styled <p>.
+        html = message.alternatives[0][0]
+        self.assertIn(
+            '<p style="margin:0 0 12px;font-size:15.5px;line-height:1.65;'
+            'color:#1f2937;">Housing news this week.</p>',
+            html,
+        )
 
     def test_missing_result_sends_without_intro(self):
         _sub, row = self._pending_with_batch()

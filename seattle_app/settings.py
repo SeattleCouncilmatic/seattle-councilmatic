@@ -271,12 +271,13 @@ CLAUDE_EVENT_SUMMARY_MODEL = os.getenv("CLAUDE_EVENT_SUMMARY_MODEL", "claude-son
 # bills it has handled. Only 9 committees and re-summarized solely on change
 # (content_hash), so cost is negligible.
 CLAUDE_COMMITTEE_SUMMARY_MODEL = os.getenv("CLAUDE_COMMITTEE_SUMMARY_MODEL", "claude-sonnet-5")
-# Haiku: the digest intro (#238) is one short factual paragraph over a
-# compact JSON payload, generated per subscriber at send time — the one
-# pipeline where volume scales with subscribers, so the cheap tier is the
-# deliberate choice (~$0.001/send batched). Note Haiku rejects the adaptive
-# `thinking` param; the digest request builder omits it entirely.
-CLAUDE_DIGEST_MODEL = os.getenv("CLAUDE_DIGEST_MODEL", "claude-haiku-4-5-20251001")
+# Sonnet: the digest intro (#238/#239) is a short editorial opening — 2-4
+# connected paragraphs finding the through-line in the subscriber's matched
+# items. Haiku was tried first (volume scales with subscribers, so the cheap
+# tier was attractive) and failed the quality gate: thin, forced prose.
+# Sonnet batched is ~$0.006/send vs Haiku's ~$0.001 — immaterial at beta
+# scale; revisit if subscriber volume makes the LLM line item matter.
+CLAUDE_DIGEST_MODEL = os.getenv("CLAUDE_DIGEST_MODEL", "claude-sonnet-5")
 
 # Outbound email (pipeline health alerts — #210; and any future notifications).
 # Set the SMTP vars in the environment to enable real sending. Without

@@ -26,18 +26,12 @@ request context at send time.
     </p>
   </div>
 
-{% if intro %}
-  <p style="margin:0 0 {% if highlights %}10px{% else %}18px{% endif %};font-size:15.5px;line-height:1.6;color:#1f2937;">{{ intro }}</p>
-{% endif %}
-{% if highlights %}
-  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
-    {% for line in highlights %}
-    <tr>
-      <td style="padding:0 10px 7px 2px;font-size:15px;line-height:1.5;color:#2E3D5B;vertical-align:top;">&#8226;</td>
-      <td style="padding:0 0 7px;font-size:14.5px;line-height:1.5;color:#374151;">{{ line }}</td>
-    </tr>
+{% if intro_paragraphs %}
+  <div style="margin:0 0 18px;">
+    {% for para in intro_paragraphs %}
+    <p style="margin:0 0 12px;font-size:15.5px;line-height:1.65;color:#1f2937;">{{ para }}</p>
     {% endfor %}
-  </table>
+  </div>
 {% endif %}
 
 {% if quiet %}
