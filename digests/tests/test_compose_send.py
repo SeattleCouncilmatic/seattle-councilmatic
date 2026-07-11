@@ -198,6 +198,47 @@ class SendTests(TestCase):
         self.assertIn("quiet week", message.subject)
         self.assertIn("quiet week", message.body)
 
+    def test_upcoming_meetings_sidebar_renders(self):
+        rep = fixtures.councilmember("Robert Kettle", "District 7")
+        fixtures.committee_membership(rep, fixtures.committee("Public Safety"))
+        future = (timezone.now() + timedelta(days=3)).replace(
+            hour=9, minute=30, second=0, microsecond=0
+        )
+        fixtures.meeting(
+            "Public Safety Committee", start_date=future.isoformat()
+        )
+        fixtures.bill("CB 200008", action_date=RECENT, tags=["Housing"])
+        fixtures.subscriber(
+            "sidebar@example.org", issue_areas=["Housing"], followed_reps=[rep]
+        )
+        _compose(cadence="weekly")
+        _send()
+        message = mail.outbox[0]
+        self.assertIn("COMING UP", message.body)
+        self.assertIn("Public Safety Committee", message.body)
+        html = message.alternatives[0][0]
+        self.assertIn("Coming up", html)
+        self.assertIn("Public Safety Committee", html)
+
+    def test_quiet_week_still_gets_upcoming_meetings(self):
+        # The sidebar is computed at send time, not from the snapshot — a
+        # quiet week with a meeting on the calendar is still worth opening.
+        rep = fixtures.councilmember("Robert Kettle", "District 7")
+        fixtures.committee_membership(rep, fixtures.committee("Public Safety"))
+        # Microseconds stripped: Event.start_date is varchar(25).
+        future = (
+            (timezone.now() + timedelta(days=2))
+            .replace(microsecond=0)
+            .isoformat()
+        )
+        fixtures.meeting("Public Safety Committee", start_date=future)
+        fixtures.subscriber("quietup@example.org", followed_reps=[rep])
+        _compose(cadence="weekly")
+        _send()
+        message = mail.outbox[0]
+        self.assertIn("quiet week", message.subject)
+        self.assertIn("COMING UP", message.body)
+
     def test_smtp_guard_refuses_outside_debug(self):
         # Test runner forces DEBUG=False, which is the guard's real prod
         # condition — no override_settings needed.

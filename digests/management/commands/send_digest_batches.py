@@ -105,7 +105,7 @@ class Command(BaseCommand):
         waiting on an in-flight intro batch (0 ⇒ nothing left to wait for)."""
         pending = list(
             DigestSend.objects.filter(status=DigestSend.STATUS_PENDING)
-            .select_related("subscriber")
+            .select_related("subscriber", "subscriber__preferences")
             .order_by("created_at")[: opts["limit"]]
         )
         if not pending:
@@ -235,6 +235,10 @@ class Command(BaseCommand):
     def _deliver(self, client, send):
         subscriber = send.subscriber
         items = personalization.items_from_snapshot(send.matched_item_ids)
+        # Fresh at send time, deliberately not snapshotted: forward-looking
+        # content must not go stale between compose and send, and quiet
+        # weeks render it too.
+        upcoming = personalization.upcoming_meetings(subscriber.preferences)
         base = settings.DIGEST_SITE_BASE_URL.rstrip("/")
         unsubscribe_url = (
             f"{base}/digests/unsubscribe?token="
@@ -247,6 +251,7 @@ class Command(BaseCommand):
             "window_label": timezone.localdate().strftime("%B %d, %Y"),
             "bill_items": [i for i in items if i["type"] == "bill"],
             "meeting_items": [i for i in items if i["type"] == "meeting"],
+            "upcoming_items": upcoming,
             "site_base": base,
             "manage_url": (
                 f"{base}/digests/manage?token="

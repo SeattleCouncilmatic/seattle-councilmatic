@@ -222,6 +222,71 @@ class SnapshotTests(TestCase):
         self.assertEqual(personalization.items_from_snapshot(snap), [])
 
 
+class UpcomingMeetingTests(TestCase):
+    def _future(self, days, hour=9):
+        from django.utils import timezone as dj_tz
+
+        # Build in LOCAL time — Event.start_date carries a tz offset and the
+        # sidebar localizes for display, so a 9 AM built in UTC would render
+        # as 2 AM Pacific. Microseconds stripped: the column is varchar(25).
+        when = dj_tz.localtime(dj_tz.now() + timedelta(days=days)).replace(
+            hour=hour, minute=30, second=0, microsecond=0
+        )
+        return when.isoformat()
+
+    def _sub_with_committee(self, email="up@example.org"):
+        rep = fixtures.councilmember("Robert Kettle", "District 7")
+        fixtures.committee_membership(rep, fixtures.committee("Public Safety"))
+        return fixtures.subscriber(email, followed_reps=[rep])
+
+    def test_upcoming_meeting_of_followed_committee(self):
+        sub = self._sub_with_committee()
+        fixtures.meeting("Public Safety Committee", start_date=self._future(3))
+        items = personalization.upcoming_meetings(sub.preferences)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["type"], "upcoming")
+        self.assertEqual(items[0]["time_label"], "9:30 AM")
+
+    def test_past_and_far_future_excluded(self):
+        sub = self._sub_with_committee("up2@example.org")
+        fixtures.meeting("Public Safety Committee", start_date=RECENT)
+        fixtures.meeting(
+            "Public Safety Committee", start_date=self._future(30)
+        )
+        self.assertEqual(
+            personalization.upcoming_meetings(sub.preferences), []
+        )
+
+    def test_cancelled_excluded(self):
+        sub = self._sub_with_committee("up3@example.org")
+        event = fixtures.meeting(
+            "Public Safety Committee", start_date=self._future(2)
+        )
+        event.status = "cancelled"
+        event.save()
+        self.assertEqual(
+            personalization.upcoming_meetings(sub.preferences), []
+        )
+
+    def test_unrelated_committee_excluded(self):
+        sub = self._sub_with_committee("up4@example.org")
+        fixtures.meeting("Land Use Committee", start_date=self._future(2))
+        self.assertEqual(
+            personalization.upcoming_meetings(sub.preferences), []
+        )
+
+    def test_district_rep_committee_matches_soonest_first(self):
+        rep = fixtures.councilmember("Joy Hollingsworth", "District 3")
+        fixtures.committee_membership(rep, fixtures.committee("Parks"))
+        sub = fixtures.subscriber(
+            "up5@example.org", district_obj=fixtures.district("3")
+        )
+        far = fixtures.meeting("Parks Committee", start_date=self._future(5))
+        near = fixtures.meeting("Parks Committee", start_date=self._future(2))
+        items = personalization.upcoming_meetings(sub.preferences)
+        self.assertEqual([i["id"] for i in items], [near.id, far.id])
+
+
 class WindowTests(TestCase):
     def test_daily_window_uses_last_sent_at(self):
         from django.utils import timezone

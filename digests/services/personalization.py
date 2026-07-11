@@ -31,9 +31,10 @@ is duplicated into the row.
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from django.db.models import Max, Q
+from django.utils import timezone
 
 from councilmatic_core.models import Bill, Event
 from opencivicdata.core.models import Membership
@@ -204,11 +205,8 @@ def _bill_item(bill, reasons) -> dict:
 # Committee meetings
 # --------------------------------------------------------------------- #
 
-def _matched_meetings(since, followed_rep_ids, district_rep_ids) -> list[dict]:
-    rep_ids = list(dict.fromkeys([*followed_rep_ids, *district_rep_ids]))
-    if not rep_ids:
-        return []
-    # normalized committee name -> which of the subscriber's reps sit on it
+def _committees_of(rep_ids) -> dict[str, set[str]]:
+    """normalized committee name -> which of the subscriber's reps sit on it"""
     committees: dict[str, set[str]] = {}
     memberships = Membership.objects.filter(
         person_id__in=rep_ids, organization__classification="committee"
@@ -216,6 +214,14 @@ def _matched_meetings(since, followed_rep_ids, district_rep_ids) -> list[dict]:
     for m in memberships:
         key = _normalize_committee_name(m.organization.name)
         committees.setdefault(key, set()).add(m.person.name)
+    return committees
+
+
+def _matched_meetings(since, followed_rep_ids, district_rep_ids) -> list[dict]:
+    rep_ids = list(dict.fromkeys([*followed_rep_ids, *district_rep_ids]))
+    if not rep_ids:
+        return []
+    committees = _committees_of(rep_ids)
     if not committees:
         return []
 
@@ -252,6 +258,79 @@ def _meeting_item(event, reasons) -> dict:
         "reasons": reasons,
         "blurb": None,
     }
+
+
+# --------------------------------------------------------------------- #
+# Upcoming meetings (the email's "Coming up" sidebar)
+# --------------------------------------------------------------------- #
+
+# How far ahead the sidebar looks, and how many meetings it lists.
+UPCOMING_HORIZON_DAYS = 8
+UPCOMING_LIMIT = 5
+
+
+def upcoming_meetings(prefs) -> list[dict]:
+    """Scheduled (non-cancelled) meetings in the coming week for committees
+    a followed rep or the district rep sits on. Computed fresh at SEND time,
+    not snapshotted at compose — forward-looking content must not go stale
+    between the two, and quiet-week digests render it too (it's what makes
+    a quiet week still worth opening)."""
+    followed_rep_ids = list(prefs.followed_reps.values_list("id", flat=True))
+    rep_ids = list(dict.fromkeys(
+        [*followed_rep_ids, *_district_rep_ids(prefs.district)]
+    ))
+    if not rep_ids:
+        return []
+    committees = _committees_of(rep_ids)
+    if not committees:
+        return []
+
+    now = timezone.now()
+    horizon = now + timedelta(days=UPCOMING_HORIZON_DAYS)
+    events = (
+        Event.objects.filter(
+            start_date__gte=now.isoformat(),
+            start_date__lte=horizon.isoformat(),
+        )
+        .exclude(status="cancelled")
+        .order_by("start_date")
+    )
+    items = []
+    for event in events:
+        reps = committees.get(_normalize_committee_name(event.name))
+        if not reps:
+            continue
+        when = _parse_start(event.start_date)
+        items.append({
+            "type": "upcoming",
+            "id": event.id,
+            "title": event.name,
+            "url_path": f"/events/{event.slug}",
+            "date_label": (
+                when.strftime("%a, %b %d") if when
+                else (event.start_date or "")[:10]
+            ),
+            "time_label": (
+                when.strftime("%I:%M %p").lstrip("0")
+                if when and (when.hour or when.minute) else ""
+            ),
+            "reps": sorted(reps),
+        })
+        if len(items) >= UPCOMING_LIMIT:
+            break
+    return items
+
+
+def _parse_start(start_date: str):
+    """Event.start_date is a CharField of full ISO 8601 (usually with a
+    timezone). Localized for display; None when unparseable."""
+    try:
+        when = datetime.fromisoformat(start_date)
+    except (TypeError, ValueError):
+        return None
+    if timezone.is_aware(when):
+        when = timezone.localtime(when)
+    return when
 
 
 # --------------------------------------------------------------------- #

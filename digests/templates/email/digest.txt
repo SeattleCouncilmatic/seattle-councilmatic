@@ -25,7 +25,15 @@ COMMITTEE MEETINGS
   {{ item.blurb }}{% endif %}{% if item.summary %}
   {{ item.summary }}{% endif %}
   {{ site_base }}{{ item.url_path }}
-{% endfor %}{% endif %}
+{% endfor %}{% endif %}{% if upcoming_items %}
+COMING UP
+---------
+{% for item in upcoming_items %}
+{{ item.date_label }}{% if item.time_label %} {{ item.time_label }}{% endif %} - {{ item.title }}
+  {{ site_base }}{{ item.url_path }}
+{% endfor %}
+(Meetings of committees your councilmembers serve on.)
+{% endif %}
 --
 You're receiving this because you subscribed to Seattle Councilmatic
 email digests.
