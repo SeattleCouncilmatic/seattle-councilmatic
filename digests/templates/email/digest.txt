@@ -2,7 +2,9 @@
 Your {{ cadence }} council digest{% if window_label %} - {{ window_label }}{% endif %}
 {% if intro %}
 {{ intro }}
-{% endif %}{% if quiet %}
+{% endif %}{% if highlights %}
+{% for line in highlights %}  * {{ line }}
+{% endfor %}{% endif %}{% if quiet %}
 A quiet week at Seattle City Council - nothing matched your interests
 since the last digest. We'll be back next week; in the meantime you can
 browse recent legislation any time: {{ site_base }}/legislation
@@ -10,7 +12,8 @@ browse recent legislation any time: {{ site_base }}/legislation
 LEGISLATION
 -----------
 {% for item in bill_items %}
-{{ item.identifier }} - {{ item.short_title }}
+{{ item.identifier }} - {{ item.short_title }}{% if item.tags %}
+  Topics: {% for tag in item.tags %}{{ tag.name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
   Why: {{ item.reasons|join:"; " }}{% if item.latest_action %}
   Latest action{% if item.date %} ({{ item.date }}){% endif %}: {{ item.latest_action }}{% endif %}{% if item.blurb %}
   {{ item.blurb }}{% endif %}{% if item.summary %}

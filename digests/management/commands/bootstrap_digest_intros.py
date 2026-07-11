@@ -116,9 +116,11 @@ class Command(BaseCommand):
             text = next(
                 (b.text for b in message.content if b.type == "text"), ""
             )
-            intro = json.loads(text).get("intro", "")
+            data = json.loads(text)
             self.stdout.write(self.style.SUCCESS("  intro:"))
-            self.stdout.write(f"  {intro}")
+            self.stdout.write(f"  {data.get('intro', '')}")
+            for line in data.get("highlights", []):
+                self.stdout.write(f"    * {line}")
 
     # ------------------------------------------------------------------ #
 

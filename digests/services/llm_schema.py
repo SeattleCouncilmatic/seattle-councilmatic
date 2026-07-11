@@ -12,10 +12,20 @@ def compose_schema(include_blurbs: bool = False) -> dict:
     properties = {
         "intro": {
             "type": "string",
-            "description": "The personalized opening paragraph.",
+            "description": "Short conversational greeting + high-level "
+            "topical overview (1-2 sentences).",
+        },
+        "highlights": {
+            "type": "array",
+            # Output schemas only allow minItems 0/1 and reject maxItems
+            # outright — the 2-4 range is enforced by the prompt text.
+            "minItems": 1,
+            "items": {"type": "string"},
+            "description": "Bulleted highlights, each anchored on one "
+            "concrete item.",
         },
     }
-    required = ["intro"]
+    required = ["intro", "highlights"]
     if include_blurbs:
         properties["item_blurbs"] = {
             "type": "array",

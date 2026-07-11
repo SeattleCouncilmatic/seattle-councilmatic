@@ -95,7 +95,7 @@ def items_from_snapshot(snap: list[dict]) -> list[dict]:
     if bill_ids:
         bills = (
             Bill.objects.filter(id__in=bill_ids)
-            .select_related("llm_summary")
+            .select_related("llm_summary", "issue_tags")
             .prefetch_related("actions")
         )
         items += [
@@ -182,6 +182,15 @@ def _matched_bills(prefs, since, followed_rep_ids, district_rep_ids) -> list[dic
 
 def _bill_item(bill, reasons) -> dict:
     latest = max(bill.actions.all(), key=lambda a: a.date or "", default=None)
+    tags = list(getattr(getattr(bill, "issue_tags", None), "tags", []) or [])
+    # Tag-dimension matches render as highlighted topic pills, not as a
+    # "Tagged X" sentence pill — recover the matched tag names from the
+    # reason string so items_from_snapshot (which has no prefs in scope)
+    # gets the same split.
+    matched_tags: set[str] = set()
+    for reason in reasons:
+        if reason.startswith("Tagged "):
+            matched_tags.update(reason[len("Tagged "):].split(", "))
     return {
         "type": "bill",
         "id": bill.id,
@@ -195,6 +204,14 @@ def _bill_item(bill, reasons) -> dict:
             getattr(getattr(bill, "llm_summary", None), "summary", "")
         ),
         "reasons": reasons,
+        # Rendering split: every bill tag becomes a topic pill (matched
+        # ones highlighted); non-tag reasons stay sentence pills.
+        "tags": [
+            {"name": t, "matched": t in matched_tags} for t in tags
+        ],
+        "display_reasons": [
+            r for r in reasons if not r.startswith("Tagged ")
+        ],
         # Reserved for Phase 5 (DIGEST_INCLUDE_BLURBS). The template's
         # {% if item.blurb %} block stays dark until then.
         "blurb": None,
@@ -256,6 +273,8 @@ def _meeting_item(event, reasons) -> dict:
         "latest_action": "",
         "summary": _first_paragraph(event.llm_summary.overview),
         "reasons": reasons,
+        "tags": [],
+        "display_reasons": reasons,
         "blurb": None,
     }
 

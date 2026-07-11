@@ -115,6 +115,44 @@ class BillMatchTests(TestCase):
         self.assertIsNone(item["blurb"])
 
 
+class TagPillTests(TestCase):
+    def test_tags_split_matched_from_unmatched(self):
+        fixtures.bill(
+            "CB 100014",
+            action_date=RECENT,
+            tags=["Housing", "Transportation"],
+        )
+        sub = fixtures.subscriber(
+            "pillsplit@example.org", issue_areas=["Housing"]
+        )
+        item = _match(sub)[0]
+        self.assertEqual(
+            item["tags"],
+            [
+                {"name": "Housing", "matched": True},
+                {"name": "Transportation", "matched": False},
+            ],
+        )
+        # The tag match moved into the pills; no sentence reason remains.
+        self.assertEqual(item["display_reasons"], [])
+        self.assertEqual(item["reasons"], ["Tagged Housing"])
+
+    def test_non_tag_reasons_stay_sentence_pills(self):
+        rep = fixtures.councilmember("Dan Strauss", "District 6")
+        fixtures.bill(
+            "CB 100015", action_date=RECENT, tags=["Parks"], sponsors=[rep]
+        )
+        sub = fixtures.subscriber(
+            "pillsponsor@example.org", followed_reps=[rep]
+        )
+        item = _match(sub)[0]
+        self.assertEqual(item["display_reasons"], ["Sponsored by Dan Strauss"])
+        # Unmatched bill tags still show as (gray) topic pills.
+        self.assertEqual(
+            item["tags"], [{"name": "Parks", "matched": False}]
+        )
+
+
 class ShortTitleTests(TestCase):
     """Digest headlines from Seattle's semicolon-chained legal titles."""
 

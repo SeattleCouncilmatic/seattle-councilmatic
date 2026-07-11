@@ -155,11 +155,14 @@ class SendTests(TestCase):
         html = message.alternatives[0][0]
         for body in (text, html):
             self.assertIn("CB 200001", body)
-            self.assertIn("Tagged Housing", body)
             self.assertIn("What it does.", body)
             self.assertIn("/legislation/cb-200001", body)
             self.assertIn("/digests/unsubscribe?token=", body)
             self.assertIn("/digests/manage?token=", body)
+        # Tag matches render as topic pills in HTML ("Housing") and as the
+        # Why line in plaintext ("Tagged Housing").
+        self.assertIn("Tagged Housing", text)
+        self.assertIn("Housing", html)
         self.assertIn("List-Unsubscribe", message.extra_headers)
         self.assertEqual(
             message.extra_headers["List-Unsubscribe-Post"],
@@ -197,6 +200,24 @@ class SendTests(TestCase):
         message = mail.outbox[0]
         self.assertIn("quiet week", message.subject)
         self.assertIn("quiet week", message.body)
+
+    def test_topic_tag_pills_matched_vs_unmatched(self):
+        # All of a bill's tags render as pills; the matched one is
+        # highlighted (indigo #e0e7ff), the rest are gray (#f3f4f6).
+        fixtures.bill(
+            "CB 200009",
+            action_date=RECENT,
+            tags=["Housing", "Transportation"],
+        )
+        fixtures.subscriber("pills@example.org", issue_areas=["Housing"])
+        _compose(cadence="weekly")
+        _send()
+        message = mail.outbox[0]
+        html = message.alternatives[0][0]
+        self.assertIn("Housing", html)
+        self.assertIn("Transportation", html)
+        self.assertIn("#f3f4f6", html)  # the unmatched pill's gray
+        self.assertIn("Topics: Housing, Transportation", message.body)
 
     def test_upcoming_meetings_sidebar_renders(self):
         rep = fixtures.councilmember("Robert Kettle", "District 7")

@@ -86,10 +86,14 @@ def _patch_send_llm(fake):
 
 
 class ComposeSchemaTests(TestCase):
-    def test_v1_shape_is_intro_only(self):
+    def test_v1_shape_is_intro_and_highlights(self):
         schema = compose_schema(include_blurbs=False)
-        self.assertEqual(list(schema["properties"]), ["intro"])
-        self.assertEqual(schema["required"], ["intro"])
+        self.assertEqual(list(schema["properties"]), ["intro", "highlights"])
+        self.assertEqual(schema["required"], ["intro", "highlights"])
+        # The API rejects maxItems and minItems > 1 in output schemas —
+        # the 2-4 bullet range lives in the prompt text instead.
+        self.assertNotIn("maxItems", schema["properties"]["highlights"])
+        self.assertEqual(schema["properties"]["highlights"]["minItems"], 1)
         self.assertFalse(schema["additionalProperties"])
 
     def test_blurbs_flip_adds_item_blurbs(self):
@@ -234,17 +238,20 @@ class SendPollTests(TestCase):
 
     def test_ended_batch_persists_intro_and_renders_it(self):
         sub, row = self._pending_with_batch()
-        fake = FakeLLMClient(
-            results={f"sub-{sub.id}": {"intro": "Housing news this week."}}
-        )
+        payload = {
+            "intro": "Housing news this week.",
+            "highlights": ["CB 300001 saw its first committee action."],
+        }
+        fake = FakeLLMClient(results={f"sub-{sub.id}": payload})
         with _patch_send_llm(fake):
             _send()
         row.refresh_from_db()
         self.assertEqual(row.status, DigestSend.STATUS_SENT)
-        self.assertEqual(row.llm_payload, {"intro": "Housing news this week."})
+        self.assertEqual(row.llm_payload, payload)
         message = mail.outbox[0]
-        self.assertIn("Housing news this week.", message.body)
-        self.assertIn("Housing news this week.", message.alternatives[0][0])
+        for body in (message.body, message.alternatives[0][0]):
+            self.assertIn("Housing news this week.", body)
+            self.assertIn("CB 300001 saw its first committee action.", body)
 
     def test_missing_result_sends_without_intro(self):
         _sub, row = self._pending_with_batch()

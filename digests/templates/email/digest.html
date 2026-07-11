@@ -27,7 +27,17 @@ request context at send time.
   </div>
 
 {% if intro %}
-  <p style="margin:0 0 18px;font-size:15.5px;line-height:1.6;color:#1f2937;">{{ intro }}</p>
+  <p style="margin:0 0 {% if highlights %}10px{% else %}18px{% endif %};font-size:15.5px;line-height:1.6;color:#1f2937;">{{ intro }}</p>
+{% endif %}
+{% if highlights %}
+  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
+    {% for line in highlights %}
+    <tr>
+      <td style="padding:0 10px 7px 2px;font-size:15px;line-height:1.5;color:#2E3D5B;vertical-align:top;">&#8226;</td>
+      <td style="padding:0 0 7px;font-size:14.5px;line-height:1.5;color:#374151;">{{ line }}</td>
+    </tr>
+    {% endfor %}
+  </table>
 {% endif %}
 
 {% if quiet %}
@@ -56,7 +66,7 @@ request context at send time.
             {{ item.short_title }}
           </p>
           <p style="margin:0 0 8px;">
-            {% for reason in item.reasons %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ reason }}</span>{% endfor %}
+            {% for tag in item.tags %}{% if tag.matched %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ tag.name }}</span>{% else %}<span style="display:inline-block;background:#f3f4f6;color:#6b7280;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ tag.name }}</span>{% endif %}{% endfor %}{% for reason in item.display_reasons %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ reason }}</span>{% endfor %}
           </p>
           {% if item.latest_action %}
           <p style="margin:0 0 6px;font-size:13px;line-height:1.5;color:#374151;">
@@ -87,7 +97,7 @@ request context at send time.
           <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#6b7280;">{{ item.date }}</p>
           {% endif %}
           <p style="margin:0 0 8px;">
-            {% for reason in item.reasons %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ reason }}</span>{% endfor %}
+            {% for reason in item.display_reasons %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ reason }}</span>{% endfor %}
           </p>
           {% if item.blurb %}
           <p style="margin:0 0 6px;font-size:13.5px;line-height:1.55;font-style:italic;color:#374151;">{{ item.blurb }}</p>

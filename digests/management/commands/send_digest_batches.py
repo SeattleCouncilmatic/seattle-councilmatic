@@ -247,6 +247,7 @@ class Command(BaseCommand):
         context = {
             "cadence": send.cadence,
             "intro": (send.llm_payload or {}).get("intro"),
+            "highlights": (send.llm_payload or {}).get("highlights"),
             "quiet": not items,
             "window_label": timezone.localdate().strftime("%B %d, %Y"),
             "bill_items": [i for i in items if i["type"] == "bill"],
