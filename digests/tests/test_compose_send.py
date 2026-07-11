@@ -175,13 +175,13 @@ class SendTests(TestCase):
         sub.refresh_from_db()
         self.assertIsNotNone(sub.last_sent_at)
 
-    def test_legal_title_boilerplate_stays_out_of_the_email(self):
+    def test_title_splits_into_header_link_and_subtitle(self):
         fixtures.bill(
             "CB 200007",
             action_date=RECENT,
             tags=["Housing"],
             title="An ordinance relating to housing; authorizing the Director "
-            "of Housing to execute an amendment to an agreement and ratifying "
+            "of Housing to execute an amendment to an agreement; and ratifying "
             "and confirming certain prior acts.",
         )
         fixtures.subscriber("longtitle@example.org", issue_areas=["Housing"])
@@ -190,8 +190,16 @@ class SendTests(TestCase):
         message = mail.outbox[0]
         for body in (message.body, message.alternatives[0][0]):
             self.assertIn("CB 200007", body)
+            # Clause 1 is the header, clause 2 the subtitle, clause 3+
+            # (boilerplate) stays out entirely.
             self.assertIn("An ordinance relating to housing", body)
+            self.assertIn("authorizing the Director of Housing", body)
             self.assertNotIn("ratifying and confirming", body)
+        # The header link folds the bill number into the first clause.
+        html = message.alternatives[0][0]
+        self.assertIn(
+            "CB 200007 &ndash; An ordinance relating to housing</a>", html
+        )
 
     def test_quiet_week_email(self):
         fixtures.subscriber("quietsend@example.org", issue_areas=["Housing"])

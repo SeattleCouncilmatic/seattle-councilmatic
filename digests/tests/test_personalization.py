@@ -220,6 +220,31 @@ class ShortTitleTests(TestCase):
         title = "A resolution creating an Arts and Cultural District."
         self.assertEqual(personalization._short_title(title), title)
 
+    def test_subtitle_is_second_clause_only(self):
+        title = (
+            "An ordinance relating to the City Light Department; "
+            "authorizing the General Manager and Chief Executive Officer "
+            "or designee to grant an easement to King County; "
+            "ratifying and confirming certain prior acts."
+        )
+        self.assertEqual(
+            personalization._title_subtitle(title),
+            "authorizing the General Manager and Chief Executive Officer "
+            "or designee to grant an easement to King County",
+        )
+
+    def test_subtitle_empty_without_semicolon(self):
+        self.assertEqual(
+            personalization._title_subtitle("A resolution creating a district."),
+            "",
+        )
+
+    def test_long_subtitle_truncates_at_word_boundary(self):
+        title = "Header; " + " ".join(["authorizing"] * 40)
+        subtitle = personalization._title_subtitle(title)
+        self.assertLessEqual(len(subtitle), personalization.SUBTITLE_MAX + 1)
+        self.assertTrue(subtitle.endswith("…"))
+
 
 class MeetingMatchTests(TestCase):
     def test_meeting_of_followed_reps_committee(self):

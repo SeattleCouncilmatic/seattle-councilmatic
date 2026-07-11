@@ -224,6 +224,7 @@ def _bill_item(bill, reasons) -> dict:
         "identifier": bill.identifier,
         "title": bill.title or "",
         "short_title": _short_title(bill.title or ""),
+        "subtitle": _title_subtitle(bill.title or ""),
         "url_path": f"/legislation/{bill.slug}",
         "date": (latest.date or "")[:10] if latest else "",
         "latest_action": latest.description if latest else "",
@@ -295,6 +296,7 @@ def _meeting_item(event, reasons) -> dict:
         "identifier": "",
         "title": event.name,
         "short_title": event.name,
+        "subtitle": "",
         "url_path": f"/events/{event.slug}",
         "date": (event.start_date or "")[:10],
         "latest_action": "",
@@ -420,21 +422,38 @@ def _first_paragraph(text: str) -> str:
     return (text or "").strip().split("\n\n", 1)[0]
 
 
-# Cap for the digest headline derived from a bill's legal title.
+# Caps for the digest card header/subtitle derived from a bill's legal title.
 SHORT_TITLE_MAX = 110
+SUBTITLE_MAX = 160
+
+
+def _clause_truncate(clause: str, max_len: int) -> str:
+    clause = clause.strip()
+    if len(clause) <= max_len:
+        return clause
+    cut = clause[:max_len].rsplit(" ", 1)[0].rstrip(",.:")
+    return f"{cut}…"
 
 
 def _short_title(title: str) -> str:
-    """Digest headline from a Seattle legal title. These run to hundreds of
-    chars of semicolon-chained boilerplate ("An ordinance relating to the
+    """Digest card header from a Seattle legal title. These run to hundreds
+    of chars of semicolon-chained boilerplate ("An ordinance relating to the
     City Light Department; authorizing the General Manager and Chief
     Executive Officer to grant an easement over…"), and the first
     semicolon clause is the informative topic — so take that, then
     word-boundary truncate in case the clause itself runs long (some
     resolutions have no semicolon at all). The linked bill page has the
     full title."""
-    clause = title.split(";", 1)[0].strip()
-    if len(clause) <= SHORT_TITLE_MAX:
-        return clause
-    cut = clause[:SHORT_TITLE_MAX].rsplit(" ", 1)[0].rstrip(",.:")
-    return f"{cut}…"
+    return _clause_truncate(title.split(";", 1)[0], SHORT_TITLE_MAX)
+
+
+def _title_subtitle(title: str) -> str:
+    """The second semicolon clause — usually the operative verb phrase
+    ("authorizing the General Manager … to grant an easement …") — rendered
+    as the card's smaller subtitle. Clauses past the second semicolon are
+    boilerplate ("ratifying and confirming certain prior acts") and stay
+    out. Empty when the title has no semicolon."""
+    parts = title.split(";")
+    if len(parts) < 2:
+        return ""
+    return _clause_truncate(parts[1], SUBTITLE_MAX)

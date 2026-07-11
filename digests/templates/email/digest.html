@@ -53,12 +53,14 @@ request context at send time.
         </p>
         {% for item in bill_items %}
         <div style="border:2px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin:0 0 12px;">
-          <p style="margin:0 0 2px;">
-            <a href="{{ site_base }}{{ item.url_path }}" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#2E3D5B;">{{ item.identifier }}</a>
+          <p style="margin:0 0 4px;font-size:15px;font-weight:700;line-height:1.4;">
+            <a href="{{ site_base }}{{ item.url_path }}" style="color:#2E3D5B;">{{ item.identifier }} &ndash; {{ item.short_title }}</a>
           </p>
-          <p style="margin:0 0 8px;font-size:15px;font-weight:700;line-height:1.4;color:#1f2937;">
-            {{ item.short_title }}
+          {% if item.subtitle %}
+          <p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:#6b7280;">
+            {{ item.subtitle }}
           </p>
+          {% endif %}
           <p style="margin:0 0 8px;">
             {% for tag in item.tags %}{% if tag.matched %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ tag.name }}</span>{% else %}<span style="display:inline-block;background:#f3f4f6;color:#6b7280;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ tag.name }}</span>{% endif %}{% endfor %}{% for reason in item.display_reasons %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ reason }}</span>{% endfor %}
           </p>
