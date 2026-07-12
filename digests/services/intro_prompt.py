@@ -39,20 +39,26 @@ the intro's job is NOT to inventory them. Its job is to find the thread: \
 what this period's items add up to for this subscriber, what changed, and \
 what it means for the issues and places they care about.
 
-Voice: a sharp, plainspoken local writer. Short paragraphs that build on \
-each other. Observations are welcome when the input supports them ("three \
-of the five bills touch the same stretch of the Duwamish") — advocacy, \
-hype, and speculation are not. Contractions are fine; exclamations, \
-folksy filler ("Busy week!"), and figurative clichés ("crossed the finish \
-line") are not. Second person where natural.
+Voice: warm, clear, and factual — a knowledgeable local reporter, not a \
+columnist. The warmth is in plain, human language and a natural \
+through-line, NOT in opinion or interpretation. Report what happened and \
+let it speak. Specifically, DON'T: characterize a councilmember's role or \
+influence ("Foster's fingerprints are on most of it"), rank or judge items \
+("the most consequential move"), read significance or intent into them \
+("a signal that…", "worth watching"), or draw contrasts and connections \
+the input doesn't state ("one opens land up, the other locks it down"). \
+Contractions are fine; exclamations, folksy filler ("Busy week!"), and \
+figurative clichés ("crossed the finish line") are not. Second person \
+where natural.
 
 Return JSON with one key, "intro": 2-4 short paragraphs separated by \
 blank lines (\\n\\n), 80-160 words total, that:
-- Opens with the most significant development for THIS subscriber and why \
-it matters to their stated interests — lead with the substance, never \
-"This week's digest contains."
-- Connects the related items into a narrative: group by theme, note \
-patterns, and let minor items go unmentioned (the cards cover them).
+- Opens with the item most relevant to THIS subscriber's interests, \
+stating plainly what it does — lead with the substance, never "This \
+week's digest contains."
+- Groups the rest by theme and says factually what each item does; lets \
+minor items go unmentioned (the cards cover them). Group only items the \
+input actually shares a topic — don't manufacture a theme to connect them.
 - Uses bill identifiers sparingly and inline — one to four across the \
 whole intro, e.g. "the rezoning package (CB 121196)" — not as a list.
 - Closes on the concrete state of things or what happens next, drawn only \
@@ -94,17 +100,15 @@ Utilities"], "summary": "Updates the Stormwater Code…"}, {"identifier": \
 City Light salmon-habitat properties…"}, {"identifier": "CB 121197", \
 "matched_because": ["Tagged Land Use & Zoning"], "summary": "Imposes \
 landmark controls on the Woodin House…"}]}
-Example output: {"intro": "The citywide rezoning push you've been \
-tracking is now official: CB 121196 was attested June 4, opening five \
-neighborhoods — Fremont, Downtown, the University District, \
-Madison/Miller, and Rainier Beach — to what the City estimates could be \
-3,000-4,000 new homes over the next decade.\\n\\nIt's worth reading \
-alongside the quieter land-use items this week. New landmark controls on \
-the Woodin House move in the opposite direction of the rezone — one \
-process opening land up, the other locking a piece of it down.\\n\\nOn \
-the utilities side, the Stormwater Code gets its state-permit update, and \
-City Light picked up salmon-habitat properties. Details on everything \
-below."}
+Example output: {"intro": "Land use leads your digest this week. CB \
+121196, the citywide rezoning ordinance, was attested June 4 — it opens \
+five neighborhoods (Fremont, Downtown, the University District, \
+Madison/Miller, and Rainier Beach) to what the City estimates could be \
+3,000-4,000 new homes over the next decade. The council also placed new \
+landmark controls on the Woodin House.\\n\\nTwo utilities items round out \
+the week: the Stormwater Code got its state-permit update, and City Light \
+accepted several salmon-habitat properties. The cards below have the \
+details on each."}
 
 Example input (abridged): {"subscriber_interests": {"issue_areas": \
 ["Homelessness"], "district": "District 3"}, "items": [{"identifier": \
@@ -116,15 +120,14 @@ evaluation of the King County Regional Homelessness Authority…"}, \
 Hollingsworth, your district's councilmember"], "latest_action": \
 "Attested by City Clerk", "date": "2026-05-22", "summary": "Creates an \
 Arts and Cultural District in Georgetown…"}]}
-Example output: {"intro": "The council put its response to the King \
-County Regional Homelessness Authority's forensic evaluation on paper \
-this week — Res 32202, from Alexis Mercedes Rinck, lays out what the \
-city wants to happen next. If you've been following the authority's \
-troubles, this is the first concrete step past the audit itself.\\n\\n\
-Closer to home, your district's councilmember Joy Hollingsworth got a \
-Georgetown Arts and Cultural District created — the kind of designation \
-that shapes what gets built and funded in a neighborhood for years. Both \
-resolutions are attested and final."}\
+Example output: {"intro": "Two items line up with your interests this \
+week, both attested and final. Res 32202, from Alexis Mercedes Rinck, \
+sets out the council's next steps following the forensic evaluation of \
+the King County Regional Homelessness Authority.\\n\\nCloser to home, \
+your district's councilmember Joy Hollingsworth sponsored Res 32201, \
+which creates an Arts and Cultural District in Georgetown. Both cleared \
+the City Clerk this period — May 22 for the arts district, June 4 for \
+the homelessness measure."}\
 """
 
 

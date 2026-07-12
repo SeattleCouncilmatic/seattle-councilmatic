@@ -58,6 +58,10 @@ WEEKLY_WINDOW_DAYS = 8
 DAILY_WINDOW_DAYS = 1
 
 _COUNCIL_ORG_NAME = "Seattle City Council"
+# Full-council meetings (named "City Council" on Legistar) are relevant to
+# every subscriber regardless of committee membership — that's where final
+# votes happen — so they're always included, matched by normalized name.
+_FULL_COUNCIL_NORMS = {"city council", "seattle city council"}
 
 
 def window_start(cadence: str, subscriber, now) -> date:
@@ -262,13 +266,25 @@ def _committees_of(rep_ids) -> dict[str, set[str]]:
     return committees
 
 
+def _meeting_reasons(event, committees) -> list[str]:
+    """Why a meeting belongs in this subscriber's digest, or []. The full
+    City Council meeting matches everyone; a committee meeting matches when
+    one of the subscriber's reps sits on it. Shared by the recap and the
+    upcoming-sidebar paths so the two never diverge on what counts."""
+    norm = _normalize_committee_name(event.name)
+    if norm in _FULL_COUNCIL_NORMS:
+        return ["Full City Council meeting"]
+    reps = committees.get(norm)
+    if reps:
+        return ["Committee meeting of " + ", ".join(sorted(reps))]
+    return []
+
+
 def _matched_meetings(since, followed_rep_ids, representative_ids) -> list[dict]:
     rep_ids = list(dict.fromkeys([*followed_rep_ids, *representative_ids]))
-    if not rep_ids:
-        return []
-    committees = _committees_of(rep_ids)
-    if not committees:
-        return []
+    # Not gated on committee membership: full City Council meetings are
+    # included for everyone (see _meeting_reasons).
+    committees = _committees_of(rep_ids) if rep_ids else {}
 
     # Meetings with an LLM recap are past meetings by construction (the
     # summary needs a transcript), so no upper date bound is needed.
@@ -281,11 +297,9 @@ def _matched_meetings(since, followed_rep_ids, representative_ids) -> list[dict]
     )
     items = []
     for event in events:
-        reps = committees.get(_normalize_committee_name(event.name))
-        if not reps:
-            continue
-        reasons = ["Committee meeting of " + ", ".join(sorted(reps))]
-        items.append(_meeting_item(event, reasons))
+        reasons = _meeting_reasons(event, committees)
+        if reasons:
+            items.append(_meeting_item(event, reasons))
     return items
 
 
@@ -327,11 +341,7 @@ def upcoming_meetings(prefs) -> list[dict]:
     rep_ids = list(dict.fromkeys(
         [*followed_rep_ids, *_representatives_of(prefs.district)]
     ))
-    if not rep_ids:
-        return []
-    committees = _committees_of(rep_ids)
-    if not committees:
-        return []
+    committees = _committees_of(rep_ids) if rep_ids else {}
 
     now = timezone.now()
     horizon = now + timedelta(days=UPCOMING_HORIZON_DAYS)
@@ -345,8 +355,7 @@ def upcoming_meetings(prefs) -> list[dict]:
     )
     items = []
     for event in events:
-        reps = committees.get(_normalize_committee_name(event.name))
-        if not reps:
+        if not _meeting_reasons(event, committees):
             continue
         when = _parse_start(event.start_date)
         items.append({
@@ -362,7 +371,6 @@ def upcoming_meetings(prefs) -> list[dict]:
                 when.strftime("%I:%M %p").lstrip("0")
                 if when and (when.hour or when.minute) else ""
             ),
-            "reps": sorted(reps),
         })
         if len(items) >= UPCOMING_LIMIT:
             break

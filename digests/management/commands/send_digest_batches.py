@@ -59,6 +59,40 @@ LLM_MAX_DELAY = timedelta(hours=6)
 POLL_INTERVAL_SECONDS = 30
 
 
+def _and_join(items: list[str]) -> str:
+    if len(items) <= 1:
+        return "".join(items)
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-1]) + f", and {items[-1]}"
+
+
+def _boilerplate_intro(cadence, n_bills, n_recaps, n_upcoming) -> str:
+    """Deterministic standard intro, used when the LLM intro is off (the
+    default backend). Lightly personalized from the digest's own counts —
+    no model call, no per-send cost. The LLM editorial intro can be turned
+    back on later via DIGEST_LLM_BACKEND without touching this."""
+    cadence_word = "weekly" if cadence == DigestSend.CADENCE_WEEKLY else "daily"
+    parts = []
+    if n_bills:
+        parts.append(f"{n_bills} bill{'' if n_bills == 1 else 's'} with recent council action")
+    if n_recaps:
+        parts.append(f"{n_recaps} meeting recap{'' if n_recaps == 1 else 's'}")
+    body = _and_join(parts) or "the council activity matched to your interests"
+    second = f"Below you'll find {body}."
+    if n_upcoming:
+        second += (
+            f" {n_upcoming} upcoming meeting{'' if n_upcoming == 1 else 's'} "
+            f"your councilmembers take part in {'is' if n_upcoming == 1 else 'are'} "
+            "listed in the sidebar."
+        )
+    return (
+        f"Here's your {cadence_word} roundup of Seattle City Council activity "
+        "matched to your district and the topics you follow.\n\n"
+        f"{second} Follow any link for the full details on Seattle Councilmatic."
+    )
+
+
 class Command(BaseCommand):
     help = "Render pending DigestSend rows (waiting on their intro batch when one exists) and deliver them."
 
@@ -244,20 +278,29 @@ class Command(BaseCommand):
             f"{base}/digests/unsubscribe?token="
             f"{make_token(subscriber, PURPOSE_UNSUBSCRIBE)}"
         )
+        bill_items = [i for i in items if i["type"] == "bill"]
+        meeting_items = [i for i in items if i["type"] == "meeting"]
+        # Intro: the LLM editorial intro when one was generated (backend on),
+        # otherwise the deterministic boilerplate — the default. Quiet weeks
+        # skip both; the template renders its own quiet message.
         intro = (send.llm_payload or {}).get("intro") or ""
+        if not intro and items:
+            intro = _boilerplate_intro(
+                send.cadence, len(bill_items), len(meeting_items), len(upcoming)
+            )
         context = {
             "cadence": send.cadence,
             "intro": intro,
-            # The editorial intro is 2-4 paragraphs split by blank lines;
-            # split here so the HTML template can style each <p> inline
-            # (linebreaks-filter markup can't carry email-safe styles).
+            # An intro can be multiple paragraphs (LLM) or two (boilerplate),
+            # split on blank lines so the HTML template styles each <p>
+            # inline (linebreaks-filter markup can't carry email-safe styles).
             "intro_paragraphs": [
                 p.strip() for p in intro.split("\n\n") if p.strip()
             ],
             "quiet": not items,
             "window_label": timezone.localdate().strftime("%B %d, %Y"),
-            "bill_items": [i for i in items if i["type"] == "bill"],
-            "meeting_items": [i for i in items if i["type"] == "meeting"],
+            "bill_items": bill_items,
+            "meeting_items": meeting_items,
             "upcoming_items": upcoming,
             "site_base": base,
             "manage_url": (

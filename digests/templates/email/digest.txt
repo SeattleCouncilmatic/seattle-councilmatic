@@ -19,8 +19,8 @@ LEGISLATION
   {{ item.summary }}{% endif %}
   {{ site_base }}{{ item.url_path }}
 {% endfor %}{% endif %}{% if meeting_items %}
-COMMITTEE MEETINGS
-------------------
+MEETING RECAPS
+--------------
 {% for item in meeting_items %}
 {{ item.title }}{% if item.date %} - {{ item.date }}{% endif %}
   Why: {{ item.reasons|join:"; " }}{% if item.blurb %}
@@ -34,7 +34,7 @@ COMING UP
 {{ item.date_label }}{% if item.time_label %} {{ item.time_label }}{% endif %} - {{ item.title }}
   {{ site_base }}{{ item.url_path }}
 {% endfor %}
-(Meetings of committees your councilmembers serve on.)
+(Council and committee meetings your councilmembers take part in.)
 {% endif %}
 --
 You're receiving this because you subscribed to Seattle Councilmatic

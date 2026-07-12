@@ -201,13 +201,28 @@ class SendTests(TestCase):
             "CB 200007 &ndash; An ordinance relating to housing</a>", html
         )
 
-    def test_quiet_week_email(self):
+    def test_boilerplate_intro_when_llm_off(self):
+        # Default backend is "none": no LLM intro, so the deterministic
+        # boilerplate renders (lightly personalized from the item counts).
+        fixtures.bill("CB 200010", action_date=RECENT, tags=["Housing"])
+        fixtures.subscriber("boiler@example.org", issue_areas=["Housing"])
+        _compose(cadence="weekly")
+        _send()
+        message = mail.outbox[0]
+        # Substrings without an apostrophe — the HTML alt escapes "Here's".
+        for body in (message.body, message.alternatives[0][0]):
+            self.assertIn("weekly roundup of Seattle City Council", body)
+            self.assertIn("1 bill with recent council action", body)
+
+    def test_quiet_week_gets_no_boilerplate_intro(self):
+        # Quiet weeks use the template's own quiet message, not boilerplate.
         fixtures.subscriber("quietsend@example.org", issue_areas=["Housing"])
         _compose(cadence="weekly")
         _send()
         message = mail.outbox[0]
         self.assertIn("quiet week", message.subject)
         self.assertIn("quiet week", message.body)
+        self.assertNotIn("Here's your weekly roundup", message.body)
 
     def test_topic_tag_pills_matched_vs_unmatched(self):
         # All of a bill's tags render as pills; the matched one is

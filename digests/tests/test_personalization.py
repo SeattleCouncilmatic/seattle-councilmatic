@@ -283,6 +283,23 @@ class MeetingMatchTests(TestCase):
         sub = fixtures.subscriber("unrelated@example.org", followed_reps=[rep])
         self.assertEqual(_match(sub), [])
 
+    def test_full_city_council_meeting_included_for_everyone(self):
+        # The full council matches every subscriber — no committee
+        # membership (or even a district) required.
+        fixtures.meeting("City Council", start_date=RECENT, overview="Recap.")
+        sub = fixtures.subscriber("council@example.org", issue_areas=["Housing"])
+        meetings = [i for i in _match(sub) if i["type"] == "meeting"]
+        self.assertEqual(len(meetings), 1)
+        self.assertEqual(meetings[0]["reasons"], ["Full City Council meeting"])
+
+    def test_city_council_without_summary_still_excluded(self):
+        # "Everyone" doesn't override the needs-a-recap rule.
+        fixtures.meeting("City Council", start_date=RECENT)
+        sub = fixtures.subscriber("nocouncil@example.org", issue_areas=["Housing"])
+        self.assertEqual(
+            [i for i in _match(sub) if i["type"] == "meeting"], []
+        )
+
 
 class SnapshotTests(TestCase):
     def test_snapshot_and_rehydrate(self):
@@ -374,6 +391,12 @@ class UpcomingMeetingTests(TestCase):
         self.assertEqual(
             personalization.upcoming_meetings(sub.preferences), []
         )
+
+    def test_full_city_council_upcoming_included_for_everyone(self):
+        fixtures.meeting("City Council", start_date=self._future(2))
+        sub = fixtures.subscriber("councilup@example.org", issue_areas=["Housing"])
+        items = personalization.upcoming_meetings(sub.preferences)
+        self.assertEqual([i["title"] for i in items], ["City Council"])
 
     def test_district_rep_committee_matches_soonest_first(self):
         rep = fixtures.councilmember("Joy Hollingsworth", "District 3")
