@@ -6,26 +6,36 @@ Your {{ cadence }} council digest{% if window_label %} - {{ window_label }}{% en
 A quiet week at Seattle City Council - nothing matched your interests
 since the last digest. We'll be back next week; in the meantime you can
 browse recent legislation any time: {{ site_base }}/legislation
-{% endif %}{% if bill_items %}
-LEGISLATION
------------
-{% for item in bill_items %}
-{{ item.identifier }} - {{ item.short_title }}
-  Why: {{ item.reasons|join:"; " }}{% if item.latest_action %}
-  Latest action{% if item.date %} ({{ item.date }}){% endif %}: {{ item.latest_action }}{% endif %}{% if item.blurb %}
-  {{ item.blurb }}{% endif %}{% if item.summary %}
-  {{ item.summary }}{% endif %}
-  {{ site_base }}{{ item.url_path }}
-{% endfor %}{% endif %}{% if meeting_items %}
-COMMITTEE MEETINGS
-------------------
+{% endif %}{% if meeting_items %}
+RECENT COUNCIL ACTIVITY
+-----------------------
 {% for item in meeting_items %}
 {{ item.title }}{% if item.date %} - {{ item.date }}{% endif %}
   Why: {{ item.reasons|join:"; " }}{% if item.blurb %}
   {{ item.blurb }}{% endif %}{% if item.summary %}
   {{ item.summary }}{% endif %}
   {{ site_base }}{{ item.url_path }}
-{% endfor %}{% endif %}
+{% endfor %}{% endif %}{% if bill_items %}
+KEY LEGISLATION
+---------------
+{% for item in bill_items %}
+{{ item.identifier }} - {{ item.short_title }}{% if item.subtitle %}
+  {{ item.subtitle }}{% endif %}{% if item.tags %}
+  Topics: {% for tag in item.tags %}{{ tag.name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
+  Why: {{ item.reasons|join:"; " }}{% if item.latest_action %}
+  Latest action{% if item.date %} ({{ item.date }}){% endif %}: {{ item.latest_action }}{% endif %}{% if item.blurb %}
+  {{ item.blurb }}{% endif %}{% if item.summary %}
+  {{ item.summary }}{% endif %}
+  {{ site_base }}{{ item.url_path }}
+{% endfor %}{% endif %}{% if upcoming_items %}
+COMING UP
+---------
+{% for item in upcoming_items %}
+{{ item.date_label }}{% if item.time_label %} {{ item.time_label }}{% endif %} - {{ item.title }}
+  {{ site_base }}{{ item.url_path }}
+{% endfor %}
+(Council and committee meetings your councilmembers take part in.)
+{% endif %}
 --
 You're receiving this because you subscribed to Seattle Councilmatic
 email digests.

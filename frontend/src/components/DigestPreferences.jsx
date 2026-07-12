@@ -39,7 +39,7 @@ export default function DigestPreferences() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
       }),
-      fetch('/api/digests/options').then(r => (r.ok ? r.json() : { issue_areas: [], reps: [], districts: [] })),
+      fetch('/api/digests/options').then(r => (r.ok ? r.json() : { issue_areas: [], districts: [] })),
     ])
       .then(([prefsData, optionsData]) => {
         if (cancelled) return
@@ -64,8 +64,12 @@ export default function DigestPreferences() {
 
   const save = async e => {
     e.preventDefault()
-    if (!prefs.weekly_enabled && !prefs.daily_enabled) {
-      setStatusMsg({ kind: 'error', text: 'Pick at least one cadence — weekly or daily. To stop all email, use the unsubscribe link below.' })
+    if (!prefs.weekly_enabled) {
+      setStatusMsg({ kind: 'error', text: 'Weekly delivery is the only cadence available right now. To stop all email, use the unsubscribe link below.' })
+      return
+    }
+    if (!prefs.district_id) {
+      setStatusMsg({ kind: 'error', text: 'Please choose your council district — it’s how we match council activity to you.' })
       return
     }
     setSaving(true)
@@ -79,10 +83,7 @@ export default function DigestPreferences() {
         },
         body: JSON.stringify({
           weekly_enabled: prefs.weekly_enabled,
-          daily_enabled: prefs.daily_enabled,
           issue_areas: prefs.issue_areas,
-          followed_rep_ids: prefs.followed_rep_ids,
-          followed_bill_ids: prefs.followed_bills.map(b => b.id),
           district_id: prefs.district_id,
         }),
       })
@@ -228,18 +229,45 @@ export default function DigestPreferences() {
               />
               <span>Weekly summary <span className="dp-muted">(Sunday mornings)</span></span>
             </label>
-            <label className="dp-check">
-              <input
-                type="checkbox"
-                checked={prefs.daily_enabled}
-                onChange={e => update({ daily_enabled: e.target.checked })}
-              />
-              <span>Daily, when there's news matching your interests</span>
+            {/* Daily is built but not rolled out — disabled with explicit
+                colors (AUDIT_FINDINGS: never opacity-only). */}
+            <label className="dp-check dp-check--disabled">
+              <input type="checkbox" checked={false} disabled readOnly />
+              <span>
+                Daily, when there's news matching your interests{' '}
+                <span className="dp-coming-soon">(coming soon)</span>
+              </span>
             </label>
           </fieldset>
 
+          <div className="dp-field">
+            <label className="dp-legend" htmlFor={`${uid}-district`}>Your council district</label>
+            <p className="dp-muted">
+              Your district connects you to your representatives — the
+              district&rsquo;s councilmember plus the two citywide members.
+            </p>
+            <select
+              className="dp-input"
+              id={`${uid}-district`}
+              required
+              value={prefs.district_id ?? ''}
+              onChange={e => update({ district_id: e.target.value ? Number(e.target.value) : null })}
+            >
+              <option value="">Choose your district…</option>
+              {options.districts.map(d => (
+                <option key={d.id} value={d.id}>
+                  {d.name}{d.description ? ` — ${d.description}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <fieldset className="dp-fieldset">
             <legend className="dp-legend">Topics</legend>
+            <p className="dp-muted">
+              Optional — your representatives&rsquo; activity is included
+              either way; topics widen the net to the whole council.
+            </p>
             <div className="dp-checkbox-grid">
               {options.issue_areas.map(tag => (
                 <label className="dp-check" key={tag}>
@@ -253,61 +281,6 @@ export default function DigestPreferences() {
               ))}
             </div>
           </fieldset>
-
-          <fieldset className="dp-fieldset">
-            <legend className="dp-legend">Councilmembers you follow</legend>
-            <div className="dp-checkbox-grid">
-              {options.reps.map(rep => (
-                <label className="dp-check" key={rep.id}>
-                  <input
-                    type="checkbox"
-                    checked={prefs.followed_rep_ids.includes(rep.id)}
-                    onChange={() => toggleInList('followed_rep_ids', rep.id)}
-                  />
-                  <span>{rep.name} <span className="dp-muted">({rep.seat})</span></span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          {prefs.followed_bills.length > 0 && (
-            <fieldset className="dp-fieldset">
-              <legend className="dp-legend">Bills you follow</legend>
-              <ul className="dp-bill-list">
-                {prefs.followed_bills.map(bill => (
-                  <li key={bill.id}>
-                    <span className="dp-bill-id">{bill.identifier}</span> {bill.title}
-                    <button
-                      type="button"
-                      className="dp-bill-remove"
-                      onClick={() =>
-                        update({ followed_bills: prefs.followed_bills.filter(b => b.id !== bill.id) })
-                      }
-                    >
-                      Unfollow<span className="visually-hidden"> {bill.identifier}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </fieldset>
-          )}
-
-          <div className="dp-field">
-            <label className="dp-legend" htmlFor={`${uid}-district`}>Your council district</label>
-            <select
-              className="dp-input"
-              id={`${uid}-district`}
-              value={prefs.district_id ?? ''}
-              onChange={e => update({ district_id: e.target.value ? Number(e.target.value) : null })}
-            >
-              <option value="">No district preference</option>
-              {options.districts.map(d => (
-                <option key={d.id} value={d.id}>
-                  {d.name}{d.description ? ` — ${d.description}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
 
           {statusMsg && (
             <p

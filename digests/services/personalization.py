@@ -7,14 +7,20 @@ contributes a human-readable reason (rendered in the email and, in Phase 3,
 fed to the LLM intro):
 
 - **issue areas** — the bill's ``BillTags`` overlap the subscriber's tags.
-- **followed reps** — a followed councilmember sponsored the bill.
-- **district** — the subscriber's district councilmember primary-sponsored
-  the bill (at-large "districts" match the Position 8/9 members).
-- **followed bills** — the subscriber follows the bill itself.
+- **representatives** — one of the subscriber's representatives sponsored
+  the bill. The (required) district maps to a representative set the same
+  way the council-map page does: the district's seat holder plus the
+  citywide Position members ("At Large" districts get the citywide members
+  only). Reasons name the sponsor and mark which hat they wear ("your
+  district's councilmember" / "(citywide)").
+- **followed reps / followed bills** — legacy dimensions: the subscribe
+  form no longer collects either, but the M2M fields remain on the model
+  and rows that carry them still match.
 
 Committee-meeting recaps join through people: meetings (``EventSummary``
-rows, so past + summarized) of committees a followed rep or the district
-rep sits on. RepSummary "updates" are deliberately NOT an item type: the
+rows, so past + summarized) of committees any of the subscriber's
+representatives (or legacy followed reps) sit on. RepSummary "updates" are
+deliberately NOT an item type: the
 weekly rep refresh bumps ``generated_at`` for every rep whether or not
 anything changed, so it can't distinguish news from regeneration — rep
 activity reaches the digest through the sponsorship dimension instead.
@@ -31,9 +37,10 @@ is duplicated into the row.
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from django.db.models import Max, Q
+from django.utils import timezone
 
 from councilmatic_core.models import Bill, Event
 from opencivicdata.core.models import Membership
@@ -51,6 +58,10 @@ WEEKLY_WINDOW_DAYS = 8
 DAILY_WINDOW_DAYS = 1
 
 _COUNCIL_ORG_NAME = "Seattle City Council"
+# Full-council meetings (named "City Council" on Legistar) are relevant to
+# every subscriber regardless of committee membership — that's where final
+# votes happen — so they're always included, matched by normalized name.
+_FULL_COUNCIL_NORMS = {"city council", "seattle city council"}
 
 
 def window_start(cadence: str, subscriber, now) -> date:
@@ -67,9 +78,11 @@ def match_items(prefs, since: date) -> list[dict]:
     ``_meeting_item``); bills first (most recent action first), then
     meeting recaps (most recent first)."""
     followed_rep_ids = list(prefs.followed_reps.values_list("id", flat=True))
-    district_rep_ids = _district_rep_ids(prefs.district)
-    items = _matched_bills(prefs, since, followed_rep_ids, district_rep_ids)
-    items += _matched_meetings(since, followed_rep_ids, district_rep_ids)
+    representatives = _representatives_of(prefs.district)
+    items = _matched_bills(prefs, since, followed_rep_ids, representatives)
+    items += _matched_meetings(
+        since, followed_rep_ids, list(representatives)
+    )
     return items
 
 
@@ -94,7 +107,7 @@ def items_from_snapshot(snap: list[dict]) -> list[dict]:
     if bill_ids:
         bills = (
             Bill.objects.filter(id__in=bill_ids)
-            .select_related("llm_summary")
+            .select_related("llm_summary", "issue_tags")
             .prefetch_related("actions")
         )
         items += [
@@ -115,7 +128,7 @@ def items_from_snapshot(snap: list[dict]) -> list[dict]:
 # Bills
 # --------------------------------------------------------------------- #
 
-def _matched_bills(prefs, since, followed_rep_ids, district_rep_ids) -> list[dict]:
+def _matched_bills(prefs, since, followed_rep_ids, representatives) -> list[dict]:
     # BillAction.date is an ISO string (sometimes date-only, sometimes full
     # timestamp), so lexicographic >= against YYYY-MM-DD is the correct
     # comparison — same idiom as api_views' date-range filters.
@@ -132,20 +145,16 @@ def _matched_bills(prefs, since, followed_rep_ids, district_rep_ids) -> list[dic
         recent.filter(sponsorships__person_id__in=followed_rep_ids)
         .values_list("id", flat=True)
     ) if followed_rep_ids else set()
-    # Primary sponsorship only for the district dimension: "your district's
-    # councilmember signed on as cosponsor #6" isn't district news.
-    by_district = set(
-        recent.filter(
-            sponsorships__person_id__in=district_rep_ids,
-            sponsorships__primary=True,
-        ).values_list("id", flat=True)
-    ) if district_rep_ids else set()
+    by_representative = set(
+        recent.filter(sponsorships__person_id__in=list(representatives))
+        .values_list("id", flat=True)
+    ) if representatives else set()
     followed_bill_ids = set(prefs.followed_bills.values_list("id", flat=True))
     by_followed = set(
         recent.filter(id__in=followed_bill_ids).values_list("id", flat=True)
     ) if followed_bill_ids else set()
 
-    matched_ids = by_tag | by_rep | by_district | by_followed
+    matched_ids = by_tag | by_rep | by_representative | by_followed
     if not matched_ids:
         return []
 
@@ -166,27 +175,60 @@ def _matched_bills(prefs, since, followed_rep_ids, district_rep_ids) -> list[dic
         if bill.id in by_tag:
             tags = sorted(set(bill.issue_tags.tags) & set(prefs.issue_areas))
             reasons.append("Tagged " + ", ".join(tags))
+        sponsor_ids = {
+            s.person_id for s in bill.sponsorships.all() if s.person_id
+        }
+        # Representative sponsors get one named reason each, district seat
+        # first — the phrasing carries into the email pills and the LLM's
+        # matched_because, so the model never has to guess who "your
+        # district's councilmember" is.
+        rep_covered: set[str] = set()
+        if bill.id in by_representative:
+            for pid in sorted(
+                sponsor_ids & set(representatives),
+                key=lambda p: (representatives[p]["citywide"],
+                               representatives[p]["name"]),
+            ):
+                info = representatives[pid]
+                if info["citywide"]:
+                    reasons.append(f"Sponsored by {info['name']} (citywide)")
+                else:
+                    reasons.append(
+                        f"Sponsored by {info['name']}, your district's councilmember"
+                    )
+                rep_covered.add(pid)
         if bill.id in by_rep:
+            # Legacy followed reps not already covered by the
+            # representative mapping.
             sponsors = sorted({
-                rep_names[s.person_id]
-                for s in bill.sponsorships.all()
-                if s.person_id in rep_names
+                rep_names[pid]
+                for pid in sponsor_ids
+                if pid in rep_names and pid not in rep_covered
             })
-            reasons.append("Sponsored by " + ", ".join(sponsors))
-        if bill.id in by_district and bill.id not in by_rep:
-            reasons.append("Sponsored by your district's councilmember")
+            if sponsors:
+                reasons.append("Sponsored by " + ", ".join(sponsors))
         items.append(_bill_item(bill, reasons))
     return items
 
 
 def _bill_item(bill, reasons) -> dict:
     latest = max(bill.actions.all(), key=lambda a: a.date or "", default=None)
+    tags = list(getattr(getattr(bill, "issue_tags", None), "tags", []) or [])
+    # Tag-dimension matches render as highlighted topic pills, not as a
+    # "Tagged X" sentence pill — recover the matched tag names from the
+    # reason string so items_from_snapshot (which has no prefs in scope)
+    # gets the same split.
+    matched_tags: set[str] = set()
+    for reason in reasons:
+        if reason.startswith("Tagged "):
+            matched_tags.update(reason[len("Tagged "):].split(", "))
     return {
         "type": "bill",
         "id": bill.id,
         "identifier": bill.identifier,
         "title": bill.title or "",
         "short_title": _short_title(bill.title or ""),
+        "subtitle": _title_subtitle(bill.title or ""),
         "url_path": f"/legislation/{bill.slug}",
         "date": (latest.date or "")[:10] if latest else "",
         "latest_action": latest.description if latest else "",
@@ -194,6 +236,14 @@ def _bill_item(bill, reasons) -> dict:
             getattr(getattr(bill, "llm_summary", None), "summary", "")
         ),
         "reasons": reasons,
+        # Rendering split: every bill tag becomes a topic pill (matched
+        # ones highlighted); non-tag reasons stay sentence pills.
+        "tags": [
+            {"name": t, "matched": t in matched_tags} for t in tags
+        ],
+        "display_reasons": [
+            r for r in reasons if not r.startswith("Tagged ")
+        ],
         # Reserved for Phase 5 (DIGEST_INCLUDE_BLURBS). The template's
         # {% if item.blurb %} block stays dark until then.
         "blurb": None,
@@ -204,11 +254,8 @@ def _bill_item(bill, reasons) -> dict:
 # Committee meetings
 # --------------------------------------------------------------------- #
 
-def _matched_meetings(since, followed_rep_ids, district_rep_ids) -> list[dict]:
-    rep_ids = list(dict.fromkeys([*followed_rep_ids, *district_rep_ids]))
-    if not rep_ids:
-        return []
-    # normalized committee name -> which of the subscriber's reps sit on it
+def _committees_of(rep_ids) -> dict[str, set[str]]:
+    """normalized committee name -> which of the subscriber's reps sit on it"""
     committees: dict[str, set[str]] = {}
     memberships = Membership.objects.filter(
         person_id__in=rep_ids, organization__classification="committee"
@@ -216,8 +263,28 @@ def _matched_meetings(since, followed_rep_ids, district_rep_ids) -> list[dict]:
     for m in memberships:
         key = _normalize_committee_name(m.organization.name)
         committees.setdefault(key, set()).add(m.person.name)
-    if not committees:
-        return []
+    return committees
+
+
+def _meeting_reasons(event, committees) -> list[str]:
+    """Why a meeting belongs in this subscriber's digest, or []. The full
+    City Council meeting matches everyone; a committee meeting matches when
+    one of the subscriber's reps sits on it. Shared by the recap and the
+    upcoming-sidebar paths so the two never diverge on what counts."""
+    norm = _normalize_committee_name(event.name)
+    if norm in _FULL_COUNCIL_NORMS:
+        return ["Full City Council meeting"]
+    reps = committees.get(norm)
+    if reps:
+        return ["Committee meeting of " + ", ".join(sorted(reps))]
+    return []
+
+
+def _matched_meetings(since, followed_rep_ids, representative_ids) -> list[dict]:
+    rep_ids = list(dict.fromkeys([*followed_rep_ids, *representative_ids]))
+    # Not gated on committee membership: full City Council meetings are
+    # included for everyone (see _meeting_reasons).
+    committees = _committees_of(rep_ids) if rep_ids else {}
 
     # Meetings with an LLM recap are past meetings by construction (the
     # summary needs a transcript), so no upper date bound is needed.
@@ -230,11 +297,9 @@ def _matched_meetings(since, followed_rep_ids, district_rep_ids) -> list[dict]:
     )
     items = []
     for event in events:
-        reps = committees.get(_normalize_committee_name(event.name))
-        if not reps:
-            continue
-        reasons = ["Committee meeting of " + ", ".join(sorted(reps))]
-        items.append(_meeting_item(event, reasons))
+        reasons = _meeting_reasons(event, committees)
+        if reasons:
+            items.append(_meeting_item(event, reasons))
     return items
 
 
@@ -245,35 +310,111 @@ def _meeting_item(event, reasons) -> dict:
         "identifier": "",
         "title": event.name,
         "short_title": event.name,
+        "subtitle": "",
         "url_path": f"/events/{event.slug}",
         "date": (event.start_date or "")[:10],
         "latest_action": "",
         "summary": _first_paragraph(event.llm_summary.overview),
         "reasons": reasons,
+        "tags": [],
+        "display_reasons": reasons,
         "blurb": None,
     }
+
+
+# --------------------------------------------------------------------- #
+# Upcoming meetings (the email's "Coming up" sidebar)
+# --------------------------------------------------------------------- #
+
+# How far ahead the sidebar looks, and how many meetings it lists.
+UPCOMING_HORIZON_DAYS = 8
+UPCOMING_LIMIT = 5
+
+
+def upcoming_meetings(prefs) -> list[dict]:
+    """Scheduled (non-cancelled) meetings in the coming week for committees
+    a followed rep or the district rep sits on. Computed fresh at SEND time,
+    not snapshotted at compose — forward-looking content must not go stale
+    between the two, and quiet-week digests render it too (it's what makes
+    a quiet week still worth opening)."""
+    followed_rep_ids = list(prefs.followed_reps.values_list("id", flat=True))
+    rep_ids = list(dict.fromkeys(
+        [*followed_rep_ids, *_representatives_of(prefs.district)]
+    ))
+    committees = _committees_of(rep_ids) if rep_ids else {}
+
+    now = timezone.now()
+    horizon = now + timedelta(days=UPCOMING_HORIZON_DAYS)
+    events = (
+        Event.objects.filter(
+            start_date__gte=now.isoformat(),
+            start_date__lte=horizon.isoformat(),
+        )
+        .exclude(status="cancelled")
+        .order_by("start_date")
+    )
+    items = []
+    for event in events:
+        if not _meeting_reasons(event, committees):
+            continue
+        when = _parse_start(event.start_date)
+        items.append({
+            "type": "upcoming",
+            "id": event.id,
+            "title": event.name,
+            "url_path": f"/events/{event.slug}",
+            "date_label": (
+                when.strftime("%a, %b %d") if when
+                else (event.start_date or "")[:10]
+            ),
+            "time_label": (
+                when.strftime("%I:%M %p").lstrip("0")
+                if when and (when.hour or when.minute) else ""
+            ),
+        })
+        if len(items) >= UPCOMING_LIMIT:
+            break
+    return items
+
+
+def _parse_start(start_date: str):
+    """Event.start_date is a CharField of full ISO 8601 (usually with a
+    timezone). Localized for display; None when unparseable."""
+    try:
+        when = datetime.fromisoformat(start_date)
+    except (TypeError, ValueError):
+        return None
+    if timezone.is_aware(when):
+        when = timezone.localtime(when)
+    return when
 
 
 # --------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------- #
 
-def _district_rep_ids(district) -> list[str]:
-    """Person ids of the current councilmember(s) for a ``reps.District``.
-    Geographic districts map to the membership labeled "District <n>";
-    the "At Large" district maps to the citywide Position seats."""
+def _representatives_of(district) -> dict[str, dict]:
+    """``{person_id: {"name", "citywide"}}`` for the subscriber's
+    representatives — the district's seat holder plus the citywide Position
+    members, mirroring how the council-map page answers "who represents
+    me?". An "At Large" district has no district seat, so it maps to the
+    citywide members only."""
     if district is None:
-        return []
-    if district.number == "At Large":
-        seat_q = Q(label__startswith="Position")
-    else:
-        seat_q = Q(label=f"District {district.number}")
+        return {}
+    seat_q = Q(label__startswith="Position")
+    if district.number != "At Large":
+        seat_q |= Q(label=f"District {district.number}")
     active_q = Q(end_date="") | Q(end_date__gte=date.today().isoformat())
-    return list(
-        Membership.objects.filter(
-            seat_q, active_q, organization__name=_COUNCIL_ORG_NAME
-        ).values_list("person_id", flat=True)
-    )
+    reps: dict[str, dict] = {}
+    memberships = Membership.objects.filter(
+        seat_q, active_q, organization__name=_COUNCIL_ORG_NAME
+    ).select_related("person")
+    for m in memberships:
+        reps[m.person_id] = {
+            "name": m.person.name,
+            "citywide": m.label.startswith("Position"),
+        }
+    return reps
 
 
 def _names_for(person_ids) -> dict[str, str]:
@@ -289,21 +430,38 @@ def _first_paragraph(text: str) -> str:
     return (text or "").strip().split("\n\n", 1)[0]
 
 
-# Cap for the digest headline derived from a bill's legal title.
+# Caps for the digest card header/subtitle derived from a bill's legal title.
 SHORT_TITLE_MAX = 110
+SUBTITLE_MAX = 160
+
+
+def _clause_truncate(clause: str, max_len: int) -> str:
+    clause = clause.strip()
+    if len(clause) <= max_len:
+        return clause
+    cut = clause[:max_len].rsplit(" ", 1)[0].rstrip(",.:")
+    return f"{cut}…"
 
 
 def _short_title(title: str) -> str:
-    """Digest headline from a Seattle legal title. These run to hundreds of
-    chars of semicolon-chained boilerplate ("An ordinance relating to the
+    """Digest card header from a Seattle legal title. These run to hundreds
+    of chars of semicolon-chained boilerplate ("An ordinance relating to the
     City Light Department; authorizing the General Manager and Chief
     Executive Officer to grant an easement over…"), and the first
     semicolon clause is the informative topic — so take that, then
     word-boundary truncate in case the clause itself runs long (some
     resolutions have no semicolon at all). The linked bill page has the
     full title."""
-    clause = title.split(";", 1)[0].strip()
-    if len(clause) <= SHORT_TITLE_MAX:
-        return clause
-    cut = clause[:SHORT_TITLE_MAX].rsplit(" ", 1)[0].rstrip(",.:")
-    return f"{cut}…"
+    return _clause_truncate(title.split(";", 1)[0], SHORT_TITLE_MAX)
+
+
+def _title_subtitle(title: str) -> str:
+    """The second semicolon clause — usually the operative verb phrase
+    ("authorizing the General Manager … to grant an easement …") — rendered
+    as the card's smaller subtitle. Clauses past the second semicolon are
+    boilerplate ("ratifying and confirming certain prior acts") and stay
+    out. Empty when the title has no semicolon."""
+    parts = title.split(";")
+    if len(parts) < 2:
+        return ""
+    return _clause_truncate(parts[1], SUBTITLE_MAX)

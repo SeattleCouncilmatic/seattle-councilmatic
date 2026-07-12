@@ -1,89 +1,142 @@
 {% comment %}
-Digest email body (Phase 2, #235). One template serves both cadences —
-the wording shifts on {{ cadence }}. Slots reserved for later phases:
-{{ intro }} (Phase 3 LLM intro) and {% if item.blurb %} per item (Phase 5).
-HTML email rules apply: inline styles only, single column, absolute URLs
-built from {{ site_base }} — there's no request context at send time.
-{% endcomment %}
-<div style="margin:0 auto;max-width:600px;padding:24px 16px;font-family:Georgia,'Times New Roman',serif;color:#1f2430;background:#ffffff;">
-  <p style="margin:0 0 4px;font-size:20px;font-weight:bold;">
-    Seattle Councilmatic
-  </p>
-  <p style="margin:0 0 24px;font-size:14px;color:#5a6172;">
-    Your {{ cadence }} council digest{% if window_label %} &middot; {{ window_label }}{% endif %}
-  </p>
+Digest email body (Phases 2-3, #235/#238/#239). Visual language mirrors the
+SPA: navy #2E3D5B header band (NavBar), white cards with 2px #e5e7eb borders
+and 8px radius (LegislationCard/EventCard), monospace uppercase identifiers,
+#e0e7ff/#3730a3 pills (committee chips), system font stack.
 
-{% if intro %}
-  <p style="margin:0 0 24px;font-size:16px;line-height:1.5;">{{ intro }}</p>
+Layout is "fluid hybrid": the main column (max 396px) and the "Coming up"
+sidebar (max 204px) are inline-blocks that sit side by side where 600px is
+available and stack (sidebar below) on narrow clients — no media queries,
+which many email clients strip. Outlook's Word renderer ignores
+inline-block sizing and stacks the columns; acceptable degradation.
+
+Slots reserved for later phases: {{ intro }} renders from llm_payload
+(Phase 3) and {% if item.blurb %} per item stays dark until Phase 5.
+Inline styles only; absolute URLs built from {{ site_base }} — there's no
+request context at send time.
+{% endcomment %}
+<div style="margin:0 auto;max-width:600px;padding:16px 8px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#1f2937;background:#ffffff;">
+
+  <div style="background:#2E3D5B;border-radius:8px;padding:18px 22px;margin:0 0 18px;">
+    <p style="margin:0;font-size:19px;font-weight:700;color:#ffffff;">
+      Seattle Councilmatic
+    </p>
+    <p style="margin:4px 0 0;font-size:13px;color:#c5cddf;">
+      Your {{ cadence }} council digest{% if window_label %} &middot; {{ window_label }}{% endif %}
+    </p>
+  </div>
+
+{% if intro_paragraphs %}
+  <div style="margin:0 0 18px;">
+    {% for para in intro_paragraphs %}
+    <p style="margin:0 0 12px;font-size:15.5px;line-height:1.65;color:#1f2937;">{{ para }}</p>
+    {% endfor %}
+  </div>
 {% endif %}
 
 {% if quiet %}
-  <p style="margin:0 0 24px;font-size:16px;line-height:1.5;">
+  <p style="margin:0 0 18px;font-size:15px;line-height:1.6;color:#374151;">
     A quiet week at Seattle City Council — nothing matched your interests
-    since the last digest. We'll be back next week; in the meantime you can
-    <a href="{{ site_base }}/legislation" style="color:#2b5ca8;">browse recent legislation</a>
-    any time.
+    since the last digest. You can always
+    <a href="{{ site_base }}/legislation" style="color:#2E3D5B;font-weight:600;">browse recent legislation</a>{% if upcoming_items %},
+    and there's more on the calendar below{% endif %}.
   </p>
+{% endif %}
+
+  <div style="font-size:0;">
+    <div style="display:inline-block;width:100%;max-width:396px;vertical-align:top;font-size:15px;">
+      <div style="padding-right:16px;">
+
+{% comment %} Recaps first — recent council activity is the timely part;
+key legislation follows. {% endcomment %}
+{% if meeting_items %}
+        <p style="margin:0 0 10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;border-bottom:2px solid #e5e7eb;padding-bottom:6px;">
+          Recent council activity
+        </p>
+        {% for item in meeting_items %}
+        <div style="border:2px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin:0 0 12px;">
+          <p style="margin:0 0 2px;">
+            <a href="{{ site_base }}{{ item.url_path }}" style="font-size:15px;font-weight:700;line-height:1.4;color:#2E3D5B;">{{ item.title }}</a>
+          </p>
+          {% if item.date %}
+          <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#6b7280;">{{ item.date }}</p>
+          {% endif %}
+          <p style="margin:0 0 8px;">
+            {% for reason in item.display_reasons %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ reason }}</span>{% endfor %}
+          </p>
+          {% if item.blurb %}
+          <p style="margin:0 0 6px;font-size:13.5px;line-height:1.55;font-style:italic;color:#374151;">{{ item.blurb }}</p>
+          {% endif %}
+          {% if item.summary %}
+          <p style="margin:0;font-size:13.5px;line-height:1.55;color:#374151;">{{ item.summary }}</p>
+          {% endif %}
+        </div>
+        {% endfor %}
 {% endif %}
 
 {% if bill_items %}
-  <p style="margin:0 0 12px;font-size:17px;font-weight:bold;border-bottom:2px solid #e3e6ec;padding-bottom:6px;">
-    Legislation
-  </p>
-  {% for item in bill_items %}
-  <div style="margin:0 0 20px;padding:0 0 0 12px;border-left:3px solid #c9d4e8;">
-    <p style="margin:0 0 4px;font-size:16px;line-height:1.4;">
-      <a href="{{ site_base }}{{ item.url_path }}" style="color:#2b5ca8;font-weight:bold;">{{ item.identifier }}</a>
-      &mdash; {{ item.short_title }}
-    </p>
-    <p style="margin:0 0 6px;font-size:13px;color:#5a6172;">
-      {{ item.reasons|join:" &middot; " }}
-    </p>
-    {% if item.latest_action %}
-    <p style="margin:0 0 6px;font-size:14px;line-height:1.5;">
-      <strong>Latest action{% if item.date %} ({{ item.date }}){% endif %}:</strong>
-      {{ item.latest_action }}
-    </p>
-    {% endif %}
-    {% if item.blurb %}
-    <p style="margin:0 0 6px;font-size:14px;line-height:1.5;font-style:italic;">{{ item.blurb }}</p>
-    {% endif %}
-    {% if item.summary %}
-    <p style="margin:0;font-size:14px;line-height:1.5;">{{ item.summary }}</p>
-    {% endif %}
-  </div>
-  {% endfor %}
+        <p style="margin:6px 0 10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;border-bottom:2px solid #e5e7eb;padding-bottom:6px;">
+          Key legislation
+        </p>
+        {% for item in bill_items %}
+        <div style="border:2px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin:0 0 12px;">
+          <p style="margin:0 0 4px;font-size:15px;font-weight:700;line-height:1.4;">
+            <a href="{{ site_base }}{{ item.url_path }}" style="color:#2E3D5B;">{{ item.identifier }} &ndash; {{ item.short_title }}</a>
+          </p>
+          {% if item.subtitle %}
+          <p style="margin:0 0 8px;font-size:13.5px;line-height:1.5;font-weight:700;color:#374151;">
+            {{ item.subtitle }}
+          </p>
+          {% endif %}
+          <p style="margin:0 0 8px;">
+            {% for tag in item.tags %}{% if tag.matched %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ tag.name }}</span>{% else %}<span style="display:inline-block;background:#f3f4f6;color:#6b7280;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ tag.name }}</span>{% endif %}{% endfor %}{% for reason in item.display_reasons %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ reason }}</span>{% endfor %}
+          </p>
+          {% if item.latest_action %}
+          <p style="margin:0 0 6px;font-size:13px;line-height:1.5;color:#374151;">
+            <strong>Latest{% if item.date %} ({{ item.date }}){% endif %}:</strong>
+            {{ item.latest_action }}
+          </p>
+          {% endif %}
+          {% if item.blurb %}
+          <p style="margin:0 0 6px;font-size:13.5px;line-height:1.55;font-style:italic;color:#374151;">{{ item.blurb }}</p>
+          {% endif %}
+          {% if item.summary %}
+          <p style="margin:0;font-size:13.5px;line-height:1.55;color:#374151;">{{ item.summary }}</p>
+          {% endif %}
+        </div>
+        {% endfor %}
 {% endif %}
 
-{% if meeting_items %}
-  <p style="margin:0 0 12px;font-size:17px;font-weight:bold;border-bottom:2px solid #e3e6ec;padding-bottom:6px;">
-    Committee meetings
-  </p>
-  {% for item in meeting_items %}
-  <div style="margin:0 0 20px;padding:0 0 0 12px;border-left:3px solid #c9d4e8;">
-    <p style="margin:0 0 4px;font-size:16px;line-height:1.4;">
-      <a href="{{ site_base }}{{ item.url_path }}" style="color:#2b5ca8;font-weight:bold;">{{ item.title }}</a>{% if item.date %} &middot; {{ item.date }}{% endif %}
-    </p>
-    <p style="margin:0 0 6px;font-size:13px;color:#5a6172;">
-      {{ item.reasons|join:" &middot; " }}
-    </p>
-    {% if item.blurb %}
-    <p style="margin:0 0 6px;font-size:14px;line-height:1.5;font-style:italic;">{{ item.blurb }}</p>
-    {% endif %}
-    {% if item.summary %}
-    <p style="margin:0;font-size:14px;line-height:1.5;">{{ item.summary }}</p>
-    {% endif %}
-  </div>
-  {% endfor %}
+      </div>
+    </div><div style="display:inline-block;width:100%;max-width:204px;vertical-align:top;font-size:14px;">
+{% if upcoming_items %}
+      <div style="border:2px solid #e5e7eb;border-radius:8px;background:#f9fafb;padding:14px 16px;margin:0 0 12px;">
+        <p style="margin:0 0 10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;border-bottom:2px solid #e5e7eb;padding-bottom:6px;">
+          Coming up
+        </p>
+        {% for item in upcoming_items %}
+        <p style="margin:0 0 2px;font-size:12.5px;font-weight:700;color:#1f2937;">
+          {{ item.date_label }}{% if item.time_label %} <span style="font-weight:600;color:#6b7280;">&middot; {{ item.time_label }}</span>{% endif %}
+        </p>
+        <p style="margin:0 0 12px;font-size:13px;line-height:1.45;">
+          <a href="{{ site_base }}{{ item.url_path }}" style="color:#2E3D5B;font-weight:600;">{{ item.title }}</a>
+        </p>
+        {% endfor %}
+        <p style="margin:0;font-size:11px;line-height:1.5;color:#9ca3af;">
+          Council and committee meetings your councilmembers take part in.
+        </p>
+      </div>
 {% endif %}
+    </div>
+  </div>
 
-  <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e3e6ec;font-size:12px;line-height:1.6;color:#5a6172;">
+  <div style="margin-top:20px;padding-top:14px;border-top:2px solid #e5e7eb;font-size:12px;line-height:1.6;color:#6b7280;">
     <p style="margin:0 0 8px;">
       You're receiving this because you subscribed to Seattle Councilmatic
       email digests.
-      <a href="{{ manage_url }}" style="color:#2b5ca8;">Update your preferences</a>
+      <a href="{{ manage_url }}" style="color:#2E3D5B;font-weight:600;">Update your preferences</a>
       or
-      <a href="{{ unsubscribe_url }}" style="color:#2b5ca8;">unsubscribe</a>
+      <a href="{{ unsubscribe_url }}" style="color:#2E3D5B;font-weight:600;">unsubscribe</a>
       any time.
     </p>
     {% if postal_address %}

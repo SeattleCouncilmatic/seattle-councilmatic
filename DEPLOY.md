@@ -224,8 +224,8 @@ command's intent for those cases:
 | `python manage.py import_event_summaries` | One-off env-sync — import summaries from a JSON export produced on another env (saves the LLM cost of regenerating) | Yes — UPSERTs by `event_id`, matched via `legistar_event_id` |
 | `python manage.py scrape_committee_info` | Initial backfill of committee scope + meeting schedule (the weekly cron also runs this) | Yes — UPSERTs by `organization_id`. Polite-paced HTTP; no LLM cost |
 | `python manage.py summarize_committees` | After `scrape_committee_info` on a new env, or with `--force` after a prompt change | Yes — UPSERTs by `organization_id`. Re-summarizes only changed committees (content hash). Two-phase: submit, wait ~5-10 min, re-run to poll + persist |
-| `python manage.py compose_digests --cadence weekly` | QA a digest run (`--dry-run` prints match counts; `--since YYYY-MM-DD` widens the news window against stale dev data) | Yes — one pending `DigestSend` per subscriber per cadence per day |
-| `python manage.py send_digest_batches` | Deliver pending digests after a manual compose (`--allow-smtp` required outside `DEBUG` — SMTP is test-to-self only) | Yes — only `status=pending` rows send; re-runs are no-ops |
+| `python manage.py compose_digests --cadence weekly` | QA a digest run (`--dry-run` prints match counts; `--since YYYY-MM-DD` widens the news window against stale dev data). Also submits the per-subscriber intro batch (skipped under `DIGEST_LLM_BACKEND=none`) | Yes — one pending `DigestSend` per subscriber per cadence per day |
+| `python manage.py send_digest_batches` | Deliver pending digests after a manual compose (`--allow-smtp` required outside `DEBUG` — SMTP is test-to-self only; `--wait N` polls the intro batch up to N minutes). Digests stuck waiting >6h send without the intro | Yes — only `status=pending` rows send; re-runs are no-ops |
 
 **For new LLM-data PRs:** add a one-line entry to this table AND a
 corresponding step to [scripts/update_seattle.sh](scripts/update_seattle.sh)

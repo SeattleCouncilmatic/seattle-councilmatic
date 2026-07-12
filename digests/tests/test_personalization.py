@@ -41,7 +41,7 @@ class BillMatchTests(TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["reasons"], ["Sponsored by Alexis Mercedes Rinck"])
 
-    def test_district_rep_primary_sponsorship_match(self):
+    def test_district_rep_sponsorship_match_named_reason(self):
         rep = fixtures.councilmember("Joy Hollingsworth", "District 3")
         fixtures.bill("CB 100005", action_date=RECENT, sponsors=[rep])
         sub = fixtures.subscriber(
@@ -50,16 +50,49 @@ class BillMatchTests(TestCase):
         items = _match(sub)
         self.assertEqual(len(items), 1)
         self.assertEqual(
-            items[0]["reasons"], ["Sponsored by your district's councilmember"]
+            items[0]["reasons"],
+            ["Sponsored by Joy Hollingsworth, your district's councilmember"],
         )
 
-    def test_district_dimension_ignores_cosponsorship(self):
+    def test_district_dimension_includes_cosponsorship(self):
+        # The district maps to "your representatives" — their co-sponsored
+        # work counts as district news too.
         rep = fixtures.councilmember("Joy Hollingsworth", "District 3")
         fixtures.bill("CB 100006", action_date=RECENT, sponsors=[rep], primary=False)
         sub = fixtures.subscriber(
             "cosponsor@example.org", district_obj=fixtures.district("3")
         )
-        self.assertEqual(_match(sub), [])
+        self.assertEqual(len(_match(sub)), 1)
+
+    def test_district_includes_citywide_members(self):
+        # A geographic district's representative set is the district seat
+        # PLUS the citywide Position members — mirroring the council map.
+        fixtures.councilmember("Joy Hollingsworth", "District 3")
+        citywide = fixtures.councilmember("Alexis Mercedes Rinck", "Position 8")
+        fixtures.bill("CB 100016", action_date=RECENT, sponsors=[citywide])
+        sub = fixtures.subscriber(
+            "citywide@example.org", district_obj=fixtures.district("3")
+        )
+        items = _match(sub)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(
+            items[0]["reasons"],
+            ["Sponsored by Alexis Mercedes Rinck (citywide)"],
+        )
+
+    def test_followed_rep_who_is_also_district_rep_gets_one_reason(self):
+        rep = fixtures.councilmember("Joy Hollingsworth", "District 3")
+        fixtures.bill("CB 100017", action_date=RECENT, sponsors=[rep])
+        sub = fixtures.subscriber(
+            "both@example.org",
+            followed_reps=[rep],
+            district_obj=fixtures.district("3"),
+        )
+        items = _match(sub)
+        self.assertEqual(
+            items[0]["reasons"],
+            ["Sponsored by Joy Hollingsworth, your district's councilmember"],
+        )
 
     def test_at_large_district_matches_position_seats(self):
         rep = fixtures.councilmember("Alexis Mercedes Rinck", "Position 8")
@@ -69,6 +102,10 @@ class BillMatchTests(TestCase):
         )
         items = _match(sub)
         self.assertEqual(len(items), 1)
+        self.assertEqual(
+            items[0]["reasons"],
+            ["Sponsored by Alexis Mercedes Rinck (citywide)"],
+        )
 
     def test_followed_bill_match(self):
         b = fixtures.bill("CB 100008", action_date=RECENT)
@@ -115,6 +152,44 @@ class BillMatchTests(TestCase):
         self.assertIsNone(item["blurb"])
 
 
+class TagPillTests(TestCase):
+    def test_tags_split_matched_from_unmatched(self):
+        fixtures.bill(
+            "CB 100014",
+            action_date=RECENT,
+            tags=["Housing", "Transportation"],
+        )
+        sub = fixtures.subscriber(
+            "pillsplit@example.org", issue_areas=["Housing"]
+        )
+        item = _match(sub)[0]
+        self.assertEqual(
+            item["tags"],
+            [
+                {"name": "Housing", "matched": True},
+                {"name": "Transportation", "matched": False},
+            ],
+        )
+        # The tag match moved into the pills; no sentence reason remains.
+        self.assertEqual(item["display_reasons"], [])
+        self.assertEqual(item["reasons"], ["Tagged Housing"])
+
+    def test_non_tag_reasons_stay_sentence_pills(self):
+        rep = fixtures.councilmember("Dan Strauss", "District 6")
+        fixtures.bill(
+            "CB 100015", action_date=RECENT, tags=["Parks"], sponsors=[rep]
+        )
+        sub = fixtures.subscriber(
+            "pillsponsor@example.org", followed_reps=[rep]
+        )
+        item = _match(sub)[0]
+        self.assertEqual(item["display_reasons"], ["Sponsored by Dan Strauss"])
+        # Unmatched bill tags still show as (gray) topic pills.
+        self.assertEqual(
+            item["tags"], [{"name": "Parks", "matched": False}]
+        )
+
+
 class ShortTitleTests(TestCase):
     """Digest headlines from Seattle's semicolon-chained legal titles."""
 
@@ -144,6 +219,31 @@ class ShortTitleTests(TestCase):
     def test_short_title_passes_through(self):
         title = "A resolution creating an Arts and Cultural District."
         self.assertEqual(personalization._short_title(title), title)
+
+    def test_subtitle_is_second_clause_only(self):
+        title = (
+            "An ordinance relating to the City Light Department; "
+            "authorizing the General Manager and Chief Executive Officer "
+            "or designee to grant an easement to King County; "
+            "ratifying and confirming certain prior acts."
+        )
+        self.assertEqual(
+            personalization._title_subtitle(title),
+            "authorizing the General Manager and Chief Executive Officer "
+            "or designee to grant an easement to King County",
+        )
+
+    def test_subtitle_empty_without_semicolon(self):
+        self.assertEqual(
+            personalization._title_subtitle("A resolution creating a district."),
+            "",
+        )
+
+    def test_long_subtitle_truncates_at_word_boundary(self):
+        title = "Header; " + " ".join(["authorizing"] * 40)
+        subtitle = personalization._title_subtitle(title)
+        self.assertLessEqual(len(subtitle), personalization.SUBTITLE_MAX + 1)
+        self.assertTrue(subtitle.endswith("…"))
 
 
 class MeetingMatchTests(TestCase):
@@ -183,6 +283,23 @@ class MeetingMatchTests(TestCase):
         sub = fixtures.subscriber("unrelated@example.org", followed_reps=[rep])
         self.assertEqual(_match(sub), [])
 
+    def test_full_city_council_meeting_included_for_everyone(self):
+        # The full council matches every subscriber — no committee
+        # membership (or even a district) required.
+        fixtures.meeting("City Council", start_date=RECENT, overview="Recap.")
+        sub = fixtures.subscriber("council@example.org", issue_areas=["Housing"])
+        meetings = [i for i in _match(sub) if i["type"] == "meeting"]
+        self.assertEqual(len(meetings), 1)
+        self.assertEqual(meetings[0]["reasons"], ["Full City Council meeting"])
+
+    def test_city_council_without_summary_still_excluded(self):
+        # "Everyone" doesn't override the needs-a-recap rule.
+        fixtures.meeting("City Council", start_date=RECENT)
+        sub = fixtures.subscriber("nocouncil@example.org", issue_areas=["Housing"])
+        self.assertEqual(
+            [i for i in _match(sub) if i["type"] == "meeting"], []
+        )
+
 
 class SnapshotTests(TestCase):
     def test_snapshot_and_rehydrate(self):
@@ -220,6 +337,77 @@ class SnapshotTests(TestCase):
         snap = personalization.snapshot(_match(sub))
         b.delete()
         self.assertEqual(personalization.items_from_snapshot(snap), [])
+
+
+class UpcomingMeetingTests(TestCase):
+    def _future(self, days, hour=9):
+        from django.utils import timezone as dj_tz
+
+        # Build in LOCAL time — Event.start_date carries a tz offset and the
+        # sidebar localizes for display, so a 9 AM built in UTC would render
+        # as 2 AM Pacific. Microseconds stripped: the column is varchar(25).
+        when = dj_tz.localtime(dj_tz.now() + timedelta(days=days)).replace(
+            hour=hour, minute=30, second=0, microsecond=0
+        )
+        return when.isoformat()
+
+    def _sub_with_committee(self, email="up@example.org"):
+        rep = fixtures.councilmember("Robert Kettle", "District 7")
+        fixtures.committee_membership(rep, fixtures.committee("Public Safety"))
+        return fixtures.subscriber(email, followed_reps=[rep])
+
+    def test_upcoming_meeting_of_followed_committee(self):
+        sub = self._sub_with_committee()
+        fixtures.meeting("Public Safety Committee", start_date=self._future(3))
+        items = personalization.upcoming_meetings(sub.preferences)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["type"], "upcoming")
+        self.assertEqual(items[0]["time_label"], "9:30 AM")
+
+    def test_past_and_far_future_excluded(self):
+        sub = self._sub_with_committee("up2@example.org")
+        fixtures.meeting("Public Safety Committee", start_date=RECENT)
+        fixtures.meeting(
+            "Public Safety Committee", start_date=self._future(30)
+        )
+        self.assertEqual(
+            personalization.upcoming_meetings(sub.preferences), []
+        )
+
+    def test_cancelled_excluded(self):
+        sub = self._sub_with_committee("up3@example.org")
+        event = fixtures.meeting(
+            "Public Safety Committee", start_date=self._future(2)
+        )
+        event.status = "cancelled"
+        event.save()
+        self.assertEqual(
+            personalization.upcoming_meetings(sub.preferences), []
+        )
+
+    def test_unrelated_committee_excluded(self):
+        sub = self._sub_with_committee("up4@example.org")
+        fixtures.meeting("Land Use Committee", start_date=self._future(2))
+        self.assertEqual(
+            personalization.upcoming_meetings(sub.preferences), []
+        )
+
+    def test_full_city_council_upcoming_included_for_everyone(self):
+        fixtures.meeting("City Council", start_date=self._future(2))
+        sub = fixtures.subscriber("councilup@example.org", issue_areas=["Housing"])
+        items = personalization.upcoming_meetings(sub.preferences)
+        self.assertEqual([i["title"] for i in items], ["City Council"])
+
+    def test_district_rep_committee_matches_soonest_first(self):
+        rep = fixtures.councilmember("Joy Hollingsworth", "District 3")
+        fixtures.committee_membership(rep, fixtures.committee("Parks"))
+        sub = fixtures.subscriber(
+            "up5@example.org", district_obj=fixtures.district("3")
+        )
+        far = fixtures.meeting("Parks Committee", start_date=self._future(5))
+        near = fixtures.meeting("Parks Committee", start_date=self._future(2))
+        items = personalization.upcoming_meetings(sub.preferences)
+        self.assertEqual([i["id"] for i in items], [near.id, far.id])
 
 
 class WindowTests(TestCase):

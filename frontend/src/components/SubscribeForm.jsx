@@ -5,8 +5,11 @@ import useDocumentTitle from '../hooks/useDocumentTitle'
 import './SubscribeForm.css'
 
 // Multi-step subscribe form for personalized email digests (#231).
-// Steps: email + cadence → issue areas → reps/district → review.
-// Rendered standalone at /digests/subscribe and embedded on the homepage.
+// Steps: email + cadence → district (required) → topics → review.
+// The district is the personalization anchor — it maps the subscriber to
+// their representatives (district seat + the citywide members) server-side,
+// so there's no councilmember picker. Rendered standalone at
+// /digests/subscribe and embedded on the homepage.
 //
 // Double opt-in: submitting only triggers a verification email; the
 // subscription activates when that link is clicked, so a typo'd or
@@ -24,9 +27,7 @@ export default function SubscribeForm({ embedded = false }) {
   const [step, setStep] = useState(0)
   const [email, setEmail] = useState('')
   const [weeklyEnabled, setWeeklyEnabled] = useState(true)
-  const [dailyEnabled, setDailyEnabled] = useState(false)
   const [issueAreas, setIssueAreas] = useState([])
-  const [repIds, setRepIds] = useState([])
   const [districtId, setDistrictId] = useState('')
   const [honeypot, setHoneypot] = useState('')
   const [error, setError] = useState(null)
@@ -44,8 +45,8 @@ export default function SubscribeForm({ embedded = false }) {
       .then(data => { if (!cancelled) setOptions(data) })
       // Fail open on a fetch error (signup_open: true): the picker lists
       // degrade to empty but the form still works, and the server-side
-      // DIGESTS_ENABLED gate is what actually enforces closed signups.
-      .catch(() => { if (!cancelled) setOptions({ signup_open: true, issue_areas: [], reps: [], districts: [] }) })
+      // signup gate is what actually enforces closed signups.
+      .catch(() => { if (!cancelled) setOptions({ signup_open: true, issue_areas: [], districts: [] }) })
     return () => { cancelled = true }
   }, [])
 
@@ -66,10 +67,14 @@ export default function SubscribeForm({ embedded = false }) {
         setError('Please enter a valid email address.')
         return
       }
-      if (!weeklyEnabled && !dailyEnabled) {
-        setError('Pick at least one cadence — weekly or daily.')
+      if (!weeklyEnabled) {
+        setError('Weekly delivery is the only cadence available right now — keep it checked to subscribe.')
         return
       }
+    }
+    if (step === 1 && !districtId) {
+      setError('Please choose your council district — it’s how we match council activity to you.')
+      return
     }
     setError(null)
     setStep(s => Math.min(s + 1, TOTAL_STEPS - 1))
@@ -87,10 +92,8 @@ export default function SubscribeForm({ embedded = false }) {
         body: JSON.stringify({
           email: email.trim(),
           weekly_enabled: weeklyEnabled,
-          daily_enabled: dailyEnabled,
           issue_areas: issueAreas,
-          followed_rep_ids: repIds,
-          district_id: districtId ? Number(districtId) : null,
+          district_id: Number(districtId),
           website: honeypot,
         }),
       })
@@ -111,7 +114,7 @@ export default function SubscribeForm({ embedded = false }) {
     ? options?.districts.find(d => String(d.id) === String(districtId))?.name
     : null
 
-  // Signups closed (DIGESTS_ENABLED off — the pre-launch state on prod):
+  // Signups closed (the admin gate — the pre-launch state on prod):
   // the homepage embed disappears entirely (also while options load, so a
   // closed prod homepage never flashes the form); the standalone page
   // explains. The footer link stays, which is fine — it just lands here.
@@ -130,9 +133,9 @@ export default function SubscribeForm({ embedded = false }) {
             Get council updates by email
           </H>
           <p className="sf-subtitle">
-            A personalized digest of Seattle City Council activity — only the
-            topics, councilmembers, and district you choose. Free, no account,
-            unsubscribe anytime.
+            A personalized digest of Seattle City Council activity — your
+            district&rsquo;s representatives plus the topics you choose. Free,
+            no account, unsubscribe anytime.
           </p>
           <p className="sf-muted">
             Already subscribed?{' '}
@@ -204,19 +207,56 @@ export default function SubscribeForm({ embedded = false }) {
                     />
                     <span>Weekly summary <span className="sf-muted">(Sunday mornings)</span></span>
                   </label>
-                  <label className="sf-check">
-                    <input
-                      type="checkbox"
-                      checked={dailyEnabled}
-                      onChange={e => setDailyEnabled(e.target.checked)}
-                    />
-                    <span>Daily, when there's news matching your interests</span>
+                  {/* Daily is built but not rolled out — disabled with
+                      explicit colors (AUDIT_FINDINGS: never opacity-only). */}
+                  <label className="sf-check sf-check--disabled">
+                    <input type="checkbox" checked={false} disabled readOnly />
+                    <span>
+                      Daily, when there's news matching your interests{' '}
+                      <span className="sf-coming-soon">(coming soon)</span>
+                    </span>
                   </label>
                 </fieldset>
               </div>
             )}
 
             {step === 1 && (
+              <div>
+                <SubH className="sf-step-title" tabIndex={-1} ref={headingRef}>
+                  Which district do you live in?
+                </SubH>
+                <p className="sf-muted">
+                  Your district connects you to your representatives — the
+                  district&rsquo;s councilmember plus the two citywide
+                  members — so their legislation and committee work reaches
+                  your digest.
+                </p>
+                <label className="sf-label" htmlFor={`${uid}-district`}>
+                  Your council district
+                </label>
+                <select
+                  className="sf-input"
+                  id={`${uid}-district`}
+                  required
+                  value={districtId}
+                  onChange={e => setDistrictId(e.target.value)}
+                  aria-describedby={error ? `${uid}-error` : undefined}
+                >
+                  <option value="">Choose your district…</option>
+                  {(options?.districts ?? []).map(d => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}{d.description ? ` — ${d.description}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="sf-muted">
+                  Not sure which district?{' '}
+                  <Link to="/reps">Look up your address on the council map</Link>.
+                </p>
+              </div>
+            )}
+
+            {step === 2 && (
               <fieldset className="sf-fieldset">
                 <legend className="sf-legend">
                   <SubH className="sf-step-title" tabIndex={-1} ref={headingRef}>
@@ -224,8 +264,9 @@ export default function SubscribeForm({ embedded = false }) {
                   </SubH>
                 </legend>
                 <p className="sf-muted">
-                  Optional — pick any. Leave everything unchecked to hear about
-                  it all through your other selections.
+                  Optional — pick any. Your representatives&rsquo; activity is
+                  included either way; topics widen the net to the whole
+                  council.
                 </p>
                 <div className="sf-checkbox-grid">
                   {(options?.issue_areas ?? []).map(tag => (
@@ -245,49 +286,6 @@ export default function SubscribeForm({ embedded = false }) {
               </fieldset>
             )}
 
-            {step === 2 && (
-              <div>
-                <SubH className="sf-step-title" tabIndex={-1} ref={headingRef}>
-                  Who represents you?
-                </SubH>
-                <fieldset className="sf-fieldset">
-                  <legend className="sf-legend">Councilmembers to follow (optional)</legend>
-                  <div className="sf-checkbox-grid">
-                    {(options?.reps ?? []).map(rep => (
-                      <label className="sf-check" key={rep.id}>
-                        <input
-                          type="checkbox"
-                          checked={repIds.includes(rep.id)}
-                          onChange={() => toggle(repIds, setRepIds, rep.id)}
-                        />
-                        <span>{rep.name} <span className="sf-muted">({rep.seat})</span></span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-                <label className="sf-label" htmlFor={`${uid}-district`}>
-                  Your council district (optional)
-                </label>
-                <select
-                  className="sf-input"
-                  id={`${uid}-district`}
-                  value={districtId}
-                  onChange={e => setDistrictId(e.target.value)}
-                >
-                  <option value="">No district preference</option>
-                  {(options?.districts ?? []).map(d => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}{d.description ? ` — ${d.description}` : ''}
-                    </option>
-                  ))}
-                </select>
-                <p className="sf-muted">
-                  Not sure which district?{' '}
-                  <Link to="/reps">Look up your address on the council map</Link>.
-                </p>
-              </div>
-            )}
-
             {step === 3 && (
               <div>
                 <SubH className="sf-step-title" tabIndex={-1} ref={headingRef}>
@@ -295,23 +293,12 @@ export default function SubscribeForm({ embedded = false }) {
                 </SubH>
                 <dl className="sf-review">
                   <div><dt>Email</dt><dd>{email.trim()}</dd></div>
-                  <div>
-                    <dt>Cadence</dt>
-                    <dd>{[weeklyEnabled && 'Weekly', dailyEnabled && 'Daily when there’s news'].filter(Boolean).join(' + ')}</dd>
-                  </div>
+                  <div><dt>Cadence</dt><dd>Weekly</dd></div>
+                  <div><dt>District</dt><dd>{districtName}</dd></div>
                   <div>
                     <dt>Topics</dt>
-                    <dd>{issueAreas.length ? issueAreas.join(', ') : 'No topic filter'}</dd>
+                    <dd>{issueAreas.length ? issueAreas.join(', ') : 'No topic filter — just your representatives’ activity'}</dd>
                   </div>
-                  <div>
-                    <dt>Following</dt>
-                    <dd>
-                      {repIds.length
-                        ? (options?.reps ?? []).filter(r => repIds.includes(r.id)).map(r => r.name).join(', ')
-                        : 'No councilmembers selected'}
-                    </dd>
-                  </div>
-                  <div><dt>District</dt><dd>{districtName || 'No district preference'}</dd></div>
                 </dl>
                 <p className="sf-muted">
                   We'll email a confirmation link first — nothing is sent until

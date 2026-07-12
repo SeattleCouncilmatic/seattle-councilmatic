@@ -271,6 +271,11 @@ CLAUDE_EVENT_SUMMARY_MODEL = os.getenv("CLAUDE_EVENT_SUMMARY_MODEL", "claude-son
 # bills it has handled. Only 9 committees and re-summarized solely on change
 # (content_hash), so cost is negligible.
 CLAUDE_COMMITTEE_SUMMARY_MODEL = os.getenv("CLAUDE_COMMITTEE_SUMMARY_MODEL", "claude-sonnet-5")
+# Model for the digest intro (#238/#239) IF the LLM intro is turned on
+# (DIGEST_LLM_BACKEND below — off by default). When on, Sonnet is the choice:
+# the intro is a short editorial opening (2-4 connected paragraphs) and Haiku
+# failed the quality gate (thin, forced). Sonnet batched is ~$0.006/send.
+CLAUDE_DIGEST_MODEL = os.getenv("CLAUDE_DIGEST_MODEL", "claude-sonnet-5")
 
 # Outbound email (pipeline health alerts — #210; and any future notifications).
 # Set the SMTP vars in the environment to enable real sending. Without
@@ -331,6 +336,16 @@ DIGEST_POSTAL_ADDRESS = os.getenv("DIGEST_POSTAL_ADDRESS", "")
 # server (which proxies /digests/* to Django); prod sets the public origin
 # — on the Phase 4 launch checklist.
 DIGEST_SITE_BASE_URL = os.getenv("DIGEST_SITE_BASE_URL", "http://localhost:5173")
+# Send-time LLM backend for the digest intro (#238), behind the
+# DigestLLMClient interface: "none" (the DEFAULT — skip the LLM and use the
+# deterministic boilerplate intro; no per-send cost or batch latency),
+# "anthropic" (Batch API editorial intro — CLAUDE_DIGEST_MODEL above), or
+# "openai" (provider-hosted OSS stub — future expansion D). The AI intro
+# reached a good bar but was shelved for launch as not worth the cost/tuning;
+# flip this to "anthropic" to bring it back with no other changes. With
+# "anthropic" and no ANTHROPIC_API_KEY, compose degrades to boilerplate
+# rather than failing — the intro never blocks the digest.
+DIGEST_LLM_BACKEND = os.getenv("DIGEST_LLM_BACKEND", "none")
 
 # Logging (#205). The project previously defined no LOGGING, so settings.LOGGING
 # was Django's default {} — which is what made pupa's CLI KeyError (#216). A real

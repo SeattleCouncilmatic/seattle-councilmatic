@@ -96,6 +96,22 @@
   outline-offset: 1px;
 }
 
+/* Disabled cadence option (daily, until rollout). Explicit colors, not
+   opacity — AUDIT_FINDINGS convention. */
+.dp-check--disabled {
+  color: #6b7280;
+  cursor: not-allowed;
+}
+.dp-check--disabled input {
+  accent-color: #9ca3af;
+  cursor: not-allowed;
+}
+.dp-coming-soon {
+  color: #6b7280;
+  font-size: 0.8125rem;
+  font-style: italic;
+}
+
 .dp-muted {
   color: #4b5563;
   font-size: 0.875rem;

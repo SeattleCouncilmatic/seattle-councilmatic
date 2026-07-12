@@ -11,7 +11,7 @@ from unittest import mock
 
 from django.core import mail
 from django.core.management import CommandError, call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from digests.models import DigestSend, Subscriber
@@ -41,6 +41,11 @@ def _tagged_bill_and_subscriber(email="compose@example.org"):
     return bill, sub
 
 
+# LLM off for the Phase 2 pipeline tests: with the dev API key in the
+# environment, the default "anthropic" backend would submit a REAL batch
+# from compose. The intro paths get dedicated fake-client tests in
+# test_llm_intro.py.
+@override_settings(DIGEST_LLM_BACKEND="none")
 class ComposeTests(TestCase):
     def test_creates_pending_row_with_snapshot(self):
         bill, sub = _tagged_bill_and_subscriber()
@@ -135,6 +140,7 @@ class ComposeTests(TestCase):
         self.assertIn("1 item(s)", out)
 
 
+@override_settings(DIGEST_LLM_BACKEND="none")
 class SendTests(TestCase):
     def test_delivers_and_marks_sent(self):
         bill, sub = _tagged_bill_and_subscriber()
@@ -149,11 +155,14 @@ class SendTests(TestCase):
         html = message.alternatives[0][0]
         for body in (text, html):
             self.assertIn("CB 200001", body)
-            self.assertIn("Tagged Housing", body)
             self.assertIn("What it does.", body)
             self.assertIn("/legislation/cb-200001", body)
             self.assertIn("/digests/unsubscribe?token=", body)
             self.assertIn("/digests/manage?token=", body)
+        # Tag matches render as topic pills in HTML ("Housing") and as the
+        # Why line in plaintext ("Tagged Housing").
+        self.assertIn("Tagged Housing", text)
+        self.assertIn("Housing", html)
         self.assertIn("List-Unsubscribe", message.extra_headers)
         self.assertEqual(
             message.extra_headers["List-Unsubscribe-Post"],
@@ -166,13 +175,13 @@ class SendTests(TestCase):
         sub.refresh_from_db()
         self.assertIsNotNone(sub.last_sent_at)
 
-    def test_legal_title_boilerplate_stays_out_of_the_email(self):
+    def test_title_splits_into_header_link_and_subtitle(self):
         fixtures.bill(
             "CB 200007",
             action_date=RECENT,
             tags=["Housing"],
             title="An ordinance relating to housing; authorizing the Director "
-            "of Housing to execute an amendment to an agreement and ratifying "
+            "of Housing to execute an amendment to an agreement; and ratifying "
             "and confirming certain prior acts.",
         )
         fixtures.subscriber("longtitle@example.org", issue_areas=["Housing"])
@@ -181,16 +190,98 @@ class SendTests(TestCase):
         message = mail.outbox[0]
         for body in (message.body, message.alternatives[0][0]):
             self.assertIn("CB 200007", body)
+            # Clause 1 is the header, clause 2 the subtitle, clause 3+
+            # (boilerplate) stays out entirely.
             self.assertIn("An ordinance relating to housing", body)
+            self.assertIn("authorizing the Director of Housing", body)
             self.assertNotIn("ratifying and confirming", body)
+        # The header link folds the bill number into the first clause.
+        html = message.alternatives[0][0]
+        self.assertIn(
+            "CB 200007 &ndash; An ordinance relating to housing</a>", html
+        )
 
-    def test_quiet_week_email(self):
+    def test_boilerplate_intro_when_llm_off(self):
+        # Default backend is "none": no LLM intro, so the deterministic
+        # boilerplate renders (lightly personalized from the item counts).
+        fixtures.bill("CB 200010", action_date=RECENT, tags=["Housing"])
+        fixtures.subscriber("boiler@example.org", issue_areas=["Housing"])
+        _compose(cadence="weekly")
+        _send()
+        message = mail.outbox[0]
+        # Substrings without an apostrophe — the HTML alt escapes "Here's".
+        for body in (message.body, message.alternatives[0][0]):
+            self.assertIn("weekly roundup of Seattle City Council", body)
+            self.assertIn("updates on key legislation (1 bill)", body)
+
+    def test_quiet_week_gets_no_boilerplate_intro(self):
+        # Quiet weeks use the template's own quiet message, not boilerplate.
         fixtures.subscriber("quietsend@example.org", issue_areas=["Housing"])
         _compose(cadence="weekly")
         _send()
         message = mail.outbox[0]
         self.assertIn("quiet week", message.subject)
         self.assertIn("quiet week", message.body)
+        self.assertNotIn("Here's your weekly roundup", message.body)
+
+    def test_topic_tag_pills_matched_vs_unmatched(self):
+        # All of a bill's tags render as pills; the matched one is
+        # highlighted (indigo #e0e7ff), the rest are gray (#f3f4f6).
+        fixtures.bill(
+            "CB 200009",
+            action_date=RECENT,
+            tags=["Housing", "Transportation"],
+        )
+        fixtures.subscriber("pills@example.org", issue_areas=["Housing"])
+        _compose(cadence="weekly")
+        _send()
+        message = mail.outbox[0]
+        html = message.alternatives[0][0]
+        self.assertIn("Housing", html)
+        self.assertIn("Transportation", html)
+        self.assertIn("#f3f4f6", html)  # the unmatched pill's gray
+        self.assertIn("Topics: Housing, Transportation", message.body)
+
+    def test_upcoming_meetings_sidebar_renders(self):
+        rep = fixtures.councilmember("Robert Kettle", "District 7")
+        fixtures.committee_membership(rep, fixtures.committee("Public Safety"))
+        future = (timezone.now() + timedelta(days=3)).replace(
+            hour=9, minute=30, second=0, microsecond=0
+        )
+        fixtures.meeting(
+            "Public Safety Committee", start_date=future.isoformat()
+        )
+        fixtures.bill("CB 200008", action_date=RECENT, tags=["Housing"])
+        fixtures.subscriber(
+            "sidebar@example.org", issue_areas=["Housing"], followed_reps=[rep]
+        )
+        _compose(cadence="weekly")
+        _send()
+        message = mail.outbox[0]
+        self.assertIn("COMING UP", message.body)
+        self.assertIn("Public Safety Committee", message.body)
+        html = message.alternatives[0][0]
+        self.assertIn("Coming up", html)
+        self.assertIn("Public Safety Committee", html)
+
+    def test_quiet_week_still_gets_upcoming_meetings(self):
+        # The sidebar is computed at send time, not from the snapshot — a
+        # quiet week with a meeting on the calendar is still worth opening.
+        rep = fixtures.councilmember("Robert Kettle", "District 7")
+        fixtures.committee_membership(rep, fixtures.committee("Public Safety"))
+        # Microseconds stripped: Event.start_date is varchar(25).
+        future = (
+            (timezone.now() + timedelta(days=2))
+            .replace(microsecond=0)
+            .isoformat()
+        )
+        fixtures.meeting("Public Safety Committee", start_date=future)
+        fixtures.subscriber("quietup@example.org", followed_reps=[rep])
+        _compose(cadence="weekly")
+        _send()
+        message = mail.outbox[0]
+        self.assertIn("quiet week", message.subject)
+        self.assertIn("COMING UP", message.body)
 
     def test_smtp_guard_refuses_outside_debug(self):
         # Test runner forces DEBUG=False, which is the guard's real prod
