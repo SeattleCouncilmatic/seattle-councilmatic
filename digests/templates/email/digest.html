@@ -47,42 +47,11 @@ request context at send time.
     <div style="display:inline-block;width:100%;max-width:396px;vertical-align:top;font-size:15px;">
       <div style="padding-right:16px;">
 
-{% if bill_items %}
-        <p style="margin:0 0 10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;border-bottom:2px solid #e5e7eb;padding-bottom:6px;">
-          Legislation
-        </p>
-        {% for item in bill_items %}
-        <div style="border:2px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin:0 0 12px;">
-          <p style="margin:0 0 4px;font-size:15px;font-weight:700;line-height:1.4;">
-            <a href="{{ site_base }}{{ item.url_path }}" style="color:#2E3D5B;">{{ item.identifier }} &ndash; {{ item.short_title }}</a>
-          </p>
-          {% if item.subtitle %}
-          <p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:#6b7280;">
-            {{ item.subtitle }}
-          </p>
-          {% endif %}
-          <p style="margin:0 0 8px;">
-            {% for tag in item.tags %}{% if tag.matched %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ tag.name }}</span>{% else %}<span style="display:inline-block;background:#f3f4f6;color:#6b7280;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ tag.name }}</span>{% endif %}{% endfor %}{% for reason in item.display_reasons %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ reason }}</span>{% endfor %}
-          </p>
-          {% if item.latest_action %}
-          <p style="margin:0 0 6px;font-size:13px;line-height:1.5;color:#374151;">
-            <strong>Latest{% if item.date %} ({{ item.date }}){% endif %}:</strong>
-            {{ item.latest_action }}
-          </p>
-          {% endif %}
-          {% if item.blurb %}
-          <p style="margin:0 0 6px;font-size:13.5px;line-height:1.55;font-style:italic;color:#374151;">{{ item.blurb }}</p>
-          {% endif %}
-          {% if item.summary %}
-          <p style="margin:0;font-size:13.5px;line-height:1.55;color:#374151;">{{ item.summary }}</p>
-          {% endif %}
-        </div>
-        {% endfor %}
-{% endif %}
-
+{% comment %} Recaps first — recent council activity is the timely part;
+key legislation follows. {% endcomment %}
 {% if meeting_items %}
-        <p style="margin:6px 0 10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;border-bottom:2px solid #e5e7eb;padding-bottom:6px;">
-          Meeting recaps
+        <p style="margin:0 0 10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;border-bottom:2px solid #e5e7eb;padding-bottom:6px;">
+          Recent council activity
         </p>
         {% for item in meeting_items %}
         <div style="border:2px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin:0 0 12px;">
@@ -95,6 +64,39 @@ request context at send time.
           <p style="margin:0 0 8px;">
             {% for reason in item.display_reasons %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ reason }}</span>{% endfor %}
           </p>
+          {% if item.blurb %}
+          <p style="margin:0 0 6px;font-size:13.5px;line-height:1.55;font-style:italic;color:#374151;">{{ item.blurb }}</p>
+          {% endif %}
+          {% if item.summary %}
+          <p style="margin:0;font-size:13.5px;line-height:1.55;color:#374151;">{{ item.summary }}</p>
+          {% endif %}
+        </div>
+        {% endfor %}
+{% endif %}
+
+{% if bill_items %}
+        <p style="margin:6px 0 10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;border-bottom:2px solid #e5e7eb;padding-bottom:6px;">
+          Key legislation
+        </p>
+        {% for item in bill_items %}
+        <div style="border:2px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin:0 0 12px;">
+          <p style="margin:0 0 4px;font-size:15px;font-weight:700;line-height:1.4;">
+            <a href="{{ site_base }}{{ item.url_path }}" style="color:#2E3D5B;">{{ item.identifier }} &ndash; {{ item.short_title }}</a>
+          </p>
+          {% if item.subtitle %}
+          <p style="margin:0 0 8px;font-size:13.5px;line-height:1.5;font-weight:700;color:#374151;">
+            {{ item.subtitle }}
+          </p>
+          {% endif %}
+          <p style="margin:0 0 8px;">
+            {% for tag in item.tags %}{% if tag.matched %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ tag.name }}</span>{% else %}<span style="display:inline-block;background:#f3f4f6;color:#6b7280;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ tag.name }}</span>{% endif %}{% endfor %}{% for reason in item.display_reasons %}<span style="display:inline-block;background:#e0e7ff;color:#3730a3;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;margin:0 4px 4px 0;">{{ reason }}</span>{% endfor %}
+          </p>
+          {% if item.latest_action %}
+          <p style="margin:0 0 6px;font-size:13px;line-height:1.5;color:#374151;">
+            <strong>Latest{% if item.date %} ({{ item.date }}){% endif %}:</strong>
+            {{ item.latest_action }}
+          </p>
+          {% endif %}
           {% if item.blurb %}
           <p style="margin:0 0 6px;font-size:13.5px;line-height:1.55;font-style:italic;color:#374151;">{{ item.blurb }}</p>
           {% endif %}

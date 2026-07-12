@@ -212,7 +212,7 @@ class SendTests(TestCase):
         # Substrings without an apostrophe — the HTML alt escapes "Here's".
         for body in (message.body, message.alternatives[0][0]):
             self.assertIn("weekly roundup of Seattle City Council", body)
-            self.assertIn("1 bill with recent council action", body)
+            self.assertIn("updates on key legislation (1 bill)", body)
 
     def test_quiet_week_gets_no_boilerplate_intro(self):
         # Quiet weeks use the template's own quiet message, not boilerplate.
